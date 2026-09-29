@@ -1,0 +1,619 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\View\View;
+
+class ManualController extends Controller
+{
+    public function index(): View
+    {
+        return view('core-modules.index', [
+            'pillars' => $this->pillars(),
+            'workflows' => $this->workflows(),
+            'testSuites' => $this->testSuites(),
+            'controlManuals' => $this->controlManuals(),
+            'gaps' => $this->gaps(),
+            'routines' => $this->routines(),
+            'thaiErpStandards' => $this->thaiErpStandards(),
+            'thaiErpSources' => $this->thaiErpSources(),
+            'bplusBackCoverage' => $this->bplusBackCoverage(),
+            'blueprintControls' => $this->blueprintControls(),
+            'blueprintRoadmap' => $this->blueprintRoadmap(),
+            'calculationFormulas' => $this->calculationFormulas(),
+        ]);
+    }
+
+    private function blueprintRoadmap(): array
+    {
+        return [
+            ['phase' => 'Phase 0', 'title' => 'Discovery & Traceability', 'scope' => 'Mapping เอกสาร Bplus, field/data dictionary, กฎ VAT/WHT และยอดตั้งต้น', 'exit' => 'เจ้าของงานและบัญชีลงชื่อรับรอง mapping', 'status' => 'กำลังตรวจ', 'tone' => 'partial'],
+            ['phase' => 'Phase 1', 'title' => 'Foundation', 'scope' => 'บริษัท สาขา คลัง ผู้ใช้ RBAC เลขเอกสาร งวดบัญชี และ audit', 'exit' => 'สิทธิ์และเลขเอกสารไม่ชนกัน', 'status' => 'มีชุดหลัก', 'tone' => 'partial'],
+            ['phase' => 'Phase 2', 'title' => 'Product & Inventory Core', 'scope' => 'สินค้า barcode หน่วยนับ lot/expiry ledger โอน ปรับ และตรวจนับ', 'exit' => 'rebuild จำนวนและมูลค่าจาก ledger ได้', 'status' => 'พร้อมใช้บางส่วน', 'tone' => 'partial'],
+            ['phase' => 'Phase 3', 'title' => 'Procurement + AP', 'scope' => 'PR/PO/รับสินค้า ตั้งหนี้ เจ้าหนี้ VAT/WHT และจ่ายเงิน', 'exit' => 'P2P และ posting ผ่าน end-to-end', 'status' => 'มีชุดหลัก', 'tone' => 'partial'],
+            ['phase' => 'Phase 4', 'title' => 'Sales + AR', 'scope' => 'เสนอราคา ใบจอง ขายสด ขายเชื่อ ส่งของ รับเงิน คืน และลูกหนี้', 'exit' => 'O2C และ posting ผ่าน end-to-end', 'status' => 'มีชุดหลัก', 'tone' => 'partial'],
+            ['phase' => 'Phase 5', 'title' => 'POS Offline', 'scope' => 'catalog ราคา promotion SQLite outbox hardware shift และ sync', 'exit' => 'offline/restart/retry แล้วไม่เกิดบิลซ้ำ', 'status' => 'กำลังทดสอบ Windows', 'tone' => 'partial'],
+            ['phase' => 'Phase 6', 'title' => 'Accounting & Closing', 'scope' => 'ผังบัญชี posting profile GL ธนาคาร กระทบยอด ปิดงวด และงบ', 'exit' => 'subledger ตรง trial balance', 'status' => 'มีชุดหลัก', 'tone' => 'partial'],
+            ['phase' => 'Phase 7', 'title' => 'Reporting & Parallel Run', 'scope' => 'dashboard migration rehearsal เทียบ Bplus/new ERP และ cut-over', 'exit' => 'control totals ผ่านและผู้ใช้ sign-off', 'status' => 'กำลังเตรียม', 'tone' => 'partial'],
+            ['phase' => 'Phase 8', 'title' => 'Extensions', 'scope' => 'ทรัพย์สิน เงินเดือน OCR portal AI และ forecasting', 'exit' => 'เปิดใช้ตามลำดับความคุ้มค่า', 'status' => 'วางแผน', 'tone' => 'planned'],
+        ];
+    }
+
+    private function blueprintControls(): array
+    {
+        return [
+            ['key' => 'ledger', 'title' => 'Ledger First', 'rule' => 'สต๊อก เงิน ลูกหนี้ เจ้าหนี้ และ GL ต้องเกิดจาก ledger/รายการเคลื่อนไหว ไม่แก้ยอดคงเหลือโดยตรง', 'check' => 'ยอดคงเหลือต้อง rebuild จากรายการต้นทางได้ และมีรายงานผลต่างเมื่อ snapshot ไม่ตรง'],
+            ['key' => 'immutable', 'title' => 'Posted Immutable', 'rule' => 'เอกสารที่ POSTED แล้วห้ามแก้ทับหรือลบ ใช้ยกเลิก reverse หรือใบลด/เพิ่มหนี้แทน', 'check' => 'มีเลขเอกสารอ้างอิง เหตุผล ผู้ทำรายการ และ audit trail ทุกครั้ง'],
+            ['key' => 'lifecycle', 'title' => 'Document Lifecycle', 'rule' => 'เอกสารต้องเดินสถานะ Draft → Submitted → Approved → Posted → Closed/Voided และอ้างอิงเอกสารต้นทาง', 'check' => 'ใบจอง ใบขายเชื่อ ใบส่งของ POS และรับชำระตรวจย้อนกลับถึงต้นทางได้'],
+            ['key' => 'scope', 'title' => 'Branch/Warehouse Scope', 'rule' => 'ทุกธุรกรรมระบุบริษัท สาขา คลัง และตำแหน่งจัดเก็บตามความจำเป็น', 'check' => 'ผู้ใช้เห็นและทำรายการได้เฉพาะขอบเขตสิทธิ์ของตน พร้อมรายงานแยกสาขา'],
+            ['key' => 'offline', 'title' => 'Offline POS Idempotency', 'rule' => 'POS ใช้ local UUID และ outbox ส่งซ้ำได้โดยไม่สร้างบิลซ้ำ พร้อมเก็บสถานะ retry/error', 'check' => 'ไฟดับ เน็ตหลุด หรือกด sync ซ้ำต้องได้ผลลัพธ์เดิมและตรวจสอบได้'],
+            ['key' => 'precision', 'title' => 'Precision & Reconciliation', 'rule' => 'ยอดเงินใช้ decimal ที่กำหนดชัดเจน ต้นทุนขายอ้างอิง Lot จริง และผลรวมต้องกระทบยอดกับ GL', 'check' => 'รายงานยอดขาย ต้นทุน กำไร ภาษี และสต๊อกมีผลต่างพร้อมสาเหตุ'],
+        ];
+    }
+
+    private function bplusBackCoverage(): array
+    {
+        return [
+            ['group' => 'ตั้งค่าหลัก', 'flow' => 'บริษัท → สาขา → คลัง/ที่เก็บ → เล่มเอกสาร → ภาษี → ผังบัญชี', 'documents' => 'Master data และเลขที่เอกสาร', 'impact' => 'เป็นต้นทางของทุกโมดูล', 'status' => 'มีชุดหลัก', 'tone' => 'partial', 'route' => 'settings.index', 'next' => 'ใช้ตัวช่วยตรวจความครบก่อนเปิดสาขา'],
+            ['group' => 'จัดซื้อ', 'flow' => 'ขอซื้อ → สอบราคา → PO → รับสินค้า → ตั้งหนี้ → จ่ายเงิน', 'documents' => 'PR, quotation, PO, receipt, AP voucher, payment', 'impact' => 'Stock + AP + VAT ซื้อ + GL', 'status' => 'มีชุดหลัก', 'tone' => 'partial', 'route' => 'purchase-orders.index', 'next' => 'เติม PR/สอบราคาและ three-way match'],
+            ['group' => 'ขายหลังบ้าน', 'flow' => 'ใบเสนอราคา/ใบจอง → จัดสินค้า → ใบขายสด/เชื่อ → รับชำระ/วางบิล → คืน/ลดหนี้', 'documents' => 'Quotation, reservation, sale, invoice, receipt, credit note', 'impact' => 'Stock + AR/เงินสด + VAT ขาย + GL', 'status' => 'มีชุดหลัก', 'tone' => 'partial', 'route' => 'reservations.index', 'next' => 'เติมค้างส่ง ค้างชำระ และตรวจเครดิต'],
+            ['group' => 'POS', 'flow' => 'เปิดกะ → ขาย → ชำระ → พิมพ์ใบเสร็จ → ปิดกะ → Sync ERP', 'documents' => 'POS receipt, payment, shift close, sync queue', 'impact' => 'Stock + เงินสด/ธนาคาร + รายได้ + COGS', 'status' => 'มีชุดหลัก', 'tone' => 'partial', 'route' => 'pos.index', 'next' => 'UAT Windows จริง: offline, ไฟดับ, retry และ duplicate'],
+            ['group' => 'คลัง', 'flow' => 'รับเข้า/เบิก/โอน/คืน/ปรับ → ตรวจนับ → อนุมัติผลต่าง', 'documents' => 'Stock movement, transfer, count, adjustment', 'impact' => 'จำนวนและมูลค่า Stock พร้อม audit', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'stock-counts.index', 'next' => 'บังคับ freeze และ maker-checker ทุกคลัง'],
+            ['group' => 'ต้นทุน', 'flow' => 'รับ Lot → FIFO/FEFO → ตัดขาย/คืน → ปิดต้นทุนรายงวด', 'documents' => 'Lot, valuation, COGS, period close', 'impact' => 'COGS + กำไร + Inventory GL', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'products.index', 'next' => 'เพิ่มรายงานต้นทุนผิดปกติก่อนปิดงวด'],
+            ['group' => 'ผลิต/แปรรูป', 'flow' => 'สูตร/BOM → ตัดวัตถุดิบ → รับผลผลิต → บันทึก Yield/สูญเสีย → ป้ายชั่ง', 'documents' => 'Production/transform batch และ label', 'impact' => 'วัตถุดิบออก + ผลผลิตเข้า + ต้นทุน Batch', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'stock-transforms.index', 'next' => 'เพิ่ม version สูตรและค่าแรง/โสหุ้ย'],
+            ['group' => 'ลูกหนี้', 'flow' => 'ขายเชื่อ → วางบิล → เตรียมรับชำระ → รับเงิน/เช็ค → กระทบยอด', 'documents' => 'AR invoice, billing, receipt batch, cheque', 'impact' => 'AR + เงินสด/ธนาคาร + GL', 'status' => 'มีชุดหลัก', 'tone' => 'partial', 'route' => 'customers.index', 'next' => 'เติม aging, เช็คเด้ง และใบเพิ่ม/ลดหนี้อิสระ'],
+            ['group' => 'เจ้าหนี้', 'flow' => 'ใบรับของ/ค่าใช้จ่าย → AP voucher → ขออนุมัติจ่าย → จ่ายเงิน', 'documents' => 'AP voucher, payment request, WHT', 'impact' => 'AP + เงินสด/ธนาคาร + VAT/WHT + GL', 'status' => 'มีชุดหลัก', 'tone' => 'partial', 'route' => 'suppliers.index', 'next' => 'แยกสินค้ากับค่าใช้จ่ายและเพิ่ม payment approval'],
+            ['group' => 'เงินสด/ธนาคาร', 'flow' => 'รับ/จ่าย → ฝาก/ถอน/โอน → Statement → Reconcile → ปิดวัน', 'documents' => 'Cashbook, bank transfer, statement, reconciliation', 'impact' => 'ยอดเงินและรายการค้างตรวจ', 'status' => 'มีชุดหลัก', 'tone' => 'partial', 'route' => 'monthly-accounting.index', 'next' => 'เพิ่มเอกสารฝาก/ถอน/โอนและ exception queue'],
+            ['group' => 'ค่าใช้จ่าย', 'flow' => 'บันทึกค่าใช้จ่าย → แนบหลักฐาน → ระบุสาขา/รถ/โครงการ → อนุมัติ → ลง GL', 'documents' => 'Expense voucher, receipt image, WHT', 'impact' => 'Expense + VAT/WHT + GL ตามมิติ', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'expenses.index', 'next' => 'ใช้ vehicle, asset และ project เป็น dimension มาตรฐาน'],
+            ['group' => 'ทรัพย์สิน', 'flow' => 'ซื้อ/รับเข้า → ทะเบียน → ค่าเสื่อม → ซ่อม → ขาย/ตัดจำหน่าย', 'documents' => 'Asset register, depreciation, disposal', 'impact' => 'FA + ค่าเสื่อม + GL', 'status' => 'มีชุดหลัก', 'tone' => 'partial', 'route' => 'fixed-assets.index', 'next' => 'ผูกใบซื้อและประวัติซ่อมกับทะเบียน'],
+            ['group' => 'บัญชี/ภาษี', 'flow' => 'เอกสารต้นทาง → Journal → ตรวจเดบิต=เครดิต → ปิดงวด → ภาษี/งบ', 'documents' => 'GL journal, VAT, WHT, tax working paper, statements', 'impact' => 'GL, P&L, balance sheet, tax filing', 'status' => 'มีชุดหลัก', 'tone' => 'partial', 'route' => 'financial-statements.index', 'next' => 'เพิ่ม source trace, period lock และ format สำนักงานบัญชี'],
+            ['group' => 'รายงาน', 'flow' => 'กรองช่วงเวลา/สาขา/เอกสาร → สรุป → drill-down → export → ตรวจรับ', 'documents' => 'Operational, financial, tax and audit reports', 'impact' => 'ตัวเลขต้องย้อนกลับหาเอกสารต้นทางได้', 'status' => 'มีชุดหลัก', 'tone' => 'partial', 'route' => 'reports.index', 'next' => 'เพิ่ม saved views และรายงานค้างส่ง/ค้างจ่าย'],
+            ['group' => 'สิทธิ/อนุมัติ', 'flow' => 'ผู้สร้าง → ผู้ตรวจ → ผู้อนุมัติ → ยืนยัน → ยกเลิก/กลับรายการ', 'documents' => 'Approval history และ audit log', 'impact' => 'ป้องกันแก้/อนุมัติเองและแก้ย้อนหลัง', 'status' => 'มีชุดหลัก', 'tone' => 'partial', 'route' => 'users.index', 'next' => 'ทำ matrix ตามสาขา ประเภทเอกสาร และวงเงิน'],
+            ['group' => 'นำเข้า/สำรอง', 'flow' => 'ไฟล์/ฐานข้อมูลเก่า → staging → validate → preview → import → checksum/backup', 'documents' => 'Import batch, error log, backup/restore record', 'impact' => 'ไม่เขียนฐานข้อมูลเก่าระหว่างตรวจ และกู้คืนได้', 'status' => 'มีชุดหลัก', 'tone' => 'partial', 'route' => 'database-structure.index', 'next' => 'ทำ restore drill และรายงานผลตรวจทุก batch'],
+        ];
+    }
+
+    private function calculationFormulas(): array
+    {
+        return [
+            [
+                'title' => 'ต้นทุนรับเข้าเมื่อ VAT ขอคืนได้',
+                'formula' => 'ต้นทุนต่อหน่วย = ราคารวม VAT ÷ (1 + อัตรา VAT)',
+                'example' => 'ซื้อ 107.00 บาท VAT 7% → ต้นทุนสินค้า 100.00 บาท และ VAT ซื้อ 7.00 บาท',
+                'stock' => 'สร้าง Lot รับเข้าตามจำนวนจริงและต้นทุนก่อน VAT',
+                'check' => 'มูลค่า Lot + VAT ซื้อ = ยอดเจ้าหนี้/เงินสด',
+            ],
+            [
+                'title' => 'ต้นทุนรับเข้าเมื่อไม่ขอคืน VAT',
+                'formula' => 'ต้นทุนต่อหน่วย = ราคาที่จ่ายรวม VAT',
+                'example' => 'ซื้อ 107.00 บาทและไม่ขอคืน VAT → ต้นทุนสินค้า 107.00 บาท',
+                'stock' => 'VAT ทั้งหมดรวมเป็นต้นทุนของ Lot',
+                'check' => 'มูลค่า Lot = ยอดเจ้าหนี้/เงินสด',
+            ],
+            [
+                'title' => 'ต้นทุนเฉลี่ยเคลื่อนไหว',
+                'formula' => 'ต้นทุนเฉลี่ยใหม่ = (จำนวนเดิม × ทุนเฉลี่ยเดิม + จำนวนรับ × ทุนรับเข้า) ÷ (จำนวนเดิม + จำนวนรับ)',
+                'example' => 'เดิม 10 × 10 บาท รับเพิ่ม 5 × 20 บาท → ทุนเฉลี่ยใหม่ 13.33333333 บาท',
+                'stock' => 'คำนวณทุกครั้งที่ซื้อหรือรับผลผลิต แต่ไม่ย้อนแก้ต้นทุนขายที่เกิดแล้ว',
+                'check' => 'จำนวนคงเหลือ × ทุนเฉลี่ย ใช้วิเคราะห์; มูลค่าบัญชีจริงกระทบยอดจาก Lot',
+            ],
+            [
+                'title' => 'ต้นทุนเฉลี่ยรายงวด',
+                'formula' => 'ทุนเฉลี่ยงวด = (มูลค่าเปิดงวด + มูลค่ารับเข้าที่ไม่ใช่โอน) ÷ (จำนวนเปิดงวด + จำนวนรับเข้าที่ไม่ใช่โอน)',
+                'example' => 'เปิดงวด 6 หน่วย 60 บาท รับ 10 หน่วย 260 บาท → 20.00 บาทต่อหน่วย',
+                'stock' => 'บันทึก Snapshot เมื่อปิดต้นทุนรายเดือนและไม่เปลี่ยนจนกว่าจะเปิดงวดใหม่',
+                'check' => 'มูลค่าปลายงวด = ผลรวมจำนวนคงเหลือแต่ละ Lot × ต้นทุน Lot',
+            ],
+            [
+                'title' => 'ตัดขาย FIFO / FEFO',
+                'formula' => 'ต้นทุนขาย = Σ(จำนวนที่ตัดจากแต่ละ Lot × ต้นทุนต่อหน่วยของ Lot นั้น)',
+                'example' => 'Lot A 3 × 10 บาท + Lot B 2 × 12 บาท → COGS 54 บาท',
+                'stock' => 'สินค้าทั่วไปตัด FIFO; สินค้ามีวันหมดอายุตัด FEFO แล้วเรียงวันรับ',
+                'check' => 'ยอดซื้อสะสม - COGS - ต้นทุนของเสีย = มูลค่า Lot คงเหลือ',
+            ],
+            [
+                'title' => 'โอนคลังและคืนสินค้า',
+                'formula' => 'โอน: ต้นทุนปลายทาง = ต้นทุน Lot ต้นทาง · คืนขาย: ต้นทุนคืน = ต้นทุนเดิมของรายการขาย',
+                'example' => 'โอน 4 หน่วยจาก Lot ทุน 12.34567891 บาท → ปลายทางรับทุนเดิมทุกตำแหน่ง',
+                'stock' => 'โอนไม่สร้างกำไร; คืนสินค้าสร้าง Lot อ้างอิง Lot เดิมและเข้ากักกันจนผ่าน QC',
+                'check' => 'ปริมาณออกต้นทาง = ปริมาณเข้าปลายทาง และมูลค่ารวมไม่เปลี่ยน',
+            ],
+            [
+                'title' => 'ผลิต / แปรรูป / ควบคุมสูญเสีย',
+                'formula' => 'ต้นทุนผลผลิตต่อหน่วย = Σ ต้นทุนวัตถุดิบที่ตัดจริงแบบ FIFO/FEFO ÷ จำนวนผลผลิตจริง',
+                'example' => 'วัตถุดิบจริง 37.03703673 บาท ได้ผลผลิต 2 หน่วย → ทุน 18.51851837 บาทต่อหน่วย',
+                'stock' => 'ตัดวัตถุดิบและรับ Lot ผลผลิตในธุรกรรมเดียว พร้อม Lot lineage ย้อนสอบได้',
+                'check' => 'ต้นทุนวัตถุดิบออก = ต้นทุนผลผลิตเข้า; หากขั้นตอนใดล้มเหลวต้อง Rollback ทั้งรายการ',
+            ],
+            [
+                'title' => 'กำไรและอัตรากำไร',
+                'formula' => 'กำไร = ยอดขายก่อน VAT - COGS · Margin % = กำไร ÷ ยอดขายก่อน VAT × 100',
+                'example' => 'ราคาขายรวม VAT 214 บาท → สุทธิ 200 บาท, COGS 110 บาท → กำไร 90 บาท, Margin 45%',
+                'stock' => 'ใช้ต้นทุน Lot ที่ถูกตัดจริง ไม่ใช้ราคาซื้อล่าสุดแทนต้นทุนขายย้อนหลัง',
+                'check' => 'รายได้ก่อน VAT - COGS ต้องตรงรายงานกำไรสินค้าและ GL',
+            ],
+        ];
+    }
+
+    private function thaiErpStandards(): array
+    {
+        return [
+            ['group' => 'ขายและ POS', 'capability' => 'ขายปลีก/ขายส่ง หลายราคา หลายหน่วย และบาร์โค้ด', 'benchmark' => 'มาตรฐานพื้นฐานของ ERP/POS ไทยสำหรับร้านหลายรูปแบบ', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'pos.index', 'next' => 'ทดสอบราคาจริงและหน่วยบรรจุของสินค้าทุกกลุ่ม'],
+            ['group' => 'ขายและ POS', 'capability' => 'สมาชิก แต้ม โปรโมชั่น คูปอง และสิทธิ์ส่วนลด', 'benchmark' => 'ควบคุมแคมเปญและประวัติลูกค้าจากหน้าร้าน', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'members.index', 'next' => 'เพิ่ม segmentation และวัดกำไรสุทธิรายแคมเปญ'],
+            ['group' => 'ขายและ POS', 'capability' => 'เครื่องชั่ง PLU/บาร์โค้ดน้ำหนักและราคาฝังในฉลาก', 'benchmark' => 'รองรับร้านของสดและฮาร์ดแวร์หน้าร้าน', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'scale-prices.index', 'next' => 'ทำรายการรุ่นเครื่องชั่งและรูปแบบบาร์โค้ดที่ผ่านการทดสอบ'],
+            ['group' => 'ขายและ POS', 'capability' => 'ขายออฟไลน์และซิงก์กลับเมื่ออินเทอร์เน็ตมา', 'benchmark' => 'Local SQLite เก็บคิวก่อนส่ง ERP และฝั่งเซิร์ฟเวอร์รับรอง exactly-once ต่อเครื่องและข้อมูลบิล', 'status' => 'มีชุดหลัก', 'tone' => 'partial', 'route' => 'bplus.pos-workbench', 'next' => 'ทดสอบไฟดับ เน็ตหลุด คิวค้าง และ updater บน POS Windows จริงทุกสาขา'],
+            ['group' => 'ขายและ POS', 'capability' => 'ร้านอาหาร โต๊ะ ครัว แยก/รวมบิล และตัวเลือกวิธีปรุง', 'benchmark' => 'ความสามารถเฉพาะ Restaurant POS ที่พบในตลาดไทย', 'status' => 'ยังไม่ทำ', 'tone' => 'planned', 'route' => null, 'next' => 'ทำเฉพาะเมื่อ PopStar เปิดธุรกิจร้านอาหารเต็มรูปแบบ'],
+
+            ['group' => 'สินค้าและคลัง', 'capability' => 'หลายคลัง หลายตำแหน่ง หลายสาขา และสินค้าระหว่างทาง', 'benchmark' => 'เห็นตำแหน่งและสถานะสินค้าแยกแต่ละสาขา', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'warehouse-locations.index', 'next' => 'กำหนด location จริงและผู้รับผิดชอบทุกคลัง'],
+            ['group' => 'สินค้าและคลัง', 'capability' => 'Lot/Serial/วันหมดอายุ FEFO กักกัน และเรียกคืน', 'benchmark' => 'จำเป็นกับอาหาร ยา และสินค้าที่ต้องสอบย้อนกลับ', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'products.index', 'next' => 'บังคับกรอก Lot/วันหมดอายุในกลุ่มสินค้าควบคุม'],
+            ['group' => 'สินค้าและคลัง', 'capability' => 'ตรวจนับด้วยมือถือ ปรับยอดแบบ Maker-Checker และ Audit', 'benchmark' => 'ลดการแก้สต๊อกโดยไม่มีหลักฐาน', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'stock-counts.index', 'next' => 'กำหนดรอบนับ ABC และ tolerance รายกลุ่ม'],
+            ['group' => 'สินค้าและคลัง', 'capability' => 'FIFO/FEFO ต้นทุนรับเข้าล่าสุด ต้นทุนเฉลี่ยรายเดือน และปิดต้นทุนรายงวด', 'benchmark' => 'ต้นทุนขายและมูลค่าสินค้าต้องย้อนตรวจถึง Lot ได้', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'products.index', 'next' => 'กระทบยอด GL Inventory กับ Stock Valuation ทุกเดือน'],
+            ['group' => 'สินค้าและคลัง', 'capability' => 'เติมเต็มสินค้าอัตโนมัติ Min/Max/Reorder และเสนอซื้อ', 'benchmark' => 'ลดของขาดและของค้างด้วยยอดขาย Stock พร้อมขาย ของค้างรับ Lead time Safety stock และ MOQ', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'bplus.purchase-planning', 'next' => 'ติดตามความแม่นยำคำแนะนำเทียบยอดขายจริงและเพิ่มปัจจัยฤดูกาล'],
+
+            ['group' => 'จัดซื้อและเจ้าหนี้', 'capability' => 'PR/PO อนุมัติ รับของบางส่วน และติดตามของค้างส่ง', 'benchmark' => 'วงจรจัดซื้อต้องแยกผู้ขอ ผู้อนุมัติ และผู้รับของ', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'purchase-orders.index', 'next' => 'เพิ่ม Supplier quotation comparison แบบหลายเจ้า'],
+            ['group' => 'จัดซื้อและเจ้าหนี้', 'capability' => 'Three-way match ระหว่าง PO ใบรับของ และใบกำกับผู้ขาย', 'benchmark' => 'ป้องกันจ่ายเกินจำนวน ราคา หรือของที่ยังไม่รับ', 'status' => 'มีชุดหลัก', 'tone' => 'partial', 'route' => 'purchases.index', 'next' => 'ทำหน้าข้อยกเว้นพร้อม tolerance และผู้อนุมัติ'],
+            ['group' => 'จัดซื้อและเจ้าหนี้', 'capability' => 'AP Aging กำหนดชำระ เช็ค/โอน และภาษีหัก ณ ที่จ่าย', 'benchmark' => 'วางแผนเงินจ่ายและออกหลักฐานภาษีครบ', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'suppliers.index', 'next' => 'เพิ่ม payment proposal ตามวันครบกำหนดและกระแสเงินสด'],
+
+            ['group' => 'ผลิตและแปรรูป', 'capability' => 'BOM/สูตรผลิต ตัดวัตถุดิบ รับผลผลิต Yield และของเสีย', 'benchmark' => 'คำนวณต้นทุนจริงจากวัตถุดิบและน้ำหนักผลผลิต', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'production.index', 'next' => 'เพิ่ม version สูตรและวันเริ่มมีผล'],
+            ['group' => 'ผลิตและแปรรูป', 'capability' => 'ชุดสินค้า/แกะ-ประกอบ/แบ่งบรรจุ พร้อมป้ายเครื่องชั่ง', 'benchmark' => 'รองรับชุดหมูกระทะและของสดที่แปรรูปหลายรายการ', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'stock-transforms.index', 'next' => 'บันทึกแรงงานและค่าโสหุ้ยต่อ Batch'],
+            ['group' => 'ผลิตและแปรรูป', 'capability' => 'วางแผนกำลังผลิต MRP และ Capacity', 'benchmark' => 'โรงงานขนาดกลางต้องคำนวณวัตถุดิบและกำลังเครื่อง/คนล่วงหน้า', 'status' => 'ยังไม่ทำ', 'tone' => 'planned', 'route' => null, 'next' => 'เริ่มจาก demand plan และ material requirement ตามสูตร'],
+
+            ['group' => 'บัญชีและภาษีไทย', 'capability' => 'GL อัตโนมัติ งบทดลอง P&L งบดุล กระแสเงินสด และล็อกงวด', 'benchmark' => 'รายการต้นทางต้องไหลถึงงบและย้อนกลับหาเอกสารได้', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'financial-statements.index', 'next' => 'เพิ่มมิติรายสาขา Cost Center และงบเปรียบเทียบ'],
+            ['group' => 'บัญชีและภาษีไทย', 'capability' => 'VAT ซื้อ/ขาย ภ.พ.30 และ ภ.ง.ด.3/53 พร้อม Working paper', 'benchmark' => 'ส่งสำนักงานบัญชีและตรวจผู้จัดทำ/ผู้ตรวจได้', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'tax-compliance.index', 'next' => 'เพิ่ม format กลาง ภ.ง.ด.1 และตรวจตามเวอร์ชันกรมสรรพากร'],
+            ['group' => 'บัญชีและภาษีไทย', 'capability' => 'e-Tax Invoice/e-Receipt XML ลายมือชื่อ/ประทับเวลา และผลตอบรับ', 'benchmark' => 'ข้อมูลอิเล็กทรอนิกส์ต้องผ่าน e-Standard และติดตามสถานะนำส่ง', 'status' => 'มี Package', 'tone' => 'partial', 'route' => 'tax-compliance.index', 'next' => 'เลือก Service Provider/CA แล้วทดสอบ XML จริงใน sandbox'],
+            ['group' => 'บัญชีและภาษีไทย', 'capability' => 'DBD e-Filing/XBRL และ mapping ผังบัญชีไป Taxonomy', 'benchmark' => 'ลดการกรอกงบซ้ำและเตรียมข้อมูลตามรูปแบบ DBD', 'status' => 'ยังไม่ทำ', 'tone' => 'planned', 'route' => null, 'next' => 'ทำ Taxonomy mapping และ export Excel/XBRL ที่สำนักงานบัญชีตรวจได้'],
+            ['group' => 'บัญชีและภาษีไทย', 'capability' => 'OCR เอกสารซื้อ/ค่าใช้จ่ายและตรวจข้อมูลซ้ำ', 'benchmark' => 'ลดเวลาคีย์ใบกำกับและแนบภาพกับรายการบัญชี', 'status' => 'ยังไม่ทำ', 'tone' => 'planned', 'route' => null, 'next' => 'เริ่ม OCR เลขภาษี เลขที่ วันที่ ยอดก่อน VAT และ VAT'],
+
+            ['group' => 'คนและเงินเดือน', 'capability' => 'แฟ้มพนักงาน เวลา OT ขาดลา เงินเดือน ประกันสังคม ภาษี และสลิป', 'benchmark' => 'Payroll ต้องแยกผู้จัดทำ/อนุมัติและลงบัญชีได้', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'management-controls.index', 'next' => 'เพิ่ม leave workflow และไฟล์จ่ายธนาคารตามธนาคารที่ใช้จริง'],
+            ['group' => 'คนและเงินเดือน', 'capability' => 'Recruitment, Onboarding, ประเมินผล และ Training', 'benchmark' => 'ความสามารถ HRM สำหรับองค์กรที่ขยายจำนวนพนักงาน', 'status' => 'ยังไม่ทำ', 'tone' => 'planned', 'route' => null, 'next' => 'เริ่ม onboarding checklist และเอกสารพนักงานหมดอายุ'],
+
+            ['group' => 'บริหารและเชื่อมต่อ', 'capability' => 'Dashboard/BI กำไร สาขา สินค้า Cash flow และ Drill-down', 'benchmark' => 'ผู้บริหารต้องเปิดจากตัวเลขสรุปถึงเอกสารต้นทาง', 'status' => 'มีชุดหลัก', 'tone' => 'partial', 'route' => 'dashboard', 'next' => 'เพิ่ม KPI เป้าหมาย เทียบช่วง และ EBITDA/financial ratios'],
+            ['group' => 'บริหารและเชื่อมต่อ', 'capability' => 'API, Webhook และ E-Commerce order/stock sync', 'benchmark' => 'เชื่อม Marketplace และระบบภายนอกโดยไม่คีย์ซ้ำ', 'status' => 'มีทะเบียน', 'tone' => 'partial', 'route' => 'ecommerce-channels.index', 'next' => 'ทำ connector จริงทีละช่องทางพร้อม retry และ reconciliation'],
+            ['group' => 'บริหารและเชื่อมต่อ', 'capability' => 'MFA, RBAC, Branch scope, Audit log, Backup และ Restore drill', 'benchmark' => 'ควบคุมสิทธิ์และความต่อเนื่องทางธุรกิจ', 'status' => 'พร้อมใช้', 'tone' => 'ready', 'route' => 'operations.index', 'next' => 'เปิด MFA ผู้ใช้สำคัญและตั้ง offsite backup production'],
+        ];
+    }
+
+    private function thaiErpSources(): array
+    {
+        return [
+            ['name' => 'SeniorSoft ProMaxx', 'scope' => 'POS, คลัง, หลายหน่วย, ชุดสินค้า, Lot/Serial และหลายสาขา', 'url' => 'https://www.seniorsoft.co.th/th/product-seniorsoft/software-package/item/230-seniorsoft-promaxx.html'],
+            ['name' => 'Business Plus ERP/POS', 'scope' => 'บัญชีบริหาร, ค้าปลีก/ค้าส่ง, Payroll, BI และความสามารถเฉพาะร้านอาหาร', 'url' => 'https://www.businessplus.co.th/Files/2023/MK/MK01-18.pdf'],
+            ['name' => 'PEAK Accounting', 'scope' => 'เอกสารขาย, บัญชี, สต๊อก, งบการเงิน, API และ Payroll', 'url' => 'https://www.peakaccount.com/feature-accounting-program'],
+            ['name' => 'FlowAccount Payroll', 'scope' => 'เงินเดือน ประกันสังคม ภาษี สลิป และการลงบัญชีอัตโนมัติ', 'url' => 'https://flowaccount.com/payroll'],
+            ['name' => 'กรมสรรพากร e-Tax', 'scope' => 'e-Standard, XML, ใบรับรองอิเล็กทรอนิกส์ และช่องทางนำส่ง', 'url' => 'https://etax.rd.go.th/'],
+            ['name' => 'กรมสรรพากร Format WHT', 'scope' => 'รูปแบบกลาง ภ.ง.ด.1/2/3/53 สำหรับนำส่งข้อมูล', 'url' => 'https://www.rd.go.th/54910.html'],
+            ['name' => 'DBD e-Filing', 'scope' => 'Taxonomy, XBRL in Excel และรูปแบบงบการเงินอิเล็กทรอนิกส์', 'url' => 'https://efiling.dbd.go.th/efiling-documents/01_ManualFN.pdf'],
+        ];
+    }
+
+    private function controlManuals(): array
+    {
+        return [
+            [
+                'key' => 'accounting', 'title' => '1. บัญชีอัตโนมัติและการปิดงวด', 'route' => 'accounting-periods.index',
+                'owner' => 'บัญชีเป็นผู้จัดทำ หัวหน้าบัญชีเป็นผู้ปิดงวด',
+                'purpose' => 'ให้เอกสารขาย ซื้อ รับจ่าย คืนสินค้า ค่าใช้จ่าย VAT และต้นทุนลง GL แบบเดบิตเท่ากับเครดิต และห้ามแก้ย้อนหลังหลังปิดงวด',
+                'setup' => ['ตั้ง default role ในผังบัญชีให้ครบ Cash, Bank, AR, AP, Inventory, VAT Input/Output, Revenue, COGS, Expense และ WHT', 'สร้างงวดบัญชีรายเดือนโดยเลือกทั้งบริษัทหรือเฉพาะสาขา', 'ตรวจว่าวันที่เอกสารและสาขาถูกต้องก่อนเริ่มบันทึกจริง'],
+                'steps' => ['บันทึกเอกสารต้นทางตามปกติ ระบบสร้าง GL ใน transaction เดียวกัน', 'เปิดสมุดรายวัน ตรวจเลขเอกสาร บัญชี เดบิต เครดิต และต้นทุนขาย', 'สิ้นเดือนเปิดงวดบัญชี ดู Pre-close checklist 5 รายการ', 'แก้เอกสารไม่ลง GL, Statement ค้าง, ภาษีขาดข้อมูล และ Backup จนทุกข้อเป็นสีเขียว', 'หัวหน้าบัญชีระบุหมายเหตุแล้วกดปิดงวด เอกสารและ GL ในช่วงนั้นจะถูกล็อก'],
+                'controls' => ['ห้ามโพสต์ GL บางบรรทัดเมื่อบัญชี default role ไม่ครบ', 'ผู้สังเกตการณ์ Document และ GL ปฏิเสธ create/update/delete ในงวดปิด', 'การเปิดงวดใหม่และปิดงวดถูกเก็บ Audit Log'],
+                'outputs' => ['สมุดรายวันทั่วไป', 'งบทดลอง กำไรขาดทุน และงบดุล', 'หลักฐานผู้ปิดงวด วันเวลา และ checklist'],
+            ],
+            [
+                'key' => 'tax', 'title' => '2. ภาษีไทยและ E-Tax', 'route' => 'tax-compliance.index',
+                'owner' => 'บัญชีภาษีจัดทำ ผู้ตรวจคนที่สองทบทวน ผู้มีอำนาจยื่นจริง',
+                'purpose' => 'รวมข้อมูล ภ.พ.30 ภ.ง.ด.3 ภ.ง.ด.53 และเตรียม E-Tax package โดยมีหลักฐานการตรวจและเลขอ้างอิงจากระบบภายนอก',
+                'setup' => ['กรอกชื่อบริษัท เลขผู้เสียภาษี ที่อยู่ และสาขาภาษีในตั้งค่าระบบ', 'กำหนดสินค้าใดมี VAT และตรวจใบกำกับซื้อทุกใบ', 'เลือกผู้ให้บริการ E-Tax ที่ได้รับอนุมัติและเตรียม certificate/บัญชีผู้ใช้นอก ERP'],
+                'steps' => ['เลือกเดือนและสาขาแล้วจัดทำ PP30/PND3/PND53', 'ดาวน์โหลด CSV ตรวจยอดกับ GL และเอกสารภาษี', 'ให้ผู้ใช้อีกคนกดตรวจผ่าน ระบบไม่ยอมให้ผู้จัดทำตรวจงานตัวเอง', 'ยื่นผ่านระบบกรมสรรพากรหรือสำนักงานบัญชี แล้วนำเลขอ้างอิงกลับมาบันทึก', 'สำหรับ E-Tax ให้สร้าง provider package ส่งผู้ให้บริการ แล้วบันทึกสถานะ sent/accepted/rejected รายใบ'],
+                'controls' => ['ไฟล์ทุกชุดมี SHA-256 ป้องกันไฟล์เปลี่ยนหลังตรวจ', 'E-Tax ใช้ UUID ไม่ซ้ำและเก็บ payload hash', 'ERP ไม่อ้างว่าส่งกรมสรรพากรสำเร็จจนกว่าจะมีผลตอบรับจากผู้ให้บริการ'],
+                'outputs' => ['CSV working paper รายแบบ', 'ทะเบียนการจัดทำ ตรวจ และยื่นภาษี', 'ทะเบียน E-Tax พร้อม UUID, hash และผลตอบรับ'],
+            ],
+            [
+                'key' => 'backup', 'title' => '3. Backup และการกู้คืน', 'route' => 'operations.index',
+                'owner' => 'IT ดูแลทุกวัน ผู้บริหารตรวจผลอย่างน้อยรายเดือน',
+                'purpose' => 'มีฐานข้อมูลสำรองที่ตรวจความสมบูรณ์ได้ เก็บย้อนหลัง และทดสอบกู้คืนโดยไม่เสี่ยงเขียนทับ Production',
+                'setup' => ['ให้ Scheduler ของ Laravel ทำงานทุกนาที', 'กำหนด ERP_BACKUP_OFFSITE_DISK เพื่อส่งสำเนาออกนอกเครื่อง', 'กำหนด ERP_RESTORE_DATABASE เป็นฐานทดสอบแยกก่อนทดสอบ restore จริง'],
+                'steps' => ['ระบบ Backup อัตโนมัติทุกวัน 02:15 หรือกด Backup ตอนนี้', 'ตรวจไฟล์ .gz และ .sha256 ในศูนย์ Backup', 'กดตรวจ Restore เพื่อทดสอบ checksum และการคลายไฟล์', 'ทุกเดือนให้ IT restore ลงฐานทดสอบแล้วเปิดตรวจข้อมูลสำคัญ', 'หาก Backup เกิน 26 ชั่วโมง Health monitor แจ้งเตือนและห้ามปิดงวด'],
+                'controls' => ['ไฟล์สิทธิ์ 0600 และเก็บย้อนหลัง 30 วัน', 'ไม่เปิดปุ่ม restore ทับ Production จากหน้าเว็บ', 'บันทึกผู้สั่ง เวลา ผลลัพธ์ และ Audit Log'],
+                'outputs' => ['ไฟล์ฐานข้อมูลบีบอัด', 'SHA-256 checksum', 'Operation run และผล Restore drill'],
+            ],
+            [
+                'key' => 'security', 'title' => '4. Security, MFA และ Audit', 'route' => 'operations.index',
+                'owner' => 'ผู้ดูแลระบบกำหนดสิทธิ์ เจ้าของบัญชีดูแลรหัสผ่านและ MFA',
+                'purpose' => 'ลดความเสี่ยงรหัสผ่านรั่ว จำกัดสิทธิ์ตามหน้าที่และสาขา และตรวจย้อนหลังว่าใครทำอะไรเมื่อใด',
+                'setup' => ['ปิดบัญชีพนักงานที่ออกทันทีและห้ามใช้บัญชีร่วมกัน', 'กำหนด Role ตามหน้าที่ แยกผู้จัดทำ ผู้อนุมัติ และผู้ตรวจ', 'เปิด MFA ให้ผู้ดูแลระบบ ผู้บริหาร การเงิน และบัญชีทุกคน'],
+                'steps' => ['ผู้ใช้เปิดศูนย์ Backup/Security แล้วเลือกเปิด MFA ของฉัน', 'เพิ่ม Setup key ใน Google/Microsoft Authenticator แบบ Time based', 'กรอกรหัสผ่านและรหัส 6 หลักเพื่อเปิดใช้งาน', 'ครั้งต่อไปหลังรหัสผ่าน ระบบถามรหัส 6 หลักอีกขั้น', 'ผู้ดูแลตรวจเปอร์เซ็นต์ MFA รหัสผ่านเกิน 180 วัน Session และ Audit เป็นประจำ'],
+                'controls' => ['Login จำกัด 5 ครั้งต่อนาทีต่อ username และ IP', 'Session regenerate หลัง login/MFA และ password change', 'MFA secret เข้ารหัสด้วย APP_KEY และไม่แสดงใน API/Model serialization'],
+                'outputs' => ['สถานะ MFA รายผู้ใช้', 'Login/MFA Audit พร้อม IP และ user agent', 'รายการ Session และเหตุการณ์ Monitor'],
+            ],
+            [
+                'key' => 'reconcile', 'title' => '5. Statement, สลิป และการกระทบยอด', 'route' => 'monthly-accounting.index',
+                'owner' => 'พนักงานการเงินตรวจ ผู้จัดการการเงินติดตามรายการค้าง',
+                'purpose' => 'เทียบเงินเข้าจาก POS/ลูกหนี้และเงินออกค่าใช้จ่ายกับ Statement ให้ครบก่อนส่งสำนักงานบัญชีหรือปิดงวด',
+                'setup' => ['สร้างบัญชีธนาคารและผูกสาขาให้ถูกต้อง', 'รายการโอน/QR ต้องใช้ method และ bank account ที่ตรงกัน', 'CSV Statement ต้องมี date, description, amount, balance โดยเงินเข้าเป็นบวก เงินออกเป็นลบ'],
+                'steps' => ['เลือกเดือนและสาขา นำเข้า Statement CSV', 'กดจับคู่อัตโนมัติ ระบบตรวจวันที่ บัญชี ยอด และรายการที่ยังไม่เคยใช้', 'เงินออกจับคู่ Branch Expense ส่วนเงินเข้าจับคู่ Payment Line หรือ POS transfer/QR', 'รายการไม่ชัดเจนให้เปิดตรวจ แนบสลิป ระบุประเภท ยอดอ้างอิง และเลขอ้างอิง', 'แก้ยอดต่างจนสถานะ matched ครบ จึงสร้าง ZIP ส่งสำนักงานบัญชีและปิดงวดได้'],
+                'controls' => ['source_type/source_id ไม่ซ้ำ ป้องกันธุรกรรมเดียวจับคู่หลาย Statement', 'ผลต่างเกิน 0.01 บาทเป็น mismatch', 'การจับคู่อัตโนมัติให้ confidence 100 เฉพาะวันที่ บัญชีและยอดตรงทั้งหมด'],
+                'outputs' => ['ทะเบียน Bank Reconciliation', 'สลิปและหลักฐานราย Statement', 'CSV กระทบยอดในชุดสำนักงานบัญชี'],
+            ],
+        ];
+    }
+
+    private function pillars(): array
+    {
+        return [
+            [
+                'key' => 'man',
+                'label' => 'MAN',
+                'title' => 'คนและความรับผิดชอบ',
+                'icon' => 'bi-people-fill',
+                'tone' => 'teal',
+                'summary' => 'กำหนดโครงสร้างองค์กร ผู้ใช้ สิทธิ์ ลูกค้า สมาชิก และผู้จำหน่ายให้รู้ว่าใครทำอะไร ที่สาขาใด',
+                'programs' => [
+                    ['ผู้ใช้และสิทธิ์', 'users.index', 'พนักงาน บทบาท และสาขา', 'สิทธิ์เข้าเมนูและขอบเขตข้อมูล'],
+                    ['แฟ้มพนักงาน', 'employees.index', 'ข้อมูลบุคคลและตำแหน่ง', 'ทะเบียนพนักงานกลาง'],
+                    ['ผังองค์กร', 'organizational-units.index', 'หน่วยงานและผู้บังคับบัญชา', 'สายอนุมัติและผู้รับผิดชอบ'],
+                    ['ลูกค้าและสมาชิก', 'customers.index', 'ข้อมูลติดต่อ เครดิต และสมาชิก', 'AR ประวัติซื้อ และแต้ม'],
+                    ['ผู้จำหน่าย', 'suppliers.index', 'คู่ค้า เงื่อนไขซื้อ และบัญชี', 'AP และประวัติการจัดซื้อ'],
+                ],
+            ],
+            [
+                'key' => 'money',
+                'label' => 'MONEY',
+                'title' => 'เงิน ภาษี และบัญชี',
+                'icon' => 'bi-cash-coin',
+                'tone' => 'red',
+                'summary' => 'รับเงิน จ่ายเงิน ลูกหนี้ เจ้าหนี้ ธนาคาร เช็ค VAT และ GL ต้องอ้างอิงเอกสารต้นทางและตรวจสอบย้อนกลับได้',
+                'programs' => [
+                    ['POS และขายสด', 'pos.index', 'สินค้า ราคา ส่วนลด และการชำระ', 'เงินรับ ใบเสร็จ VAT และ GL'],
+                    ['ขายเชื่อ/ลูกหนี้', 'bookings.index', 'ลูกค้า วงเงิน และสินค้า', 'ใบขาย AR และกำหนดชำระ'],
+                    ['วางบิล/รับชำระ', 'billing-notes.index', 'รายการลูกหนี้คงค้าง', 'ใบวางบิล ใบเสร็จ และตัด AR'],
+                    ['ซื้อ/เจ้าหนี้', 'purchases.index', 'ผู้ขาย สินค้า และเงื่อนไขเครดิต', 'สต็อก AP ภาษีซื้อ และ GL'],
+                    ['เงินสด ธนาคาร เช็ค', 'bplus.finance', 'รายการรับจ่ายและเอกสารอ้างอิง', 'กระแสเงินสดและยอดคงเหลือ'],
+                    ['GL และงบการเงิน', 'chart-of-accounts.index', 'รายการบัญชีจากทุกวงจร', 'งบทดลอง งบกำไรขาดทุน งบดุล'],
+                    ['งวดบัญชี', 'accounting-periods.index', 'ช่วงวันที่และขอบเขตสาขา', 'ล็อกเอกสารย้อนหลังและหลักฐานผู้ปิดงวด'],
+                    ['ปิดบัญชีรายเดือน', 'monthly-accounting.index', 'Statement สลิป ค่าใช้จ่าย VAT และ WHT', 'ชุด ZIP ส่งสำนักงานบัญชีพร้อม checksum'],
+                    ['ภาษี', 'bplus.tax', 'ภาษีซื้อ/ขายและเอกสารภาษี', 'รายงาน VAT และยอดยื่นภาษี'],
+                    ['ทรัพย์สินถาวร', 'fixed-assets.index', 'ข้อมูลทรัพย์สินและอายุใช้งาน', 'ค่าเสื่อมและมูลค่าคงเหลือ'],
+                ],
+            ],
+            [
+                'key' => 'material',
+                'label' => 'MATERIAL',
+                'title' => 'สินค้า คลัง ซื้อ และผลิต',
+                'icon' => 'bi-box-seam-fill',
+                'tone' => 'blue',
+                'summary' => 'สินค้า หน่วย บาร์โค้ด ราคา Lot ต้นทุน คลัง โอน ตรวจนับ จัดซื้อ และผลิตต้องใช้ master เดียวกันทุกสาขา',
+                'programs' => [
+                    ['สินค้า บาร์โค้ด และบัญชีต้นทุน', 'products.index', 'รหัส หน่วย ภาษี ราคา Lot และใบรับสินค้า', 'สินค้าอ้างอิงกลางพร้อมต้นทุนรับเข้าล่าสุดและต้นทุนเฉลี่ยรายงวด'],
+                    ['ตารางราคา/เครื่องชั่ง', 'price-tables.index', 'ราคาขายตามหน่วยและ PLU', 'ราคา POS ป้าย และเครื่องชั่ง'],
+                    ['คลังและตำแหน่งเก็บ', 'warehouse-locations.index', 'คลัง สาขา และ location', 'จุดรับเข้า/จ่ายออกที่ชัดเจน'],
+                    ['โอนและปรับสต็อก', 'stock-transfers.index', 'ต้นทาง ปลายทาง และรายการสินค้า', 'movement และยอดคงเหลือสองฝั่ง'],
+                    ['ตรวจนับสินค้า', 'stock-counts.index', 'ยอดระบบและยอดนับจริง', 'ผลต่างและใบปรับยอด'],
+                    ['ขอซื้อ/สั่งซื้อ', 'purchase-orders.index', 'ความต้องการ สต็อกต่ำ และผู้ขาย', 'PO และงานรับสินค้า'],
+                    ['รับสินค้าเข้า', 'purchases.index', 'PO/ใบส่งของผู้ขาย', 'Stock lot ต้นทุน AP และ VAT'],
+                    ['คุณภาพและ Trace Lot', 'products.index', 'Hold กักกัน เรียกคืน วันผลิต และหมดอายุ', 'ระงับการขายและค้นเอกสารปลายทางย้อนหลัง'],
+                    ['ผลิตและแปรรูป', 'production.index', 'สูตร วัตถุดิบ และใบสั่งผลิต', 'ตัดวัตถุดิบและรับสินค้าสำเร็จรูป'],
+                    ['แปรรูปและบันทึกสูญเสีย', 'stock-transforms.index', 'วัตถุดิบ ผลผลิตจริง สาเหตุและเกณฑ์สูญเสีย และ PLU', 'Batch Yield ส่วนสูญเสียผิดปกติ ต้นทุน/กก. และป้ายถุงขาย'],
+                ],
+            ],
+            [
+                'key' => 'management',
+                'label' => 'MANAGEMENT',
+                'title' => 'ควบคุม อนุมัติ และตัดสินใจ',
+                'icon' => 'bi-diagram-3-fill',
+                'tone' => 'amber',
+                'summary' => 'ผู้บริหารเห็นสถานะจริงจากเอกสารต้นทาง คุมสิทธิ์ อนุมัติ ตรวจข้อผิดพลาด และเชื่อมข้อมูลภายนอกโดยไม่บันทึกซ้ำ',
+                'programs' => [
+                    ['Dashboard', 'dashboard', 'ยอดขาย เงิน สต็อก และงานค้าง', 'ภาพรวมกิจการรายวัน'],
+                    ['อนุมัติเอกสาร', 'bplus.approvals', 'คำขอ วงเงิน และผู้รับผิดชอบ', 'ผลอนุมัติพร้อมหลักฐาน'],
+                    ['ศูนย์รวมรายงาน', 'reports.index', 'ข้อมูลธุรกรรมทุกโมดูล', 'รายงานควบคุมและไฟล์ส่งออก'],
+                    ['เอกสารย้อนหลัง', 'documents.browser', 'เอกสาร ERP และ BPlus เดิม', 'ค้นหา ตรวจ และพิมพ์ซ้ำ'],
+                    ['ศูนย์ควบคุม POS', 'pos.control', 'ยอดขาย กะเงินสด และรายการชำระจาก POS Desktop', 'ตรวจสอบยอดประจำวันและสถานะซิงก์'],
+                    ['LINE และ E-Commerce', 'line-integrations.index', 'เหตุการณ์และช่องทางออนไลน์', 'แจ้งเตือนและงานเชื่อมต่อ'],
+                    ['ตั้งค่าระบบ', 'settings.index', 'บริษัท เลขเอกสาร เมนู และบัญชีเริ่มต้น', 'กติกากลางของ ERP'],
+                    ['คู่มือ PopStar 4M', 'core-modules.index', 'ขั้นตอน มาตรฐาน และสถานะระบบ', 'วิธีทำงานเดียวกันทั้งองค์กร'],
+                ],
+            ],
+        ];
+    }
+
+    private function workflows(): array
+    {
+        return [
+            [
+                'key' => 'pos', 'label' => 'POS รายวัน', 'owner' => 'แคชเชียร์ / ผู้จัดการสาขา',
+                'goal' => 'ขาย รับเงิน ตัดสต็อก บันทึก VAT/GL และปิดกะให้ยอดเงินจริงตรงระบบ',
+                'steps' => [
+                    ['เปิดกะ', 'pos.index', 'ระบุเงินทอนต้นกะและผู้ขาย'],
+                    ['ขาย/พักบิล', 'pos.index', 'อ่านราคา โปรโมชั่น สมาชิก ตรวจสต็อก และพักบิลไว้ส่วนกลางเพื่อเรียกต่อจากเครื่องอื่น'],
+                    ['รับชำระ', 'pos.index', 'เงินสด QR โอน บัตร เช็ค หรือจ่ายผสม'],
+                    ['ออกบิล', 'bplus.pos-workbench', 'สร้างใบเสร็จ เอกสารขาย stock movement VAT และ GL'],
+                    ['คืน/ยกเลิก', 'bplus.pos-workbench', 'อ้างอิงบิลเดิม กลับสต็อก เงิน และบัญชี'],
+                    ['นำส่ง/ปิดกะ', 'reports.index', 'บันทึกเงินเข้าออก เทียบเงินนับจริง และพิมพ์ Z Report พร้อมผู้ตรวจ'],
+                ],
+            ],
+            [
+                'key' => 'sales', 'label' => 'ขายเชื่อ / AR', 'owner' => 'ฝ่ายขาย / การเงิน',
+                'goal' => 'เริ่มจากข้อเสนอจนรับเงินครบ โดยยอดลูกหนี้ตรงกับเอกสารและบัญชี',
+                'steps' => [
+                    ['เสนอราคา', 'quotations.index', 'กำหนดสินค้า ราคา และเงื่อนไข'],
+                    ['จอง/ขายเชื่อ', 'bookings.index', 'ยืนยันลูกค้า สาขา ผู้ขาย และตัดสต็อก'],
+                    ['ส่งของ/ภาษี', 'documents.browser', 'ออกเอกสารส่งมอบและภาษีจากรายการเดียวกัน'],
+                    ['วางบิล', 'billing-notes.index', 'รวม open item ที่ครบกำหนด'],
+                    ['รับชำระ', 'customers.index', 'จัดสรรเงิน ใบลดหนี้ และ WHT เข้ารายการหนี้'],
+                    ['ตรวจ AR', 'reports.index', 'ดู aging ยอดค้าง และลูกหนี้เกินกำหนด'],
+                ],
+            ],
+            [
+                'key' => 'purchase', 'label' => 'จัดซื้อ / AP', 'owner' => 'จัดซื้อ / คลัง / การเงิน',
+                'goal' => 'ซื้อเท่าที่ต้องใช้ รับของครบ ต้นทุนถูก และชำระเจ้าหนี้ตามกำหนด',
+                'steps' => [
+                    ['วางแผนซื้อ', 'bplus.purchase-planning', 'ใช้สต็อกต่ำ ยอดขาย และเป้าหมายสต็อก'],
+                    ['ขอซื้อ/อนุมัติ', 'purchase-orders.index', 'ระบุรายการ จำนวน เหตุผล และวงเงิน'],
+                    ['สั่งซื้อ', 'purchase-orders.index', 'ยืนยันผู้ขาย ราคา วันส่ง และเงื่อนไข'],
+                    ['รับสินค้า', 'purchases.index', 'รับตาม PO สร้าง Lot ต้นทุน สต็อก และ AP'],
+                    ['ตรวจคุณภาพ Lot', 'products.index', 'พักตรวจ/กักกัน/เรียกคืนพร้อมเหตุผลและ Audit Log'],
+                    ['ตรวจเอกสาร', 'suppliers.index', 'เทียบ PO ใบรับ และใบกำกับผู้ขาย'],
+                    ['ชำระ AP', 'suppliers.index', 'จ่ายเงิน ตัดหนี้ และลง GL/ธนาคาร'],
+                ],
+            ],
+            [
+                'key' => 'stock', 'label' => 'คลังหลายสาขา', 'owner' => 'คลัง / ผู้จัดการสาขา',
+                'goal' => 'รู้ว่าสินค้าอยู่ที่ไหน จำนวนเท่าไร Lot ใดควรออกก่อน และทุกการเปลี่ยนยอดมีเอกสารอ้างอิง',
+                'steps' => [
+                    ['ขอโอน', 'stock-transfers.request', 'สาขาปลายทางแจ้งความต้องการ'],
+                    ['อนุมัติ/โอนออก', 'stock-transfers.index', 'ต้นทางจัดสินค้าและลด stock available'],
+                    ['สินค้าระหว่างทาง', 'stock-transfers.index', 'ติดตามของที่ส่งแต่ยังไม่รับ'],
+                    ['รับโอน', 'stock-transfers.index', 'ปลายทางตรวจจำนวนและเพิ่มสต็อก'],
+                    ['ตรวจนับ', 'stock-counts.index', 'สแกนยอดจริงและส่งให้หัวหน้าตรวจ'],
+                    ['ปรับยอด', 'stock-adjustments.index', 'ลงผลต่างพร้อมเหตุผลและ audit trail'],
+                    ['คุมหมดอายุ', 'products.index', 'เปิดควบคุม Lot กำหนดวันเตือน และเลือกห้ามหรืออนุญาต Lot หมดอายุรายสินค้า'],
+                    ['ตรวจ FEFO', 'reports.index', 'ดู Lot หมดอายุ/ใกล้หมดอายุจากกระดิ่งและรายงาน แล้วระบายหรือตัดชำรุด'],
+                    ['Trace/Recall', 'products.index', 'เปิด Lot เพื่อตรวจเส้นทางเอกสารและระงับ Lot ที่มีปัญหา'],
+                ],
+            ],
+            [
+                'key' => 'costing', 'label' => 'ต้นทุนสินค้า', 'owner' => 'จัดซื้อ / คลัง / บัญชีต้นทุน',
+                'goal' => 'ใบรับสินค้าอัปเดตต้นทุนในแฟ้มสินค้า ตัดขายด้วย Lot จริง และปิดมูลค่าสต็อกได้ตรงทุกเดือน',
+                'steps' => [
+                    ['รับสินค้า', 'purchases.index', 'บันทึกจำนวน ราคาซื้อ ส่วนลด ค่าใช้จ่าย และ VAT ที่ขอคืนได้หรือไม่ได้'],
+                    ['อัปเดตแฟ้มสินค้า', 'products.index', 'ระบบเก็บต้นทุนรับเข้าล่าสุดและวันเวลาที่รับ โดยไม่ใช้ราคาขายมาปน'],
+                    ['คำนวณต้นทุนรับเข้าเฉลี่ย', 'products.index', 'ถ่วงน้ำหนักเฉพาะใบรับซื้อในเดือน: มูลค่ารับซื้อหารจำนวนรับซื้อ'],
+                    ['คำนวณต้นทุนเฉลี่ยงวด', 'products.index', 'มูลค่าคงเหลือต้นงวดบวกมูลค่ารับเข้า หารจำนวนต้นงวดบวกจำนวนรับเข้า'],
+                    ['ตัดขาย FIFO/FEFO', 'pos.index', 'ล็อกต้นทุนขายจาก Lot ที่ถูกตัดจริง บิลเก่าไม่เปลี่ยนเมื่อรับของใหม่'],
+                    ['ปิดงวดและกระทบยอด', 'accounting-periods.index', 'เทียบจำนวนและมูลค่าปลายงวดกับ Stock Valuation และบัญชี Inventory/COGS'],
+                ],
+            ],
+            [
+                'key' => 'production', 'label' => 'ผลิต / แปรรูป', 'owner' => 'ผลิต / คลัง / ต้นทุน',
+                'goal' => 'ตัดวัตถุดิบและ Lot ตามที่ใช้จริง รับน้ำหนักผลผลิตจริง และเห็น Yield ต้นทุน/กก. กำไร และป้ายขาย',
+                'steps' => [
+                    ['ตั้งสูตร', 'production.index', 'กำหนดผลผลิต วัตถุดิบ และอัตราใช้'],
+                    ['ชั่งวัตถุดิบ', 'stock-transforms.index', 'เลือกหมู/ของสดและกรอกน้ำหนักที่ใช้จริง'],
+                    ['ชั่งผลผลิต', 'stock-transforms.index', 'กรอกน้ำหนักผลผลิตจริง ระบบคำนวณ Yield และสูญเสีย'],
+                    ['รับ Batch', 'stock-transforms.index', 'ตัด FIFO Lot และรับสินค้าชุดด้วยต้นทุนต่อกิโลที่คำนวณแล้ว'],
+                    ['แบ่งถุง/ป้าย', 'stock-transforms.index', 'กรอกน้ำหนักแต่ละถุงและสร้างบาร์โค้ด PLU ที่ POS อ่านได้'],
+                    ['ตรวจต้นทุน', 'stock-transforms.index', 'เทียบต้นทุน ราคาก่อน VAT กำไรต่อกิโล และ Margin ของ Batch'],
+                ],
+            ],
+            [
+                'key' => 'finance', 'label' => 'บัญชี / ปิดรอบ', 'owner' => 'บัญชี / การเงิน / ผู้บริหาร',
+                'goal' => 'รายการจากขาย ซื้อ รับจ่าย และสต็อกลงบัญชีสมดุลก่อนออกรายงาน',
+                'steps' => [
+                    ['ตั้งผังบัญชี', 'chart-of-accounts.index', 'ผูกบทบาทเงินสด AR AP รายได้ VAT สต็อก และ COGS'],
+                    ['ตรวจ posting', 'gl-journals.index', 'ตรวจคู่เดบิตเครดิตจากเอกสารต้นทาง'],
+                    ['กระทบธนาคาร', 'bank-accounts.index', 'เทียบ statement เช็ค QR และเงินโอน'],
+                    ['ตรวจภาษี', 'bplus.tax', 'เทียบ VAT ซื้อ/ขายกับเอกสารภาษี'],
+                    ['ตรวจคงค้าง', 'reports.index', 'AR AP เช็คค้าง สต็อกติดลบ และเอกสารไม่ลง GL'],
+                    ['ปิดงวด', 'accounting-periods.index', 'ล็อก Document และ GL พร้อม Audit Log'],
+                ],
+            ],
+            [
+                'key' => 'management', 'label' => 'บริหาร / อนุมัติ', 'owner' => 'หัวหน้างาน / ผู้บริหาร',
+                'goal' => 'คุมข้อยกเว้นและตัดสินใจจากข้อมูลจริง ไม่แก้ข้อมูลธุรกรรมโดยไม่มีหลักฐาน',
+                'steps' => [
+                    ['ดู Dashboard', 'dashboard', 'ตรวจยอดขาย เงินสด สต็อก และงานค้าง'],
+                    ['ตรวจแจ้งเตือน', 'reports.index', 'สต็อกต่ำ Lot ใกล้หมดอายุ หนี้เกินกำหนด และ import ผิดพลาด'],
+                    ['อนุมัติ', 'bplus.approvals', 'พิจารณาวงเงิน ส่วนลด โอน และปรับยอด'],
+                    ['ติดตามเอกสาร', 'documents.browser', 'เปิดเอกสารต้นทางและประวัติย้อนหลัง'],
+                    ['วิเคราะห์', 'reports.index', 'เทียบสาขา สินค้า พนักงาน และกำไรขั้นต้น'],
+                    ['ปรับมาตรฐาน', 'core-modules.index', 'อัปเดตขั้นตอน ผู้รับผิดชอบ และ control point'],
+                ],
+            ],
+            [
+                'key' => 'integration', 'label' => 'ข้อมูล / เชื่อมต่อ', 'owner' => 'IT / Data / ผู้ดูแลระบบ',
+                'goal' => 'ข้อมูลระหว่าง POS BPlus ช่องทางออนไลน์ และ ERP ไม่ซ้ำ ไม่หาย และตรวจย้อนกลับได้',
+                'steps' => [
+                    ['เตรียม master', 'bplus.pos-preparation', 'ส่งสินค้า ราคา โปรโมชั่น และสมาชิก'],
+                    ['ตรวจยอด POS', 'pos.control', 'ตรวจยอดขาย กะเงินสด และการชำระเงินจากบิลใหม่'],
+                    ['แจ้งสถานะ', 'line-integrations.index', 'ส่งผลสำเร็จ/ผิดพลาดให้ผู้รับผิดชอบ'],
+                    ['ตรวจ audit', 'reports.index', 'ตรวจ batch log เอกสาร และยอดปลายทาง'],
+                ],
+            ],
+        ];
+    }
+
+    private function testSuites(): array
+    {
+        return [
+            [
+                'key' => 'master', 'label' => 'ข้อมูลตั้งต้น', 'owner' => 'ผู้ดูแลระบบ / เจ้าของข้อมูล',
+                'goal' => 'ข้อมูลกลางถูกต้อง ไม่ซ้ำ และพร้อมให้ทุกเอกสารใช้กติกาเดียวกัน',
+                'cases' => [
+                    ['MST-01', 'critical', 'ผู้ใช้ สิทธิ์ และขอบเขตสาขา', 'users.index', 'มีผู้ทดสอบ 2 คน คนละบทบาทและคนละสาขา', ['กำหนด Role และสาขาให้ผู้ใช้', 'เข้าระบบด้วยผู้ใช้แต่ละคน', 'ลองเปิดเมนูและข้อมูลต่างสาขา'], 'เห็นเฉพาะเมนูและสาขาที่ได้รับสิทธิ์ ผู้ไม่มีสิทธิ์ถูกปฏิเสธ', 'ภาพหน้าสิทธิ์และผลปฏิเสธ'],
+                    ['MST-02', 'control', 'รหัสพนักงาน POP รันต่อเนื่อง', 'employees.index', 'ทราบรหัส POP ล่าสุดในระบบ', ['สร้างพนักงานใหม่ 2 คนโดยไม่กรอกรหัส', 'ตรวจรหัสที่ระบบสร้าง', 'ลองบันทึกรหัสซ้ำ'], 'ได้ POP ตามด้วยเลขถัดไปและรหัสไม่ซ้ำ เช่น POP001, POP002', 'ภาพรายการพนักงานและรหัส'],
+                    ['MST-03', 'critical', 'สินค้า หน่วย บาร์โค้ด และ VAT', 'products.index', 'มีสินค้าทดสอบทั้งมี VAT และไม่มี VAT', ['สร้างสินค้าและหน่วยฐาน', 'เพิ่มหน่วยบรรจุและบาร์โค้ด', 'สแกนค้นหาจากหน้าขาย'], 'ค้นพบสินค้าถูกหน่วย ราคา และสถานะ VAT ตรงแฟ้มสินค้า', 'ภาพแฟ้มสินค้าและผลสแกน'],
+                    ['MST-04', 'critical', 'ตารางราคาและวันเริ่มมีผล', 'price-tables.index', 'มีสินค้า 1 รายการและสาขาทดสอบ', ['กำหนดราคาปัจจุบัน', 'ตั้งราคาใหม่ให้เริ่มวันถัดไป', 'ตรวจราคาก่อนและหลังวันมีผล'], 'POS ใช้ราคาเดียวที่ตรงสาขา หน่วย และช่วงเวลา', 'ภาพตารางราคาและราคาที่ POS'],
+                    ['MST-05', 'control', 'Lot วันหมดอายุ และจำนวนวันเตือน', 'products.index', 'มีสินค้าควบคุม Lot และคลังทดสอบ', ['เปิดควบคุม Lot', 'กำหนดวันเตือนก่อนหมดอายุ', 'รับ Lot ที่อยู่ในช่วงเตือน'], 'Lot ปรากฏในแจ้งเตือนตามจำนวนวันที่ตั้งและไม่ปะปน Lot ปกติ', 'ภาพการตั้งค่าและแจ้งเตือน'],
+                    ['MST-06', 'critical', 'ราคาขายสูงสุด กำไรขั้นต่ำ และราคาซื้อผู้ขาย', 'products.index', 'สินค้ามีต้นทุนเฉลี่ย ผู้ขาย และหน่วยฐาน', ['กำหนดราคาขายสูงสุดและกำไรขั้นต่ำแบบบังคับ', 'เพิ่มราคาซื้อผู้ขายหลายช่วงและหลายขั้นต่ำ', 'เลือกผู้ขายใน PO แล้วตรวจราคาที่ระบบแนะนำ'], 'POS ปฏิเสธราคาที่ผิดกฎ และ PO เลือกราคาที่มีผลตามวันที่/จำนวน/VAT', 'แฟ้มสินค้า ข้อความปฏิเสธ และราคาใน PO'],
+                ],
+            ],
+            [
+                'key' => 'pos', 'label' => 'POS หน้าร้าน', 'owner' => 'แคชเชียร์ / ผู้จัดการสาขา',
+                'goal' => 'ขายได้รวดเร็ว ราคาและเงินถูกต้อง ตัดสต็อกครั้งเดียว และปิดกะตรงเงินจริง',
+                'cases' => [
+                    ['POS-01', 'critical', 'เปิดกะและเงินทอนต้นกะ', 'pos.index', 'เครื่อง POS ผูกสาขาและผู้ใช้มีสิทธิ์เปิดกะ', ['เปิดกะด้วยเงินทอนที่ทราบยอด', 'ลองเปิดกะซ้ำบนเครื่องเดิม', 'ตรวจรายงานกะ'], 'เปิดได้กะเดียวต่อเครื่อง ผู้เปิด เวลา และเงินทอนถูกบันทึก', 'เลขกะและภาพยอดเปิดกะ'],
+                    ['POS-02', 'critical', 'ขายเงินสดและออกใบเสร็จ', 'pos.index', 'มีกะเปิด สินค้ามีสต็อกและราคา', ['สแกนสินค้า 2 รายการ', 'รับเงินสดและระบุเงินรับ', 'ยืนยันขายและพิมพ์ใบเสร็จ'], 'ยอดก่อน VAT, VAT, สุทธิ, เงินทอน และสต็อกถูกต้อง', 'เลขบิล ใบเสร็จ และ Stock movement'],
+                    ['POS-03', 'critical', 'จ่ายผสม เงินสด QR และบัตร', 'pos.index', 'ตั้งช่องทางชำระและบัญชีรับเงินแล้ว', ['สร้างบิลหนึ่งรายการ', 'แบ่งยอดจ่ายอย่างน้อย 2 ช่องทาง', 'ลองยืนยันเมื่อยอดรวมยังขาด'], 'ระบบไม่ให้ผ่านเมื่อเงินไม่ครบ และบันทึกแยกช่องทางเมื่อครบ', 'เลขบิลและรายละเอียดการชำระ'],
+                    ['POS-04', 'critical', 'โปรโมชั่น สมาชิก แต้ม และคูปอง', 'promotions.index', 'มีสมาชิก แต้ม โปรโมชั่น และคูปองที่อยู่ในช่วงเวลา', ['ขายสินค้าเข้าเงื่อนไข', 'ผูกสมาชิกและใช้คูปอง/แต้ม', 'ลองใช้คูปองซ้ำ'], 'คิดสิทธิ์ตามลำดับกติกา แต้มและคูปองถูกใช้ครั้งเดียว', 'ใบเสร็จและประวัติแต้ม/คูปอง'],
+                    ['POS-05', 'critical', 'บาร์โค้ดเครื่องชั่งน้ำหนัก', 'scale-prices.index', 'ผูก PLU และรูปแบบบาร์โค้ดของเครื่องชั่งแล้ว', ['พิมพ์หรือเตรียมบาร์โค้ดน้ำหนัก/ราคา', 'สแกนเข้า POS', 'เทียบจำนวนและยอดกับฉลาก'], 'ถอด PLU และน้ำหนัก/ราคาได้ตรง ไม่มีการปัดเศษเกินกติกา', 'ฉลากเครื่องชั่งและบิล'],
+                    ['POS-06', 'critical', 'ส่วนลดพิเศษและขายต่ำกว่าทุน', 'pos.index', 'มีผู้ใช้ทั่วไปและผู้จัดการที่มีสิทธิ์ override', ['ให้ผู้ใช้ทั่วไปลดเกินสิทธิ์หรือขายต่ำกว่าทุน', 'ยืนยันด้วยผู้จัดการ', 'ตรวจ Audit'], 'ผู้ใช้ทั่วไปถูกปฏิเสธ ผู้มีสิทธิ์อนุมัติได้พร้อมเหตุผลและร่องรอย', 'ภาพปฏิเสธและ Audit Log'],
+                    ['POS-07', 'critical', 'คืนสินค้าและยกเลิกบิล', 'sale-returns.index', 'มีบิลขายสำเร็จและสินค้าอยู่ในเงื่อนไขคืน', ['อ้างอิงบิลเดิม', 'คืนบางรายการและเลือกวิธีคืนเงิน', 'ลองคืนเกินจำนวนเดิม'], 'คืนได้ไม่เกินยอดเดิม สต็อก เงิน VAT และ GL กลับทิศทางถูกต้อง', 'ใบคืน เลขบิลเดิม และ Stock movement'],
+                    ['POS-08', 'critical', 'ปิดกะและยอดเงินจริง', 'reports.index', 'มีกะที่มีเงินสดและช่องทางอื่นอย่างน้อย 3 บิล', ['นับเงินจริง', 'กรอกยอดปิดแยกช่องทาง', 'ตรวจผลต่างและปิดกะ'], 'รายงานแสดงยอดระบบ ยอดนับ ผลต่าง ผู้ปิด และเวลาอย่างชัดเจน', 'รายงานปิดกะและหลักฐานนำส่งเงิน'],
+                    ['POS-09', 'critical', 'พักบิลและเรียกต่อข้ามเครื่อง', 'pos.index', 'มี POS สองเครื่องในสาขาเดียวกันและเปิดกะแล้ว', ['เครื่องแรกสร้างบิลและกดพัก', 'เครื่องที่สองเปิดรายการบิลพัก', 'เรียกบิลและลองเรียกบิลเดิมซ้ำ'], 'เครื่องที่สองเห็นรายการครบ และบิลเดิมถูกเรียกได้ครั้งเดียวโดยข้อมูลไม่หาย', 'เลข HOLD และภาพจาก POS สองเครื่อง'],
+                    ['POS-10', 'critical', 'นำส่งเงินและ Z Report', 'pos.index', 'กะมียอดเงินสดและมีการนำส่งระหว่างวัน', ['บันทึกยอดนำส่งพร้อมเลขซอง', 'ตรวจเงินสดที่ควรมีหลังนำส่ง', 'ปิดกะและพิมพ์ Z Report'], 'สูตรเงินควรมี = เงินตั้งต้น + ขายสด + เงินเพิ่ม - นำส่ง - เบิกจ่าย และรายงานตรงเงินนับ', 'Z Report และหลักฐานซองเงิน'],
+                    ['POS-11', 'control', 'โปรไฟล์อุปกรณ์แต่ละเครื่อง', 'settings.index', 'มี POS อย่างน้อยสองเครื่องที่ใช้อุปกรณ์ต่างกัน', ['กำหนดไดรเวอร์ กระดาษ ลิ้นชัก จอลูกค้า เครื่องชั่ง และเครื่องสแกน', 'เปิด POS และซิงก์ข้อมูล', 'พิมพ์/สแกน/เปิดลิ้นชักทดสอบจริง'], 'แต่ละเครื่องรับโปรไฟล์ของตนเองและผลทดสอบไม่กระทบเครื่องอื่น', 'ภาพตั้งค่าและใบเสร็จทดสอบ'],
+                ],
+            ],
+            [
+                'key' => 'offline', 'label' => 'POS ออฟไลน์', 'owner' => 'แคชเชียร์ / IT',
+                'goal' => 'ขายต่อได้เมื่อเน็ตหลุด ข้อมูลไม่หาย ไม่ซ้ำ และกลับเข้าหลังบ้านครบเมื่อออนไลน์',
+                'cases' => [
+                    ['OFF-01', 'critical', 'ขายขณะอินเทอร์เน็ตขาด', 'bplus.pos-workbench', 'POS ซิงก์ Master ล่าสุดและมีกะเปิดก่อนตัดเน็ต', ['ตัดอินเทอร์เน็ต', 'ขายและพิมพ์ใบเสร็จ', 'ตรวจคิวรอส่งในเครื่อง'], 'ขายได้จากข้อมูลในเครื่องและรายการอยู่ในคิวพร้อมเลขอ้างอิงถาวร', 'ใบเสร็จออฟไลน์และจำนวนคิว'],
+                    ['OFF-02', 'critical', 'ซิงก์กลับและป้องกันบิลซ้ำ', 'pos.control', 'มีบิลออฟไลน์รอส่งอย่างน้อย 2 บิล', ['ต่ออินเทอร์เน็ต', 'สั่งซิงก์จนสำเร็จ', 'ส่งบิลเดิมซ้ำอีกครั้ง'], 'ERP รับบิลใหม่ครั้งเดียว แม้เครื่อง POS ส่งรายการเดิมซ้ำ', 'เลขบิลต้นทาง/ปลายทางและ Sync log'],
+                    ['OFF-03', 'critical', 'ปิดโปรแกรมหรือไฟดับระหว่างคิวค้าง', 'bplus.pos-workbench', 'มีรายการรอซิงก์ใน SQLite', ['ปิดโปรแกรมก่อนส่งสำเร็จ', 'เปิด POS ใหม่', 'ตรวจและส่งคิวต่อ'], 'คิวไม่หายและส่งต่อจากสถานะเดิมโดยไม่สร้างยอดซ้ำ', 'ภาพคิวก่อนปิดและหลังเปิด'],
+                    ['OFF-04', 'control', 'ซิงก์ราคา สินค้า และสมาชิก', 'bplus.pos-preparation', 'แก้ราคา/สมาชิกในหลังบ้านหลัง POS ซิงก์ครั้งก่อน', ['สั่งเตรียมและซิงก์ Master', 'ตรวจเวลาซิงก์ล่าสุด', 'ทดลองขายด้วยราคา/สมาชิกใหม่'], 'POS ใช้ Master รุ่นล่าสุดและเก็บเวลา/ผลซิงก์ตรวจย้อนหลังได้', 'Sync log และหน้าขาย'],
+                    ['OFF-05', 'control', 'อัปเดตโปรแกรมและแบบใบเสร็จ', 'settings.receipt-template.edit', 'มี POS รุ่นก่อนหน้าและแบบใบเสร็จใหม่', ['เปิด POS ออนไลน์', 'ตรวจพบและติดตั้งรุ่นใหม่', 'ซิงก์แบบใบเสร็จแล้วตัดเน็ตพิมพ์ทดสอบ'], 'อัปเดตมีลายเซ็นถูกต้องและพิมพ์แบบล่าสุดได้แม้ออฟไลน์', 'เลขเวอร์ชันและใบเสร็จทดสอบ'],
+                ],
+            ],
+            [
+                'key' => 'purchase', 'label' => 'จัดซื้อ / AP', 'owner' => 'จัดซื้อ / ผู้อนุมัติ / คลัง / การเงิน',
+                'goal' => 'ซื้อเท่าที่จำเป็น รับของและต้นทุนถูกต้อง และจ่ายเฉพาะหนี้ที่ตรวจแล้ว',
+                'cases' => [
+                    ['PUR-01', 'control', 'เติมเต็มและเสนอซื้อ', 'bplus.purchase-planning', 'สินค้ามี Min/Max, Lead time, MOQ และประวัติขาย', ['คำนวณแผนเติมเต็ม', 'เทียบคำแนะนำกับสต็อกพร้อมขายและของค้างรับ', 'สร้างคำขอซื้อ'], 'จำนวนแนะนำคำนึงถึง Min/Max, MOQ, Lead time และ PO ค้างรับ', 'รายงานคำแนะนำและเลขคำขอ'],
+                    ['PUR-02', 'critical', 'ขอซื้อและแยกผู้อนุมัติ', 'purchase-orders.index', 'มีผู้ขอและผู้อนุมัติคนละบัญชี', ['ผู้ขอสร้าง PO/คำขอ', 'ให้ผู้ขอลองอนุมัติตนเอง', 'ให้ผู้มีสิทธิ์อนุมัติ'], 'ผู้ขออนุมัติตนเองไม่ได้ สถานะและผู้อนุมัติถูกบันทึก', 'เลข PO และประวัติอนุมัติ'],
+                    ['PUR-03', 'critical', 'รับสินค้าบางส่วนตาม PO', 'purchases.index', 'มี PO อนุมัติหลายรายการ', ['รับเพียงบางรายการ/บางจำนวน', 'ตรวจยอดรับและยอดค้าง', 'รับส่วนที่เหลือครั้งถัดไป'], 'สต็อกเพิ่มเฉพาะที่รับ ยอดค้างถูกต้อง และ PO ปิดเมื่อครบ', 'ใบรับแต่ละครั้งและยอดค้าง PO'],
+                    ['PUR-04', 'critical', 'ต้นทุนล่าสุด เฉลี่ย FIFO และ VAT ซื้อ', 'purchases.index', 'สินค้ามีของเดิมและรับใหม่คนละต้นทุน', ['รับ Lot ใหม่พร้อมส่วนลด/ค่าใช้จ่าย', 'เปิดแฟ้มสินค้าแล้วตรวจทุนรับเข้าล่าสุด ทุนรับเข้าเฉลี่ยเดือน และทุนเฉลี่ยงวด', 'ขายออกและตรวจ Lot/COGS'], 'ต้นทุนล่าสุดอัปเดต ต้นทุนเฉลี่ยรายเดือนคำนวณถูก และ COGS ใช้ Lot ตาม FIFO/FEFO', 'ใบรับ ตารางบัญชีต้นทุนในแฟ้มสินค้า รายงานมูลค่าสต็อก และ GL'],
+                    ['PUR-05', 'critical', 'ตรวจ PO ใบรับ และใบกำกับก่อนจ่าย', 'suppliers.index', 'มี PO ใบรับ และใบกำกับที่มียอดตรง/ไม่ตรง', ['เทียบจำนวนและราคา 3 เอกสาร', 'ทดสอบยอดเกิน tolerance', 'อนุมัติข้อยกเว้นด้วยผู้มีสิทธิ์'], 'รายการตรงผ่าน รายการต่างถูกพักและมีผู้อนุมัติข้อยกเว้น', 'เอกสารเทียบและ Audit'],
+                    ['PUR-06', 'critical', 'ชำระเจ้าหนี้และภาษีหัก ณ ที่จ่าย', 'suppliers.index', 'มี AP ครบกำหนดและผู้ขายมีข้อมูลภาษี', ['เลือกหนี้ที่จะจ่าย', 'ระบุธนาคาร/เช็คและ WHT', 'ยืนยันจ่ายบางส่วนหรือเต็มจำนวน'], 'AP ลดตามที่จ่าย เงินออกและ WHT/GL ถูกต้อง ไม่จ่ายเกินยอดคงเหลือ', 'ใบจ่าย ใบหักภาษี และ Supplier ledger'],
+                    ['PUR-07', 'critical', 'ปิดบัญชีต้นทุนสินค้าแยกตามงวด', 'products.index', 'รับสินค้าอย่างน้อย 2 ครั้งคนละราคา มีการขาย และอยู่ก่อนวันปิดงวด', ['จดยอดต้นงวดและรับสินค้า 2 ราคาภายในเดือน', 'ตรวจสูตร (มูลค่าต้นงวด + มูลค่ารับเข้า) ÷ (จำนวนต้นงวด + จำนวนรับเข้า)', 'ปิดงวดแล้วเปิดแฟ้มสินค้าตรวจสถานะและมูลค่าปลายงวด'], 'ทุนรับเข้าเฉลี่ยคิดเฉพาะใบรับซื้อ ทุนเฉลี่ยงวดตรงสูตร สถานะเป็นปิดงวด และบิลขายเดิมคงต้นทุน Lot เดิม', 'ใบรับ บิลขาย ตารางบัญชีต้นทุนรายงวด และ Stock Valuation'],
+                ],
+            ],
+            [
+                'key' => 'stock', 'label' => 'สต๊อก / Lot', 'owner' => 'คลังต้นทาง / คลังปลายทาง / ผู้ตรวจ',
+                'goal' => 'ยอดคงเหลือทุกคลังถูกต้อง สอบย้อนกลับได้ และสินค้าเสี่ยงไม่หลุดไปขาย',
+                'cases' => [
+                    ['STK-01', 'critical', 'ขอโอน ส่งออก และรับโอน', 'stock-transfers.request', 'มี 2 คลังและสินค้าพร้อมโอน', ['ปลายทางสร้างใบขอโอน', 'ต้นทางอนุมัติและส่งออก', 'ปลายทางตรวจและรับเข้า'], 'ต้นทางลด ของอยู่ระหว่างทาง แล้วปลายทางเพิ่มเมื่อรับจริงเท่านั้น', 'เลขโอนและ movement ทั้งสามสถานะ'],
+                    ['STK-02', 'critical', 'รับโอนไม่ครบหรือสินค้าเสียหาย', 'stock-transfers.index', 'มีใบโอนระหว่างทางหลายรายการ', ['รับจริงน้อยกว่าส่ง', 'ระบุขาด/เสียหายและหลักฐาน', 'ตรวจยอดค้างและผู้รับผิดชอบ'], 'ผลต่างไม่หาย ระบบแยกยอดรับ ยอดขาด และงานติดตาม', 'ใบรับโอนและหลักฐานผลต่าง'],
+                    ['STK-03', 'critical', 'ตรวจนับแบบ Blind count', 'stock-counts.index', 'กำหนดคลังและรอบนับแล้ว', ['สร้างรอบนับ', 'ผู้ตรวจนับกรอกยอดจริง', 'ส่งให้ผู้อนุมัติตรวจผลต่าง'], 'ผู้ตรวจนับไม่แก้ยอดระบบ ผลต่างแสดงก่อน post และมีผู้รับผิดชอบ', 'ใบนับและรายงานผลต่าง'],
+                    ['STK-04', 'critical', 'ปรับยอดแบบ Maker-Checker', 'stock-adjustments.index', 'มีผลต่างสต็อกและผู้ใช้ 2 คน', ['ผู้จัดทำสร้างใบปรับพร้อมเหตุผล', 'ลองให้ผู้จัดทำอนุมัติเอง', 'ผู้ตรวจอนุมัติและตรวจยอด'], 'ยอดยังไม่เปลี่ยนก่อนอนุมัติ ผู้จัดทำอนุมัติตนเองไม่ได้', 'ใบปรับ ประวัติอนุมัติ และ movement'],
+                    ['STK-05', 'critical', 'FEFO และห้ามขาย Lot หมดอายุ', 'products.index', 'มีสินค้าเดียวกันหลาย Lot คนละวันหมดอายุ', ['ขายหรือเบิกสินค้า', 'ตรวจ Lot ที่ระบบเลือก', 'ลองขาย Lot หมดอายุ'], 'เลือก Lot ที่หมดอายุก่อนตาม FEFO และ Lot หมดอายุถูกปฏิเสธตามนโยบาย', 'เลข Lot ในบิลและข้อความปฏิเสธ'],
+                    ['STK-06', 'critical', 'กักกันคุณภาพและปล่อย Lot', 'products.index', 'มี Lot รับใหม่ที่ตั้งสถานะพักตรวจ', ['ตั้ง Lot เป็น Hold/Quarantine', 'ลองขาย โอน และใช้ผลิต', 'บันทึกผล QC แล้วปล่อย Lot'], 'Lot กักกันถูกตัดจาก available ทุกช่องทาง และกลับมาใช้ได้หลังผู้มีสิทธิ์ปล่อย', 'สถานะ Lot ผล QC และ Audit'],
+                    ['STK-07', 'critical', 'Trace และ Recall ย้อนกลับ', 'products.index', 'มี Lot ผ่านรับ โอน ผลิต และขายแล้ว', ['เปิด Lot trace', 'ติดตามเอกสารต้นทางถึงลูกค้า/บิลปลายทาง', 'เปิด Recall และตรวจรายการติดตาม'], 'พบเส้นทาง Lot ครบ ระงับ Lot เกี่ยวข้อง และสร้างรายชื่อลูกค้า/เอกสารที่ต้องติดตาม', 'รายงาน Trace/Recall'],
+                ],
+            ],
+            [
+                'key' => 'production', 'label' => 'ผลิต / แปรรูป / สูญเสีย', 'owner' => 'ฝ่ายผลิต / คลัง / ต้นทุน',
+                'goal' => 'ใช้วัตถุดิบตามจริง คุม Yield ของเสีย ต้นทุนต่อกิโล และป้ายขายให้ตรง Batch',
+                'cases' => [
+                    ['PRD-01', 'control', 'สูตรผลิตและหน่วยวัตถุดิบ', 'production.index', 'มีสินค้าผลิตและวัตถุดิบหลายหน่วย', ['สร้างสูตร', 'กำหนดปริมาณมาตรฐานและหน่วย', 'คำนวณวัตถุดิบตามจำนวนผลิต'], 'ระบบแปลงหน่วยและคำนวณความต้องการตามสูตรถูกต้อง', 'สูตรและใบสั่งผลิต'],
+                    ['PRD-02', 'critical', 'ตัดวัตถุดิบจริงจากหลาย Lot', 'stock-transforms.index', 'มีวัตถุดิบหลาย Lot และพอผลิต', ['เลือก/ชั่งวัตถุดิบที่ใช้จริง', 'ยืนยัน Batch', 'ตรวจ Lot ที่ถูกตัด'], 'ตัดตามน้ำหนักจริงและ FIFO/FEFO พร้อมเก็บสายสัมพันธ์ Lot', 'ใบแปรรูปและ Lot lineage'],
+                    ['PRD-03', 'critical', 'Yield ของเสีย และต้นทุนต่อกิโล', 'stock-transforms.index', 'มีต้นทุนวัตถุดิบและน้ำหนักผลผลิตจริง', ['กรอกน้ำหนักผลผลิต', 'กรอกของเสียถ้ามี', 'ตรวจ Yield ต้นทุนรวม และต้นทุนต่อกิโล'], 'มวลวัตถุดิบ ผลผลิต ของเสีย และส่วนสูญเสียสมเหตุผล ต้นทุนไม่หาย', 'สรุป Batch และรายงานต้นทุน'],
+                    ['PRD-04', 'critical', 'แบ่งถุงและป้ายเครื่องชั่ง', 'stock-transforms.index', 'Batch ผลิตเสร็จและผูก PLU แล้ว', ['กรอกน้ำหนักแต่ละถุง', 'สร้างและพิมพ์ป้าย', 'สแกนป้ายขายที่ POS'], 'น้ำหนักถุงรวมไม่เกิน Batch และ POS อ่านสินค้า/น้ำหนัก/ราคาได้ตรง', 'ป้าย ถุง และใบเสร็จทดสอบ'],
+                    ['PRD-05', 'critical', 'Rollback เมื่อวัตถุดิบไม่พอ', 'stock-transforms.index', 'เตรียม Batch ที่ต้องใช้มากกว่าสต็อก', ['ยืนยันการผลิต', 'ตรวจข้อความผิดพลาด', 'ตรวจยอดวัตถุดิบและผลผลิตหลังล้มเหลว'], 'ไม่สร้างผลผลิตและไม่ตัดวัตถุดิบบางส่วน ธุรกรรมย้อนกลับทั้งหมด', 'ข้อความผิดพลาดและยอดก่อน/หลัง'],
+                ],
+            ],
+            [
+                'key' => 'sales', 'label' => 'ขายเชื่อ / AR', 'owner' => 'ฝ่ายขาย / คลัง / การเงิน',
+                'goal' => 'เอกสารขายต่อเนื่อง คุมเครดิต ส่งของครบ และรับเงินตัดหนี้ถูกใบ',
+                'cases' => [
+                    ['SAL-01', 'control', 'เสนอราคาไปใบขาย', 'quotations.index', 'มีลูกค้า สินค้า ราคา และพนักงานขาย', ['สร้างใบเสนอราคา', 'อนุมัติ/แปลงเป็นใบขาย', 'เทียบรายการ ราคา และเงื่อนไข'], 'ข้อมูลส่งต่อโดยไม่คีย์ซ้ำและอ้างอิงเลขเอกสารเดิม', 'ใบเสนอราคาและใบขาย'],
+                    ['SAL-02', 'critical', 'วงเงินเครดิตและผู้อนุมัติ', 'customers.index', 'ลูกค้ามีวงเงินและยอดหนี้คงค้าง', ['สร้างขายที่ยังไม่เกินวงเงิน', 'สร้างขายเกินวงเงิน', 'ขอและบันทึกผลอนุมัติ'], 'รายการเกินวงเงินถูกพักจนผู้มีสิทธิ์อนุมัติ', 'Customer ledger และ Approval'],
+                    ['SAL-03', 'critical', 'ส่งของ ใบกำกับ และตัดสต็อก', 'bookings.index', 'มีใบจอง/ขายเชื่อที่ยืนยันแล้ว', ['สร้างเอกสารส่งของ', 'ออกใบกำกับภาษี', 'ตรวจ Stock, AR, VAT และ GL'], 'เอกสารอ้างอิงกัน ยอดทั้งสี่ส่วนตรงและเกิดครั้งเดียว', 'เลขเอกสารและ GL'],
+                    ['SAL-04', 'control', 'วางบิลหลายใบ', 'billing-notes.index', 'มี AR หลายใบของลูกค้าเดียวกัน', ['เลือก open item', 'สร้างใบวางบิล', 'ตรวจยอดและวันนัดชำระ'], 'รวมเฉพาะหนี้ที่เลือกและยอดวางบิลตรงยอดคงเหลือ', 'ใบวางบิลและรายการหนี้'],
+                    ['SAL-05', 'critical', 'รับชำระบางส่วนและ WHT', 'customers.index', 'มี AR และหลักฐานโอน/หนังสือหักภาษี', ['รับเงินน้อยกว่ายอดหนี้', 'จัดสรรไปยังใบหนี้', 'บันทึก WHT และตรวจยอดคงเหลือ'], 'เงินและ WHT ตัดหนี้ตามใบ ยอดคงเหลือและ GL ถูกต้อง', 'ใบรับชำระ WHT และ Customer ledger'],
+                    ['SAL-06', 'critical', 'คืนขาย ใบลดหนี้ และต้นทุนกลับ', 'sale-returns.index', 'มีใบขายที่ยังคืนได้', ['อ้างอิงใบขาย', 'คืนบางรายการ', 'ตรวจ AR/VAT/Stock/COGS หลังคืน'], 'จำนวนคืนไม่เกินเดิมและยอดบัญชี/สต็อกกลับตาม Lot/ต้นทุนเดิม', 'ใบคืน ใบลดหนี้ และ GL'],
+                ],
+            ],
+            [
+                'key' => 'accounting', 'label' => 'การเงิน / บัญชี', 'owner' => 'การเงิน / บัญชี / หัวหน้าบัญชี',
+                'goal' => 'เงิน เอกสาร และ GL ตรงกัน เดบิตเท่ากับเครดิต และงวดที่ปิดแก้ย้อนหลังไม่ได้',
+                'cases' => [
+                    ['ACC-01', 'critical', 'Posting อัตโนมัติจากเอกสารต้นทาง', 'gl-journals.index', 'ผูกบัญชี Cash, Bank, AR, AP, VAT, Stock, Revenue และ COGS ครบ', ['สร้างขาย ซื้อ รับ และจ่ายอย่างละรายการ', 'เปิดสมุดรายวันจากเลขเอกสาร', 'รวมเดบิตและเครดิต'], 'ทุกเอกสารมี GL อ้างอิงและเดบิตเท่ากับเครดิต', 'เลขเอกสารและรายการ GL'],
+                    ['ACC-02', 'critical', 'Statement และสลิปกระทบยอด', 'monthly-accounting.index', 'มี Statement CSV และรายการโอน/QR ในระบบ', ['นำเข้า Statement', 'จับคู่อัตโนมัติ', 'ตรวจและจับคู่รายการที่เหลือพร้อมสลิป'], 'รายการเดียวจับคู่ได้ครั้งเดียว ยอดต่างเกิน 0.01 แสดง mismatch', 'Bank reconciliation และสลิป'],
+                    ['ACC-03', 'control', 'ค่าใช้จ่ายสาขาและ Cost Center', 'monthly-accounting.index', 'มีสาขา ผู้ขาย บัญชีค่าใช้จ่าย และ Cost Center', ['บันทึกค่าใช้จ่ายพร้อมเอกสาร', 'ระบุ VAT/WHT และ Cost Center', 'ตรวจงบเทียบจริง'], 'ค่าใช้จ่ายเข้า GL ภาษี และศูนย์ต้นทุนถูกเดือน/สาขา', 'เอกสารค่าใช้จ่ายและรายงานงบ'],
+                    ['ACC-04', 'critical', 'กระทบ AR, AP และมูลค่าสต็อก', 'reports.index', 'มีธุรกรรมซื้อขายของเดือนทดสอบ', ['ออกรายงาน AR/AP aging', 'ออกรายงาน Stock valuation', 'เทียบยอดกับบัญชีคุมใน GL'], 'ยอดรายละเอียดย่อยตรงบัญชีคุม หรือมีรายการผลต่างระบุสาเหตุได้', 'รายงานกระทบยอดที่ลงชื่อ'],
+                    ['ACC-05', 'control', 'ทรัพย์สินและค่าเสื่อม', 'fixed-assets.index', 'มีทรัพย์สิน วันที่เริ่มใช้ อายุ และบัญชีที่เกี่ยวข้อง', ['บันทึกทรัพย์สิน', 'คำนวณค่าเสื่อมประจำเดือน', 'ลองคำนวณซ้ำเดือนเดิม'], 'คิดค่าเสื่อมครั้งเดียวต่อเดือน มูลค่าคงเหลือและ GL ถูกต้อง', 'ทะเบียนทรัพย์สินและ GL ค่าเสื่อม'],
+                    ['ACC-06', 'critical', 'ปิดงวดและห้ามแก้ย้อนหลัง', 'accounting-periods.index', 'Checklist ก่อนปิดครบและมี Backup ล่าสุด', ['ปิดงวดด้วยหัวหน้าบัญชี', 'ลองสร้าง/แก้/ลบเอกสารและ GL ในงวดปิด', 'เปิดรายงานงวดเดิม'], 'การแก้ไขถูกปฏิเสธ แต่งบและเอกสารเดิมยังเปิดอ่านได้', 'หลักฐานปิดงวดและผลปฏิเสธ'],
+                ],
+            ],
+            [
+                'key' => 'tax', 'label' => 'ภาษี / ส่งบัญชี', 'owner' => 'บัญชีภาษี / ผู้ตรวจ / สำนักงานบัญชี',
+                'goal' => 'ข้อมูล VAT และ WHT ครบ ตรวจโดยคนที่สอง และส่งออกพร้อมหลักฐานว่าไฟล์ไม่ถูกแก้',
+                'cases' => [
+                    ['TAX-01', 'critical', 'ภ.พ.30 และทะเบียน VAT ซื้อ/ขาย', 'tax-compliance.index', 'มีเอกสารซื้อขายทั้งมี VAT และไม่มี VAT', ['เลือกเดือนและสาขา', 'จัดทำ PP30', 'เทียบยอดภาษีกับทะเบียนและ GL'], 'ฐานภาษี VAT ซื้อ/ขาย และยอดสุทธิตรงเอกสาร/GL', 'PP30 working paper และรายงาน GL'],
+                    ['TAX-02', 'critical', 'ภ.ง.ด.3 และ ภ.ง.ด.53', 'tax-compliance.index', 'มีรายการ WHT บุคคลธรรมดาและนิติบุคคล', ['จัดทำ PND3 และ PND53', 'ตรวจเลขผู้เสียภาษี อัตรา และยอด', 'ดาวน์โหลดไฟล์'], 'แยกประเภทผู้รับและอัตราถูกต้อง ยอดตรงใบหักภาษี', 'ไฟล์ PND และทะเบียน WHT'],
+                    ['TAX-03', 'critical', 'ผู้จัดทำและผู้ตรวจต้องคนละคน', 'tax-compliance.index', 'มีผู้ใช้บัญชี 2 คน', ['ผู้จัดทำสร้างชุดภาษี', 'ลองให้ผู้จัดทำกดตรวจเอง', 'ให้ผู้ตรวจคนที่สองตรวจผ่าน'], 'ระบบห้ามตรวจงานตนเองและเก็บผู้จัดทำ/ผู้ตรวจ/เวลา', 'สถานะชุดภาษีและ Audit'],
+                    ['TAX-04', 'critical', 'ชุด ZIP ส่งสำนักงานบัญชี', 'monthly-accounting.index', 'Statement/สลิป/ค่าใช้จ่าย/VAT/WHT กระทบครบ', ['สร้างชุดส่งออกประจำเดือน', 'เปิด ZIP ตรวจไฟล์', 'ตรวจ SHA-256 และนำส่ง'], 'ไฟล์ครบตามทะเบียน ยอดควบคุมตรง และ checksum ตรวจซ้ำได้', 'ZIP, checksum และใบรับส่งงาน'],
+                    ['TAX-05', 'control', 'E-Tax package และผลตอบรับ', 'tax-compliance.index', 'ตั้งค่าผู้ให้บริการและมีเอกสารภาษีทดสอบ', ['สร้าง E-Tax package', 'บันทึกสถานะส่ง', 'บันทึกผล accepted/rejected และเหตุผล'], 'UUID ไม่ซ้ำ เก็บ payload hash และไม่ขึ้นสำเร็จก่อนมีผลตอบรับ', 'UUID, hash และเลขอ้างอิงผู้ให้บริการ'],
+                ],
+            ],
+            [
+                'key' => 'people', 'label' => 'พนักงาน / เงินเดือน', 'owner' => 'HR / ผู้อนุมัติ / การเงิน',
+                'goal' => 'ข้อมูลพนักงาน เวลา เงินเดือน และการจ่ายแยกหน้าที่และตรวจย้อนหลังได้',
+                'cases' => [
+                    ['HR-01', 'control', 'แฟ้มพนักงานและโครงสร้างองค์กร', 'employees.index', 'มีสาขา แผนก ตำแหน่ง และผู้บังคับบัญชา', ['สร้างพนักงาน', 'ผูกหน่วยงาน/ตำแหน่ง/สาขา', 'ตรวจในผังองค์กร'], 'พนักงานมีรหัส POP ไม่ซ้ำและอยู่ในสายบังคับบัญชาถูกต้อง', 'แฟ้มพนักงานและผังองค์กร'],
+                    ['HR-02', 'critical', 'เวลา OT ขาดลา และคำนวณเงินเดือน', 'management-controls.index', 'มีพนักงาน อัตราเงินเดือน และข้อมูลเวลา', ['นำเข้าหรือบันทึกเวลา', 'ตรวจ OT/ขาด/ลา', 'คำนวณ Payroll'], 'รายได้ หัก และยอดสุทธิตรงกติกาพนักงาน', 'Timesheet และ Payroll detail'],
+                    ['HR-03', 'critical', 'ห้ามผู้จัดทำอนุมัติ Payroll ตนเอง', 'management-controls.index', 'มีผู้จัดทำและผู้อนุมัติคนละบัญชี', ['ผู้จัดทำสร้าง Payroll', 'ลองอนุมัติด้วยบัญชีเดิม', 'อนุมัติด้วยผู้มีสิทธิ์'], 'บัญชีเดิมถูกปฏิเสธและสถานะเก็บผู้อนุมัติจริง', 'Payroll approval log'],
+                    ['HR-04', 'critical', 'จ่ายเงินและสลิป', 'management-controls.index', 'Payroll ผ่านอนุมัติแล้ว', ['บันทึกการจ่าย', 'เปิดสลิปพนักงาน', 'ตรวจเงินออกและ GL'], 'จ่ายซ้ำไม่ได้ สลิปตรงยอดสุทธิและบัญชีลงครบ', 'สลิป หลักฐานโอน และ GL'],
+                ],
+            ],
+            [
+                'key' => 'security', 'label' => 'สิทธิ์ / Audit', 'owner' => 'ผู้ดูแลระบบ / เจ้าของกระบวนการ',
+                'goal' => 'เฉพาะคนที่ได้รับมอบหมายเข้าถึงข้อมูลสำคัญและทุกเหตุการณ์เสี่ยงตรวจย้อนหลังได้',
+                'cases' => [
+                    ['SEC-01', 'critical', 'MFA สำหรับผู้ใช้สำคัญ', 'operations.index', 'มีแอป Authenticator และผู้ใช้กลุ่มสำคัญ', ['เปิด MFA', 'ออกจากระบบและเข้าด้วยรหัส 6 หลัก', 'ลองใช้รหัสผิด/รหัสหมดเวลา'], 'รหัสถูกผ่าน รหัสผิดถูกปฏิเสธ และ Secret ไม่ปรากฏในหน้าทั่วไป', 'สถานะ MFA และ Login audit'],
+                    ['SEC-02', 'critical', 'จำกัดการลองรหัสผ่าน', 'operations.index', 'มีบัญชีทดสอบ', ['กรอกรหัสผิดติดต่อกันเกินเกณฑ์', 'ตรวจการหน่วง/ล็อกชั่วคราว', 'รอแล้วเข้าด้วยรหัสถูก'], 'ระบบจำกัดตาม username และ IP พร้อมบันทึกเหตุการณ์', 'เวลาและผล Login audit'],
+                    ['SEC-03', 'critical', 'แยก Maker-Checker', 'bplus.approvals', 'มีผู้ใช้ที่เป็นผู้จัดทำและผู้อนุมัติ', ['สร้าง PO/ปรับสต็อก/วงเงิน/Payroll', 'ลองอนุมัติด้วยผู้จัดทำ', 'อนุมัติด้วยผู้ตรวจ'], 'ทุกเอกสารควบคุมห้ามอนุมัติตนเอง', 'เลขเอกสารและ Approval audit'],
+                    ['SEC-04', 'control', 'Audit การแก้ข้อมูลสำคัญ', 'reports.index', 'มีสิทธิ์แก้สินค้า ราคา ผู้ใช้ และการตั้งค่า', ['แก้ข้อมูลทดสอบ', 'เปิด Audit log', 'ค้นตามผู้ใช้ เวลา และเอกสาร'], 'เห็นค่าเดิม/ใหม่ ผู้ทำ วันเวลา IP และรายการอ้างอิง', 'รายงาน Audit'],
+                    ['SEC-05', 'critical', 'ปิดบัญชีพนักงานที่ออก', 'users.index', 'มีผู้ใช้ที่มี Session เปิดอยู่', ['เปลี่ยนบัญชีเป็นไม่ใช้งาน', 'ลองเปิดหน้าใหม่จาก Session เดิม', 'ลองเข้าสู่ระบบใหม่'], 'Session/การเข้าถึงถูกยกเลิกและล็อกอินใหม่ไม่ได้', 'สถานะผู้ใช้และ Security log'],
+                ],
+            ],
+            [
+                'key' => 'integration', 'label' => 'เชื่อมต่อ / นำเข้า', 'owner' => 'IT / Data / เจ้าของข้อมูล',
+                'goal' => 'ข้อมูลภายนอกผ่าน Staging และ Validation ก่อนลงบัญชี พร้อมป้องกันข้อมูลซ้ำ',
+                'cases' => [
+                    ['INT-03', 'control', 'ข้อมูล Master จากระบบเดิม', 'bplus.pos-preparation', 'มีสินค้า ราคา สมาชิก และผู้ใช้ตัวอย่างจากระบบเดิม', ['นำเข้า/ซิงก์ Master', 'ตรวจ Mapping และจำนวนรายการ', 'รันซ้ำข้อมูลเดิม'], 'ข้อมูลไม่ซ้ำ รหัสเดิมผูกกับรหัส ERP และมีรายงานข้อผิดพลาด', 'Mapping และ Sync log'],
+                    ['INT-04', 'control', 'แจ้งเตือนงานผิดพลาด', 'line-integrations.index', 'ตั้งผู้รับแจ้งเตือนทดสอบแล้ว', ['สร้างเหตุการณ์ Import/Backup ผิดพลาด', 'ตรวจข้อความและผู้รับ', 'แก้ปัญหาและตรวจสถานะปิด'], 'ผู้รับผิดชอบได้รับเหตุการณ์ที่ระบุสาขา เวลา และทางเปิดตรวจ', 'ข้อความแจ้งเตือนและ Incident'],
+                ],
+            ],
+            [
+                'key' => 'operations', 'label' => 'สำรอง / กู้คืน', 'owner' => 'IT / ผู้บริหาร',
+                'goal' => 'ระบบกู้กลับได้จริงและตรวจสุขภาพก่อนเกิดเหตุ ไม่ใช่เพียงมีไฟล์สำรอง',
+                'cases' => [
+                    ['OPS-01', 'critical', 'Backup พร้อม Checksum', 'operations.index', 'กำหนดพื้นที่สำรองและสิทธิ์ไฟล์แล้ว', ['สั่ง Backup', 'ตรวจไฟล์ .gz และ .sha256', 'ตรวจผล Operation run'], 'Backup สำเร็จ ไฟล์อ่านได้ checksum ตรง และเก็บเวลาผู้สั่ง', 'ชื่อไฟล์ checksum และ Operation run'],
+                    ['OPS-02', 'critical', 'สำเนานอกเครื่อง', 'operations.index', 'ตั้ง Offsite disk และปลายทางแยกจากเซิร์ฟเวอร์', ['สร้าง Backup ใหม่', 'ตรวจไฟล์ที่ Offsite', 'เทียบขนาดและ checksum'], 'มีสำเนานอกเครื่องที่ checksum ตรงกับต้นฉบับ', 'รายการไฟล์สองปลายทาง'],
+                    ['OPS-03', 'critical', 'Restore drill ฐานทดสอบ', 'operations.index', 'ตั้งฐานทดสอบแยกจาก Production', ['เลือก Backup ล่าสุด', 'รันตรวจและกู้ลงฐานทดสอบ', 'เปิดตรวจผู้ใช้ สินค้า บิล และยอด GL ตัวอย่าง'], 'กู้คืนสำเร็จโดยไม่เขียนทับ Production และข้อมูลตัวอย่างครบ', 'Restore run และผลตรวจข้อมูล'],
+                    ['OPS-04', 'critical', 'Health check และ Backup เก่า', 'operations.index', 'สามารถหยุดส่วนทดสอบหรือใช้ข้อมูล Backup เกินเกณฑ์', ['รัน Health check ปกติ', 'จำลอง Backup เกิน 26 ชั่วโมง', 'ตรวจ Monitor และเงื่อนไขปิดงวด'], 'สถานะปกติเป็นเขียว กรณีเสี่ยงแจ้งเตือนและห้ามปิดงวด', 'Health result และ Incident'],
+                ],
+            ],
+        ];
+    }
+
+    private function gaps(): array
+    {
+        return [
+            ['level' => 'critical', 'status' => 'พร้อมใช้', 'title' => 'ราคา โปรโมชั่น และส่วนลด POS ยืนยันฝั่ง Server', 'detail' => 'checkout คำนวณราคาหลัก โปรโมชั่น บัตร ส่วนลด แต้ม และราคาต่ำกว่าทุนซ้ำฝั่ง Server พร้อมสิทธิ์ผู้อนุมัติ'],
+            ['level' => 'critical', 'status' => 'พร้อมใช้', 'title' => 'บิลพักส่วนกลางและ Z Report', 'detail' => 'บิลพักเก็บบน Server เรียกต่อข้ามเครื่องได้ครั้งเดียว กะรองรับเงินเพิ่ม นำส่ง เบิกจ่าย และรายงานปิดกะที่กระทบยอดเงินสดครบ'],
+            ['level' => 'control', 'status' => 'รอทดสอบอุปกรณ์จริง', 'title' => 'อุปกรณ์ POS รายเครื่อง', 'detail' => 'มีโปรไฟล์ Printer, กระดาษ, Cash drawer, Customer display, Scanner และ Scale ส่งเข้า Desktop POS แล้ว ต้องทำ Hardware UAT กับรุ่นที่ใช้จริงก่อนรับรอง'],
+            ['level' => 'critical', 'status' => 'มีชุดหลัก', 'title' => 'Integration tests ธุรกรรมครบวงจร', 'detail' => 'ทดสอบซื้อ ต้นทุน VAT ขาย Stock FEFO กักกัน Batch และ rollback บนฐานข้อมูลทดสอบแล้ว ต้องขยายต่อเมื่อเพิ่มโมดูล'],
+            ['level' => 'control', 'status' => 'พร้อมใช้', 'title' => 'Approval เชื่อมเอกสารจริง', 'detail' => 'PO ปรับยอดสต๊อก วงเงินเครดิตลูกค้า Payroll และงบประมาณ แยกสิทธิ์ผู้อนุมัติและห้ามผู้ขออนุมัติตนเองครบ ส่วนลด POS/ขายต่ำกว่าทุนแยกสิทธิ์แล้ว'],
+            ['level' => 'control', 'status' => 'พร้อมใช้', 'title' => 'Security, MFA และ Audit การเข้าสู่ระบบ', 'detail' => 'มี MFA แบบ TOTP, login throttling, session regeneration, encrypted secret และศูนย์ตรวจสถานะ; ยังต้องเปิด MFA ให้ผู้ใช้สำคัญทุกคน'],
+            ['level' => 'control', 'status' => 'พร้อมใช้', 'title' => 'Backup, restore drill และ disaster recovery', 'detail' => 'มี backup/checksum/retention, ศูนย์ตรวจจากหน้าเว็บ, health gate ก่อนปิดงวด และ restore verification; production ต้องตั้ง offsite disk และ scheduler'],
+            ['level' => 'growth', 'status' => 'ทะเบียนแล้ว', 'title' => 'E-Commerce sync อัตโนมัติ', 'detail' => 'มีแฟ้มช่องทาง Lazada Shopee LINE MyShop และ TikTok Shop แต่ยังไม่มี order/stock sync จริง'],
+            ['level' => 'growth', 'status' => 'พร้อมใช้', 'title' => 'Payroll และเวลาเข้างาน', 'detail' => 'บันทึกเวลาเข้างาน คำนวณเงินเดือน OT ขาดงาน ประกันสังคม กรอกภาษีหัก ณ ที่จ่าย อนุมัติ จ่าย และพิมพ์สลิปได้ครบวงจร (ผู้จัดทำอนุมัติเองไม่ได้)'],
+            ['level' => 'growth', 'status' => 'พร้อมใช้', 'title' => 'งบประมาณและศูนย์ต้นทุน', 'detail' => 'ตั้ง Cost Center และงบประมาณรายเดือน/บัญชี อนุมัติงบ และดูรายงานเทียบงบ vs ค่าใช้จ่ายจริง (variance) ต่อ Cost Center ได้'],
+        ];
+    }
+
+    private function routines(): array
+    {
+        return [
+            ['period' => 'ทุกวัน', 'owner' => 'สาขา', 'items' => ['เปิด/ปิดกะครบ', 'เงินสดและยอดโอนตรง', 'ไม่มีบิลค้างหรือ stock ติดลบผิดปกติ']],
+            ['period' => 'ทุกวัน', 'owner' => 'คลัง', 'items' => ['รับ/จ่าย/โอนมีเอกสาร', 'รายการระหว่างทางไม่ค้างเกินกำหนด', 'Lot และวันหมดอายุถูกต้อง']],
+            ['period' => 'ทุกสัปดาห์', 'owner' => 'จัดซื้อ/ขาย', 'items' => ['ทบทวนของขาดและของค้าง', 'ติดตาม PO/AR/AP เกินกำหนด', 'ตรวจราคาและโปรโมชั่นที่จะเริ่ม/หมดอายุ']],
+            ['period' => 'สิ้นเดือน', 'owner' => 'บัญชี', 'items' => ['กระทบธนาคาร', 'ตรวจ VAT/GL ไม่ดุล', 'ตรวจ AR/AP/สต็อกและปิดงวด']],
+            ['period' => 'สิ้นเดือน', 'owner' => 'ผู้บริหาร', 'items' => ['กำไรขั้นต้นตามสาขา', 'ของเสียและผลต่างสต็อก', 'ยอดขาย/เงินสด/หนี้และแผนเดือนถัดไป']],
+            ['period' => 'รายไตรมาส', 'owner' => 'IT', 'items' => ['ทดสอบ restore backup', 'ทบทวนสิทธิ์ผู้ใช้', 'ตรวจ integration log และอัปเดตคู่มือ']],
+        ];
+    }
+}

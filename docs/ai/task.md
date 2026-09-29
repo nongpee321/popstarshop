@@ -1,0 +1,283 @@
+# Handoff — 2026-08-23 รอบที่ 4 (Claude) — **Deploy แล้ว**
+
+## Commit
+
+```
+bf0bec5 Keep imported POS receipts out of the new sales figures
+af47dbe Post stock adjustments and write-offs to the ledger
+92dfcd1 Make erp:health notice sales that never reached the ledger
+```
+
+## Deploy: ขึ้น production แล้ว 2 รอบ
+
+| รอบ | migration | ผล |
+|---|---|---|
+| 1 | `143`-`147` (ทะเบียนรายงาน, ใบจอง, เจ้าหนี้, สมุดเงินสด, นโยบายสิทธิ์) | batch [89] ผ่าน |
+| 2 | `148`-`149` (flag บิลนำเข้าเก่า, บัญชีผลต่างสต๊อก) | batch [90]-[91] ผ่าน |
+
+ขั้นตอนที่ใช้ทุกรอบ: `erp:backup` + ตรวจ sha256 → `rsync --dry-run --itemize-changes` ตรวจรายการ →
+rsync จริง (**ไม่ใช้ `--delete`** ตามกติกา) → `scripts/deploy.sh` → `erp:health`
+
+backup ที่ถ่ายไว้: `erp-db-20260823-062945.sql.gz` (ก่อนรอบ 1) และ `erp-db-20260823-063836.sql.gz` (ก่อนรอบ 2)
+
+**ตรวจก่อน deploy ตามแผน**: `cash_books` = 0 แถวจริง migration จึงสร้างตารางใหม่ได้ปลอดภัย
+
+## ผลที่ได้
+
+### ยอด sales_postings เทียบ GL: 4.58 ล้าน → 2,383 บาท
+
+| ก่อน | หลัง |
+|---|---|
+| sales_postings 4,599,908.50 · GL 23,479.77 · **ต่าง ~4.58 ล้าน** | sales_postings 22,183.50 · GL รายได้ 18,505.15 + ภาษีขาย 1,295.35 · **ต่าง 2,383.00** |
+
+บิลนำเข้าเก่า 16,537 ใบถูก flag และกันออกจากยอด — **ข้อมูลยังอยู่ครบ 16,557 แถว ไม่ได้ลบ**
+rollback migration `148` แล้วยอดกลับมาเหมือนเดิมทันที
+
+### ปรับสต๊อก/ตัดชำรุด ลง GL แล้ว
+
+เพิ่มบัญชี `5030 ผลต่างจากการปรับปรุงสินค้าคงเหลือ` แล้วต่อเข้า
+`StockAdjustmentService::approve` และ `StockIssueService::approveDamage`
+ของเกิน Dr สินค้าคงเหลือ ของขาด Cr — **มูลค่าคิดจาก Lot ที่ FIFO ตัดจริง** ไม่ใช่ต้นทุนเฉลี่ยปัจจุบัน
+
+ยังไม่ลง GL: แปรรูป, รับผลิต, ค่าเสื่อมราคา (ค่าเสื่อมต้องมีบัญชีค่าเสื่อมสะสมก่อน ผังบัญชียังไม่มี)
+
+## ผลต่าง 2,383 บาทที่เหลือ — หา root cause เจอแล้ว ยังไม่แก้ข้อมูล
+
+**สาเหตุ**: เอกสารขาย 5 ใบแรก (`CS000720260706001` ถึง `CS000720260712001`, 6-12 ก.ค. 2026)
+**ไม่มีรายการ GL เลย** เพราะขายก่อนที่ระบบจะต่อ GL — `gl_journals` แถวแรกคือ document 6
+สร้าง 12 ก.ค. 09:52 ส่วน 5 ใบนั้นสร้างก่อนหน้านั้นทั้งหมด
+
+| doc | เลขที่ | วันที่ | ยอด | cost_amount |
+|---|---|---|---|---|
+| 1 | CS000720260706001 | 2026-07-06 | 102.00 | 0 |
+| 2 | CS000720260706002 | 2026-07-06 | 464.00 | 0 |
+| 3 | CS000720260707001 | 2026-07-07 | 1,038.00 | 0 |
+| 4 | CS000720260709001 | 2026-07-09 | 20.00 | 0 |
+| 5 | CS000720260712001 | 2026-07-12 | 759.00 | 0 |
+
+**ทำไมผมไม่แก้ให้เอง**
+
+`GlPostingService::postCashSale()` เรียกซ้ำได้ (ลบของเดิมก่อนลงใหม่) และงวด ก.ค. ยัง `open`
+ทางเทคนิคจึงกด repost ได้ทันที **แต่ทั้ง 5 ใบมี `cost_amount = 0`**
+แปลว่าต้นทุนขายของบิลชุดนั้นไม่เคยถูกบันทึก และสร้างย้อนหลังไม่ได้เพราะไม่รู้ว่าตัด Lot ไหนไป
+
+ถ้า repost ตรง ๆ จะได้เฉพาะขา เงินสด/รายได้/ภาษีขาย ส่วนต้นทุนขายกับสินค้าคงเหลือจะยังขาด
+= แก้ตัวเลขหนึ่งให้ตรงแล้วทำอีกตัวเพี้ยนแทน ถ้าจะเดาต้นทุนจากราคาเฉลี่ยปัจจุบันก็คือ
+**เขียนตัวเลขที่เดาเอาลงสมุดบัญชีจริง** ซึ่งเป็นการตัดสินใจของนักบัญชี ไม่ใช่ของผม
+
+คำสั่งที่พร้อมรันเมื่อได้ข้อสรุปแล้ว (ทำใน tinker บน production):
+
+```php
+foreach (App\Models\Document::whereIn('id', [1,2,3,4,5])->get() as $d) {
+    app(App\Services\Accounting\GlPostingService::class)->postCashSale($d);
+}
+```
+
+## กันไม่ให้เกิดซ้ำ
+
+`erp:health` ตรวจเพิ่มแล้วว่า **เอกสารขายที่ยืนยันแล้วต้องมีรายการ GL เสมอ**
+ตอนนี้บน production ขึ้น `ไม่ผ่าน — เอกสารขาย 5 ใบไม่มีรายการ GL รวม 2,383.00 บาท`
+ซึ่งจะเขียวเองทันทีที่แก้ข้อมูลเสร็จ
+
+เดือน ก.ค. ไม่มีอะไรจับเรื่องนี้ได้เลย กว่าจะรู้ก็ตอนกระทบยอดสองเดือนถัดมา
+
+## ทดสอบไปแล้วแค่ไหน
+
+`php artisan test` → **178 passed / 2,110 assertions / incomplete 6** (เดิม 171)
+
+เพิ่ม: `InventoryLedgerPostingTest` 4 เคส (ของขาด/ของเกิน/ตัดชำรุด/นับตรงไม่สร้างเอกสาร),
+`ErpHealthSalesLedgerTest` 2 เคส, และเคสบิลนำเข้าเก่าใน `SalesReportChannelOverlapTest`
+
+ระหว่างทางเจอว่า `StockAdjustmentService` ปฏิเสธการสร้างเอกสารตั้งแต่ต้นถ้านับตรงกับระบบ
+(ดีกว่าที่ผมเดาไว้ เลยเขียนเทสต์ยืนยันพฤติกรรมนั้นแทน)
+
+## ยังไม่ทดสอบ / ความเสี่ยง
+
+- **ยังไม่ได้ทดสอบ migration `148`-`149` บน PostgreSQL แยกก่อน deploy** — รอบนี้ deploy ตรง
+  (รันผ่านจริงบน production แล้วและ verify ผลถูกต้อง แต่ไม่ได้ dry-run บนฐานทดสอบเหมือนรอบก่อน)
+- ปรับสต๊อก/ตัดชำรุดที่ลง GL ใหม่ **ยังไม่มีใครใช้จริงบน production** (`documents` มีใบปรับสต๊อก 1 ใบ
+  ที่สร้างก่อนหน้านี้ ไม่ได้ลง GL ย้อนหลังให้)
+- ผู้ใช้ MARKETING ยังเห็นรายงานว่างเปล่าตามนโยบายที่ตกลง ยังไม่ได้กำหนดสาขาให้
+- รายงาน P1/P2 29 ตัวยังปิดอยู่ รวม VAT ซื้อ/ขาย — ถ้าบัญชีต้องใช้ปิดเดือนต้องเปิดกลับ
+
+## งานถัดไป
+
+1. **นักบัญชีตัดสินเรื่องต้นทุนของ 5 ใบนั้น** แล้วผมรัน repost ให้ — `erp:health` จะเขียวเอง
+2. กำหนดสาขาให้ MARKETING หรือให้สิทธิ์ `reports.all_branches`
+3. เปิดรายงาน VAT กลับถ้าบัญชีต้องใช้ปิดเดือน
+4. เตรียม parallel run: เปิดบัญชีธนาคาร + ยอดยกมาต้นงวด + เลือกสาขา
+5. เครื่อง SQL Server สำหรับวิเคราะห์ BPlus (ยังติดอยู่)
+
+## Handoff - 2026-08-26 (Codex)
+- ทำอะไร: แก้ Odoo navigation ให้กดหมวดบนแถบบนแล้วเปิด sidebar กลุ่มตรงกัน และเชื่อมกับตัวกรองหมวด Vue บนหน้า App Launcher
+- ทดสอบ: `npm run build`, `php artisan test` (380 tests, 379 passed, 1 skipped, 6 incomplete), `php artisan view:cache`, `git diff --check`
+- Deploy: deploy ขึ้น production แล้วหลัง `erp:backup`; rsync แบบ dry-run และจริงโดยไม่ใช้ `--delete`; production `erp:health` ผ่านครบ; manifest และ Launcher JS ตอบ HTTP 200
+- หมายเหตุ: deploy เฉพาะ `layout.blade.php`, `AppLauncher.vue`, `manifest.json` และ asset App Launcher ไม่รวมงาน POS/คลังมือถือที่ยังไม่ commit
+
+## Handoff - 2026-08-26 (Codex runtime fix)
+- เปลี่ยนจากการจำลอง `.click()` ของปุ่ม Vue เป็น custom event `erp:select-section` ให้ AppLauncher รับคำสั่งโดยตรง; รอบนั้นยังไม่ได้พิสูจน์ root cause ด้วย Browser จึงไม่ควรสรุปว่า `.click()` เป็นเหตุหน้าว่าง
+- ทดสอบ: `npm run build`, `php artisan test` (380 tests, 379 passed, 1 skipped, 6 incomplete), `php artisan view:cache`, `git diff --check`
+- Deploy: backup `erp-db-20260826-212725.sql.gz`, rsync แบบ dry-run/จริงโดยไม่ใช้ `--delete`, ล้าง cache และ `erp:health` production ผ่านครบ; ตรวจ asset/manifest HTTP 200 และตรวจ source/asset บน Host แล้ว
+
+## Handoff - 2026-08-26 (Codex verified navigation and warehouse)
+- Commit โค้ด: `7db1cbf` บนฐาน `7b143e9` ของ Claude
+- Launcher: เมนูบนส่งหมวดให้ Vue โดยตรง, การเลือกหมวดด้านในส่งสถานะกลับเมนูบน, "ทั้งหมด" ล้างสถานะหมวดบน, ตัวเลขนับเฉพาะการ์ดที่แสดง และเก็บการเลือกหมวดระหว่างรอโหลด module
+- คลังมือถือ: ยืนยันว่า Blade render `tab: &#039;receive&#039;` ทำให้ JavaScript parse ไม่ผ่านและทุก panel ถูก x-cloak ซ่อน; เปลี่ยนเป็น `@js`, เพิ่ม regression tests ทั้งผู้รับสินค้าและผู้เช็คสต๊อกอย่างเดียว
+- Stock endpoint: กรองตามสาขาที่เลือก และบังคับสาขาของผู้ใช้ที่ถูกผูกสาขาเสมอ; เพิ่ม tests ป้องกันขอดูข้ามสาขา
+- ทดสอบ: `php artisan test --compact` ไม่มี failure (runner รายงาน 384 tests / 383 passed / 1 skipped / 6 incomplete / 2914 assertions); `npm run build`, `php artisan view:cache`, `git diff --check` ผ่าน
+- Browser: ใช้ HTML ที่ Laravel render ด้วยบัญชี fixture ใน SQLite in-memory พร้อม asset build จริง บน local server; ทดสอบ Launcher เลือกหมวดทั้งสองทาง/ทั้งหมด/ค้นหาข้ามหมวด, sidebar ปกติและ Escape ล้างคำค้น, คลังมือถือสลับรับเข้า/รับตาม PO/เช็คสต๊อก; ตรวจ screenshot ที่ 1366x900 และ 390x844 ไม่พบหน้าว่างหรือ overflow แนวนอน; ไม่พบ JS error ใน flow เหล่านี้
+- ขอบเขต Browser: PO endpoint เป็น fixture คืนรายการว่าง ไม่ใช่การรับสินค้าจริง; ยังไม่ทดสอบเขียนเอกสาร, กล้องมือถือจริง หรือ Windows POS จริง; production Browser ยังติดหน้า login จึงไม่ได้ยืนยันการคลิกบน production
+- Assets: ตรวจ manifest 13 entries / 15 files รวม shared chunks ครบใน local build; รอบ deploy ต้องส่ง asset ทั้งชุดก่อนเปลี่ยน manifest ไม่ใช่เฉพาะ launcher JS/CSS; HTTP 200 ของ manifest อย่างเดียวไม่พอ
+- Deploy: **รอบแก้ล่าสุดนี้ยังไม่ deploy**; production มีเพียง hotfix รอบก่อนข้างบน ห้ามถือว่า source บน main กับ host ตรงกันแล้ว
+- POS: ไม่ได้เรียก `pos:web-mode` หรือเปลี่ยนค่า production; โค้ดปัจจุบันเป็น **global AppSetting** ไม่มี `--branch` จึงยัง cutover รายสาขาไม่ได้ ต้องเพิ่ม branch-scoped flag ก่อนหากต้องการ rollout ทีละสาขา; รอทดสอบ 0.4.0 บน Windows จริงก่อนตัด Web POS
+- Deployment warning: `scripts/deploy-ssh.sh` ปัจจุบันยังมี `--delete` ซึ่งขัดกติกา WORKFLOW/PROJECT_MEMORY; ห้ามรันตามเดิม ให้ทำ backup + explicit dry-run/rsync ที่ไม่มี `--delete` ตาม OPERATIONS
+- ไฟล์ `package-lock.json` ที่ไม่ tracked ไม่รวมใน commit; ไม่แตะงาน Python POS, DB migration, tokens หรือ PIN
+
+## Handoff - 2026-08-26 (Codex production deploy)
+- Commit deployed: `f4ca475`
+- Deploy: ขึ้น production `/var/www/jeterp` แล้วด้วย rsync แบบ explicit และ **ไม่ใช้ `--delete`**; exclude `.env`, `storage`, `vendor`, `node_modules`, `.claude`, `.codex`, `package-lock.json` และไฟล์ runtime
+- Backup: รันบน host ก่อน deploy สำเร็จที่ `storage/app/backups/erp-db-20260826-223203.sql.gz` พร้อม checksum ตาม `erp:backup`
+- Build/assets: รัน `npm run build` ในเครื่อง dev ก่อน deploy; ส่ง `public/build` ทั้งชุดขึ้น host; ตรวจ production manifest ผ่าน `manifest ok 13` และ `/build/manifest.json` ตอบ HTTP 200
+- Production commands: `php artisan optimize:clear`, `config:clear`, `route:clear`, `view:clear`, `chown -R www-data:www-data storage bootstrap/cache`, `php artisan migrate --force`
+- Health: production `php artisan erp:health` ผ่านครบหลัง deploy: database, migrations, backup, sales-GL, storage, queue
+- Routes checked: `/apps`, `/wh/*`, `/pos` และ POS API routes อยู่ครบบน production; `pos_web_mode` ยังเป็น `sell` จึงยังไม่ได้ตัด Web POS ไป redirect
+- Browser: In-app Browser production redirect ไปหน้า login และ Chrome connector unavailable จึงยังไม่ได้คลิกยืนยัน `/apps` และ `/wh` ด้วย session จริงบน production; ตรวจได้เฉพาะ HTTP/route/asset/server health
+- Local verification before deploy: `php artisan test --compact` ไม่มี failure (384 tests / 383 passed / 1 skipped / 6 incomplete / 2914 assertions), `npm run build` ผ่าน, manifest local ครบ 13 entries
+
+## Handoff - 2026-08-26 (Codex POS menu split)
+- Commit: `3ad2144`
+- ทำอะไร: แยกหมวดเมนูใหม่ `POS / หน้าร้าน` ออกจาก `ขาย / เอกสาร`; ย้าย `เปิด POS ขาย`, `ศูนย์ควบคุม POS`, `เครื่องมือ POS`, `ส่งข้อมูลไป POS`, `QR รับเงิน / จอแสดงราคา` ไปหมวดใหม่
+- รายละเอียด: `ขาย / เอกสาร` เหลือเอกสารขาย/CRM; `SystemSettingController::defaultMenuOrder()` รู้จักหมวดใหม่; `ErpMenu::forUser()` แทรกหมวดใหม่หลัง `งานประจำวัน` แม้ production จะมี `menu_section_order` เก่าที่ยังไม่มี label นี้
+- ทดสอบ: `php artisan test tests/Feature/AppLauncherTest.php tests/Feature/ErpMenuIconTest.php` ผ่าน 10 tests / 48 assertions; `php artisan test --compact` ไม่มี failure (386 tests / 385 passed / 1 skipped / 6 incomplete / 2927 assertions); `npm run build` ผ่าน; `git diff --check` ผ่าน
+- Deploy: deploy ขึ้น production แล้ว; backup `erp-db-20260826-224714.sql.gz`; rsync dry-run/จริงแบบไม่ใช้ `--delete`; `php artisan migrate --force` ไม่มี migration ค้าง; production `erp:health` ผ่านครบ; ตรวจ production menu order ได้ `ภาพรวม | งานประจำวัน | POS / หน้าร้าน | ...`; manifest production ผ่าน `manifest ok 13`
+- หมายเหตุ: ไม่เปลี่ยนสิทธิ์ route เดิม; `QR รับเงิน / จอแสดงราคา` ยังใช้ `settings.manage` ตามเดิมเพราะเป็นงานตั้งค่าอุปกรณ์/PromptPay
+
+## Handoff - 2026-08-26 (Codex Python POS workbench copy)
+- Commit: `f81f828`
+- ทำอะไร: แก้หน้า `เครื่องมือ POS` ไม่ให้โปรโมต Vue/Tauri รุ่น 0.1.7 แล้ว; ปุ่มหลักและปุ่มอัปเดตเปลี่ยนไป `python-pos.download`; copy ระบุ `PopCentral Python POS`, `Python + PySide6`, `Local SQLite`, และ sync เข้า PopCentral
+- ทดสอบ: `php artisan test tests/Feature/PosWorkbenchTest.php` ผ่าน 1 test / 8 assertions; `php artisan test --compact` ไม่มี failure (387 tests / 386 passed / 1 skipped / 6 incomplete / 2934 assertions); `npm run build` ผ่าน; `git diff --check` ผ่าน
+- Deploy: deploy ขึ้น production แล้ว; backup `erp-db-20260826-225337.sql.gz`; rsync dry-run/จริงแบบไม่ใช้ `--delete`; ล้าง Laravel cache; production `erp:health` ผ่านครบ; ตรวจ source บน host แล้วมี `Python + PySide6` และ `python-pos.download` โดยไม่มี `Vue + Tauri` หรือ `0.1.7`
+- หมายเหตุ: ยังไม่เปลี่ยน `Web POS` route หรือ flag `pos_web_mode`; รอบนี้แก้เฉพาะหน้าเครื่องมือ POS ที่แสดงข้อความผิด
+
+## Handoff - 2026-08-27 (Codex Python POS direction cleanup)
+- Commit: `5c09e05`
+- ทำอะไร: ให้ Python/PySide6 เป็น POS หลักในข้อความและเอกสารกลาง; เปลี่ยน `/download/pos` เดิมให้ redirect ไป `/download/python-pos`; ปรับหน้า Settings และคำอธิบายแอปไม่ให้ชี้ว่า Vue/Tauri เป็นช่องทางใช้งาน
+- ทดสอบ: focused POS tests ผ่าน 7 tests / 25 assertions; `php artisan view:cache`; `git diff --check`
+- ยังไม่ทดสอบ/ความเสี่ยง: ยังไม่ได้ทดสอบ installer บน Windows จริง และยังไม่ได้เปิด `pos:web-mode redirect`; การเปิดขายจริงต้องผ่าน Windows/hardware UAT ก่อน
+- Deploy: ยังไม่ deployรอบนี้ เพราะต้อง commit/push และตรวจการเชื่อมต่อ GitHub ก่อน
+- งานถัดไป: push แล้ว deploy source + clear cache + `erp:health`; จากนั้นทดสอบดาวน์โหลดบน host และติดตั้ง Python POS บน Windows จริง
+
+## Handoff - 2026-08-27 (Codex POS web visual parity)
+- Commit: pending
+- ทำอะไร: ปรับ `/pos` ให้เรียงและใช้โทนตาม Python/PySide6 build: บิล/ตะกร้าซ้าย, สินค้าขวา, แถบค้นหาและหมวดอยู่ด้านบน, แผงสีขาวบนพื้นเทาอ่อน, header และปุ่มใช้ชุดสีเดียวกับ build; มือถือยังเรียงสินค้าไว้ด้านบนเพื่อให้เลือกสินค้าได้สะดวก
+- ทดสอบ: ยังรันทดสอบหลัง patch ไม่เสร็จ
+- ยังไม่ทดสอบ/ความเสี่ยง: ยังไม่ได้ตรวจ screenshot บน production เพราะ source รอบนี้ยังไม่ push/deploy
+- Deploy: ยังไม่ deploy
+- งานถัดไป: รันทดสอบ, push และ deploy เมื่อ GitHub เชื่อมต่อได้ แล้วตรวจ `/pos` ด้วย browser
+
+## Handoff - 2026-08-27 (Codex enterprise login skin)
+- Commit: pending
+- ทำอะไร: ปรับ `resources/views/auth/login.blade.php` เป็น enterprise login แบบ SAP-inspired: พื้นหลัง neutral, split panel คม, สีหลักเดียว, ฟอร์มด้านขวา, ข้อความ UI ภาษาอังกฤษแบบสากล และ responsive สำหรับมือถือ โดยไม่แตะ authentication flow
+- ทดสอบ: `php artisan test tests/Feature/ExampleTest.php tests/Feature/DashboardLayoutTest.php --compact` ผ่าน 12 tests / 41 assertions; `php artisan view:cache`; `git diff --check`
+- ยังไม่ทดสอบ/ความเสี่ยง: ยังไม่ได้ screenshot บน production เพราะ commit นี้ยังไม่ push/deploy
+- Deploy: ยังไม่ deploy
+- งานถัดไป: push และ deploy แล้วตรวจ `/login` บน host ที่ความกว้าง desktop/mobile
+
+## Handoff - 2026-08-28 (Codex POS permission access)
+- Commit: `5a7e362`
+- ทำอะไร: ให้สิทธิ์ `pos.sell` ซึ่งเป็นสิทธิ์ขาย POS ที่สูงกว่า รวมสิทธิ์เปิดหน้า `pos.use` อัตโนมัติ แก้กรณีแคชเชียร์มีสิทธิ์ขายแต่เมนู POS ถูกซ่อนหรือเข้า `/pos` แล้วได้ 403; ผู้ใช้ที่มี `pos.use` อย่างเดียวยังดูได้แต่เปิดกะ/คิดเงินไม่ได้
+- ทดสอบ: `php artisan test tests/Feature/PosWebModeTest.php tests/Feature/PosDeviceConnectionTest.php tests/Feature/UserManagementTest.php --compact` ผ่าน 14 tests / 63 assertions; `php artisan view:cache`; `git diff --check`
+- ยังไม่ทดสอบ/ความเสี่ยง: ยังไม่ได้ deploy; ต้องตรวจผู้ใช้จริงที่ติด `must_change_password` ให้เปลี่ยนรหัสชั่วคราวก่อนเข้าเมนูตามนโยบายความปลอดภัย
+- Deploy: ยังไม่ deploy
+- งานถัดไป: push แล้ว deploy พร้อมล้าง cache และตรวจ `/pos` ด้วยบัญชีแคชเชียร์จริง
+
+## Handoff - 2026-08-28 (Codex POS sync production test)
+- Commit: `8d6d9cb` (source ที่ push แล้ว; deploy ส่งไฟล์โดยไม่ใช้ `--delete`)
+- ทำอะไร: นำ source ล่าสุดของ POS Python, Laravel POS API และ permission fix ขึ้น production เพื่อเตรียมทดสอบ sync จริง; ไม่เปลี่ยน `pos_web_mode` และไม่แตะข้อมูลขายเดิม
+- ทดสอบ: Python POS unittest ผ่าน 128 tests; production backup สำเร็จที่ `storage/app/backups/erp-db-20260828-220108.sql.gz`; `php artisan migrate --force` ไม่มี migration ค้าง; `php artisan erp:health` ผ่าน database, migration, backup, sales-GL, storage และ queue
+- ยังไม่ทดสอบ/ความเสี่ยง: ยังไม่ได้ยิง checkout จริงจากเครื่อง POS เพราะต้องใช้ device token/PIN/terminal ที่ผูกสาขาจริง; production ยังเป็น HTTP จึงต้องตั้ง `allow_insecure=true` ในไฟล์ pair ของเครื่องตามที่ระบบบังคับให้ผู้ใช้ยืนยันเอง
+- Deploy: deploy แล้ว พร้อมล้าง Laravel cache และตรวจ health ผ่าน
+- งานถัดไป: บน Windows เปิดแอป → pair เครื่อง → ping → sync catalog/cashier → login PIN → เปิดกะ → ขาย 1 บิล → ตรวจเลข receipt และรายการบน `/bplus/pos-workbench`
+
+## Handoff - 2026-08-28 (Codex web POS designer)
+- ทำอะไร: เพิ่มหน้า `settings/pos-designer` แบบลากวาง, component whitelist, บันทึก draft และ Build & Publish พร้อม version; เพิ่ม `pos_layout` ใน POS ping เพื่อให้ Python POS แคช layout ใช้งานออฟไลน์ได้
+- ทดสอบ: Blade cache, PHP syntax, route list และ Python provisioning 10 tests ผ่าน
+- ยังไม่ทดสอบ/ความเสี่ยง: การจัดวางยังเป็น schema สำหรับ renderer; ต้องทดสอบการแสดงผลบนเครื่อง Windows จริงก่อนเปิดใช้เป็น layout หลัก
+
+## Handoff - 2026-08-28 (Codex profit, CRM and replenishment insights)
+- Commit: `4255ca9`
+- ทำอะไร: เพิ่ม Profit Intelligence เตือนสินค้าที่ margin ต่ำกว่า 10% ย้อนหลัง 30 วัน; CRM สรุป Pipeline ที่เปิดอยู่และงานติดตามเกินกำหนด; Replenishment แสดงวันคงเหลือและระดับเร่งด่วนพร้อมจำนวนที่ต้องสั่งด่วน
+- ทดสอบ: Executive 4 tests / 22 assertions และ CRM + Replenishment 7 tests / 39 assertions ผ่าน; `view:cache`; `git diff --check`; production `erp:health` และ `erp:readiness` ผ่านครบ
+- ยังไม่ทดสอบ/ความเสี่ยง: ตัวเลขกำไรขึ้นกับ cost_amount ที่ลงในเอกสารขาย; คำแนะนำเติมเต็มยังควรเทียบกับผู้จัดซื้อและฤดูกาลจริงก่อนอนุมัติ; CRM ยังไม่แทนการยืนยันเครดิตโดยฝ่ายบัญชี
+- Deploy: deploy เฉพาะ 6 ไฟล์ที่แก้ขึ้น `/var/www/jeterp` หลัง backup `erp-db-20260828-222527.sql.gz`; clear cache สำเร็จ
+- งานถัดไป: ทดลองเปิดหน้า Executive/CRM/Purchase Planning กับสิทธิ์ผู้ใช้จริง และทำ UAT 1 รอบโดยใช้ข้อมูลสาขาจริง
+
+## Handoff - 2026-08-28 (Codex production-host isolated POS UAT)
+- Commit: `79de91a`
+- ทำอะไร: เพิ่มคำสั่ง `pos:uat-seed` ที่บังคับ `APP_ENV=staging/local/testing` และฐานข้อมูลลงท้าย `_uat`; ใช้เตรียม UAT database แยกบน production host โดยไม่แตะฐาน `jeterp`
+- ทดสอบ: สร้าง `jeterp_uat` บน host, migrate 165 migrations, seed 50 สินค้า/50 lots/20 ลูกค้า, pair device, sync catalog 50 รายการและ cashier 19 ราย, login PIN, เปิดกะ, ยิงขายจาก Python ผ่าน Laravel server จริง ได้ receipt `CSUAT20260828001`; `uat:reconcile` ผ่าน 7/7 (GL, เลขซ้ำ, posting, COGS, revenue+VAT, stock)
+- ยังไม่ทดสอบ/ความเสี่ยง: void ถูกปฏิเสธ 401 เพราะ fixture ไม่มีสิทธิ์ `pos.void` ซึ่งเป็น policy ที่ถูกต้อง; ยังไม่ได้ทดสอบเครื่องพิมพ์/ลิ้นชักเงินจริง
+- Deploy: UAT server หยุดแล้วและ drop ฐาน `jeterp_uat` หลังทดสอบ; ฐาน production `jeterp` ไม่ถูกแก้โดยชุดทดสอบนี้
+- งานถัดไป: ทดสอบ void ด้วยบัญชีที่ได้รับ `pos.void` บนฐาน UAT ใหม่เมื่อจำเป็น และทำ Windows hardware UAT
+
+## Handoff - 2026-08-28 (Codex production readiness gate)
+- Commit: `6bc534b`
+- ทำอะไร: เพิ่มคำสั่งอ่านอย่างเดียว `php artisan erp:readiness` ตรวจฐานข้อมูล, migration, backup+checksum, เอกสารขายลง GL, POS device binding, idempotency ที่ค้าง และคำเตือน queue/E-Tax ก่อนเปิดใช้งานจริง
+- ทดสอบ: focused Laravel 15 tests / 67 assertions ผ่าน; Python POS 128 tests ผ่าน; full Laravel 395 tests, 393 passed, 1 skipped, 6 incomplete, 1 unrelated quarantine failure; production `erp:health` และ `erp:readiness` ผ่านครบ
+- ยังไม่ทดสอบ/ความเสี่ยง: คำสั่งนี้ตรวจโครงสร้างและความสมบูรณ์ ไม่แทนการขายจริงบน Windows, การตรวจโดยนักบัญชี หรือการตอบรับ E-Tax provider
+- Deploy: deploy แล้วที่ `/var/www/jeterp`; backup ก่อน deploy สำเร็จที่ `storage/app/backups/erp-db-20260828-220843.sql.gz`; clear cache และ migrate สำเร็จ
+- งานถัดไป: บน Windows เปิดแอป → pair เครื่อง → ping → sync catalog/cashier → login PIN → เปิดกะ → ขาย 1 บิล → ตรวจเลข receipt และรายการบน `/bplus/pos-workbench`
+
+## Handoff - 2026-08-31 (Claude ต่อจาก Codex — User เป็นตัวตน POS/ERP)
+
+- Commit: pending (ยังไม่ commit/push ตามคำสั่ง — รอทดสอบและรับอนุญาตก่อน)
+- สถานะที่รับต่อ: Codex แก้ค้างอยู่ตอนย้าย identity POS จาก `salesmen` ไปเป็น `User` (ใช้ครบโควตาเมื่อ 2026-08-31)
+  ไฟล์ที่แก้ไว้แล้วตอนรับงาน: migration `2026_08_31_000157_make_users_the_pos_identity.php`,
+  `UserPosCredential.php` (ใหม่), `User.php`, `PosApiController.php`, `UserController.php`,
+  `BookingController.php`, `BookingService.php`, `users/index.blade.php`, `bookings/index.blade.php`,
+  `entry-modal.blade.php`, `entry-assets.blade.php`
+
+### ตรวจแล้วและแก้เพิ่ม
+1. **`resources/views/users/index.blade.php`** มีโค้ดตายที่ยังอ้าง `$posCashier` ที่ไม่มีตัวแปรแล้ว
+   (ซ่อนอยู่ใต้ `@if(false)` เก่า) — ลบบล็อกนั้นออกแล้ว ไม่กระทบ runtime (เพราะเป็น false branch)
+   แต่เป็นโค้ดค้างที่ไม่ควรทิ้งไว้ตามที่สั่ง
+2. **`BookingController::index()`** รายการผู้รับผิดชอบใบจอง (`$salesUsers`) เดิมกรองเฉพาะคนที่มีสิทธิ์
+   `sales.manage/sales.assign` แบบ role ระดับบริษัทเท่านั้น ไม่รวมคนที่ได้สิทธิ์ผ่าน `branchRoles`
+   (สิทธิ์รายสาขา) และไม่รับประกันว่าจะมี current user อยู่ในลิสต์เสมอ (ตรงกับความเสี่ยงที่ระบุไว้) —
+   แก้ให้รวมทั้งสอง scope และ `orWhere('id', $currentUser->id)` เสมอ
+3. **`app/Console/Commands/SetPosPin.php`** (คำสั่ง `pos:pin` ที่เจ้าของโปรเจกต์รันเองเพื่อออก PIN) —
+   พบว่าเขียน PIN ลงเฉพาะ `salesmen.pos_pin_hash` เท่านั้น แต่การล็อกอินตอนนี้อ่าน
+   `user_pos_credentials` ก่อนเสมอ (`PosApiController::pinHash()`) ถ้า user มี credential แถวนี้อยู่แล้ว
+   คำสั่งนี้จะรันสำเร็จแต่ PIN ที่ตั้งใหม่ใช้ล็อกอินจริงไม่ได้ — แก้ให้ dual-write เข้า
+   `user_pos_credentials` ด้วยเมื่อ salesman ผูก user_id พร้อมเช็คชนกับ credential เดิมด้วย
+4. **`tests/Feature/UserManagementTest.php`** เทสต์ reset PIN เดิมตรวจแค่ตาราง `salesmen` และ
+   audit log ที่ `table_name = salesmen` — เพิ่มให้ตรวจ `user_pos_credentials` (pin_hash,
+   force_pin_change, credential_version) และแก้ audit assertion เป็น `table_name = users`,
+   `record_id = $user->id` ให้ตรงกับโค้ดใหม่
+5. **`tests/Feature/BookingSalesAreaTest.php`** มี 2 เคสที่ยังคาดหวังพฤติกรรมเดิม (ตามที่สั่งให้แก้):
+   - เคสที่เคย assert ว่าลูกค้าไม่มีเจ้าของจะถูก "claim" เป็นของผู้สร้างใบจอง — พฤติกรรมนี้ถูกถอดออกแล้ว
+     ตามกติกาใหม่ (ไม่ผูก user กับลูกค้าทีละราย) เปลี่ยนเป็นยืนยันว่าลูกค้า**ไม่ถูก claim**
+   - เคสที่เคย reject การจองเพราะ "ลูกค้ามีเจ้าของเป็นคนอื่น" — เปลี่ยนเป็นยืนยันว่าตอนนี้จองได้ปกติ
+     (เพราะไม่เช็คเจ้าของลูกค้าอีกต่อไป) และเพิ่มเทสต์ใหม่แทนที่คุมกติกาจริงคือ
+     "มอบใบจองให้คนอื่นโดยไม่มีสิทธิ์ sales.assign ต้องถูกปฏิเสธ"
+
+### ยังไม่ได้ทำ / ยังไม่ตรวจ (สำคัญ)
+- **ยังไม่ได้รัน `php artisan test`, `npm run build`, หรือเทสต์ Python POS เลย** — เครื่องมือที่ผมมีในรอบนี้
+  เป็น sandbox แยกที่ไม่มี PHP/Composer/Node ติดตั้ง และไม่มีสิทธิ์ apt/root เพื่อติดตั้งเอง
+  (Codex เดิมรันบนเครื่อง Mac จริงโดยตรงจึงมีเครื่องมือครบ) **ต้องรันชุดทดสอบก่อน commit/push จริง**
+  ตามกติกา `docs/ai/WORKFLOW.md`
+- Python POS (`apps/pos-python`) ยังไม่ถูกแตะเลยในรอบนี้ (ยังอิง flow เดิม) — ตามแผนเดิมต้อง sync ด้วย
+  `user_id` แต่ backward-compat ใน API (ส่ง `code`/`legacy_cashier_id` คู่กับ `user_id`/`user_name`)
+  ทำให้ POS รุ่นที่ติดตั้งอยู่ยังใช้งานต่อได้ระหว่างนี้
+- ยังมี `cashier_code` (ค่า legacy) หลงเหลือใน audit log payload อีก 2 จุด
+  (`UserController::alignPosBranch`, `PosApiController::changeCashierPin`) — เป็นแค่ metadata ใน
+  audit_logs ไม่ใช่ UI ที่ผู้ใช้เห็น จึงไม่ได้แก้ในรอบนี้ (ไม่กระทบฟังก์ชัน)
+- ยังไม่ได้ตรวจ migration `148`-อื่นๆ บน PostgreSQL แยกก่อน — เช็คเฉพาะไวยากรณ์ (Schema builder,
+  insertOrIgnore/updateOrInsert) ที่ใช้เป็นแบบเดียวกับ migration เก่าที่ผ่าน production มาแล้ว
+
+### งานถัดไป (ก่อน commit/push)
+1. รัน `php artisan test` ให้ผ่านทั้งหมด (โดยเฉพาะ `UserManagementTest`, `BookingSalesAreaTest`,
+   `PosPinChangeTest`, และเทสต์ POS อื่นๆ ที่แตะ `PosApiController`)
+2. รัน `git diff --check` และ `npm run build` ถ้าแตะ asset
+3. ถ้าเทสต์ผ่านครบค่อย commit เป็นชุดเล็กที่มีความหมาย แล้วอัปเดต handoff นี้ด้วย commit hash + ผลทดสอบจริง
+4. ห้าม deploy จนกว่าเจ้าของโปรเจกต์สั่ง

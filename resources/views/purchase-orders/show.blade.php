@@ -1,0 +1,328 @@
+@extends('layout')
+@section('title', "ใบขอซื้อ {$purchaseOrder->doc_number} - PopCentral")
+@section('page-title', 'ใบขอซื้อ / ใบสั่งซื้อ ' . $purchaseOrder->doc_number)
+@section('page-subtitle', $purchaseOrder->statusLabel())
+@section('content')
+<div x-data="{
+    orderOpen: false,
+    receiveOpen: false,
+    priceLoading: false,
+    async loadSupplierPrices(supplierId) {
+        if (!supplierId) return;
+        this.priceLoading = true;
+        try {
+            const response = await fetch(@js(route('purchase-orders.supplier-prices', $purchaseOrder)) + '?supplier_id=' + encodeURIComponent(supplierId));
+            const data = await response.json();
+            Object.entries(data.prices || {}).forEach(([itemId, row]) => {
+                const input = document.querySelector(`[data-po-price='${itemId}']`);
+                const hint = document.querySelector(`[data-po-price-hint='${itemId}']`);
+                if (input) input.value = row.unit_price;
+                if (hint) hint.textContent = `ราคาตาราง · ${row.vat_mode === 'included' ? 'รวม VAT' : (row.vat_mode === 'excluded' ? 'แยก VAT' : 'ยกเว้น VAT')}`;
+            });
+        } finally {
+            this.priceLoading = false;
+        }
+    }
+}">
+    <a href="{{ route('purchase-orders.index') }}" class="text-decoration-none small d-inline-block mb-3"><i class="bi bi-arrow-left me-1"></i>กลับรายการ</a>
+
+    {{-- แถบสถานะ workflow --}}
+    <div class="content-card p-3 mb-3">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            @foreach(['requested' => 'ขอซื้อ', 'approved' => 'อนุมัติ', 'ordered' => 'สั่งซื้อ', 'received' => 'รับของ'] as $st => $label)
+                @php($states = ['requested', 'approved', 'ordered', 'received'])
+                @php($workflowStatus = $purchaseOrder->status === 'partially_received' ? 'ordered' : $purchaseOrder->status)
+                @php($curIdx = array_search($workflowStatus, $states))
+                @php($thisIdx = array_search($st, $states))
+                @php($done = $curIdx !== false && $thisIdx <= $curIdx)
+                <span class="badge rounded-pill px-3 py-2 {{ $done ? 'text-bg-success' : 'text-bg-light border' }}">
+                    @if($done)<i class="bi bi-check-circle-fill me-1"></i>@endif{{ $label }}
+                </span>
+                @if(!$loop->last)<i class="bi bi-chevron-right text-muted"></i>@endif
+            @endforeach
+            @if($purchaseOrder->status === 'partially_received')<span class="badge text-bg-warning ms-2">รับของบางส่วน</span>@endif
+            @if($purchaseOrder->status === 'cancelled')<span class="badge text-bg-danger ms-2">ยกเลิกแล้ว</span>@endif
+
+            <div class="ms-auto d-flex gap-2">
+                @if($purchaseOrder->status === 'requested')
+                    @if(auth()->user()->hasPermission('purchasing.approve') && $purchaseOrder->requested_by !== auth()->id())
+                    <form method="post" action="{{ route('purchase-orders.approve', $purchaseOrder) }}" onsubmit="return confirm('อนุมัติใบขอซื้อนี้?')">@csrf<button class="btn btn-info text-white"><i class="bi bi-check2-circle me-1"></i>อนุมัติ</button></form>
+                    @else
+                    <span class="badge text-bg-light border align-self-center">รอผู้อนุมัติคนอื่น</span>
+                    @endif
+                @elseif($purchaseOrder->status === 'approved')
+                    <button type="button" class="btn btn-primary" @click="orderOpen = true"><i class="bi bi-cart-check me-1"></i>ยืนยันสั่งซื้อ</button>
+                @elseif(in_array($purchaseOrder->status, ['ordered', 'partially_received']))
+                    <button type="button" class="btn btn-success" @click="receiveOpen = true"><i class="bi bi-box-arrow-in-down me-1"></i>{{ $purchaseOrder->status === 'partially_received' ? 'รับของรอบถัดไป' : 'รับของเข้าคลัง' }}</button>
+                @endif
+                @if(!in_array($purchaseOrder->status, ['partially_received', 'received', 'cancelled']))
+                    <form method="post" action="{{ route('purchase-orders.cancel', $purchaseOrder) }}" onsubmit="return confirm('ยกเลิกใบขอซื้อนี้?')">@csrf<button class="btn btn-light border text-danger">ยกเลิก</button></form>
+                @endif
+                @if(in_array($purchaseOrder->status, ['ordered', 'partially_received', 'received']))
+                    <a href="{{ route('purchase-orders.print', $purchaseOrder) }}" target="_blank" class="btn btn-primary"><i class="bi bi-printer me-1"></i>พิมพ์ใบสั่งซื้อ (A4)</a>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-6"><div class="content-card p-3 h-100">
+            <div class="small"><span class="text-muted">ซัพพลายเออร์:</span> <strong>{{ $purchaseOrder->supplier?->name_th ?? 'ยังไม่ระบุ' }}</strong></div>
+            <div class="small"><span class="text-muted">สาขา:</span> {{ $purchaseOrder->branch->name_th }}</div>
+            <div class="small"><span class="text-muted">ต้องการภายใน:</span> {{ $purchaseOrder->need_by_date?->thaiDate() ?? '-' }}</div>
+            @if($purchaseOrder->note)<div class="small text-muted mt-1">หมายเหตุ: {{ $purchaseOrder->note }}</div>@endif
+        </div></div>
+        <div class="col-md-6"><div class="content-card p-3 h-100">
+            <div class="small"><span class="text-muted">ผู้ขอซื้อ:</span> {{ $purchaseOrder->requester?->name ?? '-' }}</div>
+            <div class="small"><span class="text-muted">ผู้อนุมัติ:</span> {{ $purchaseOrder->approver?->name ?? '-' }} @if($purchaseOrder->approved_at)({{ $purchaseOrder->approved_at->thaiDate(true) }})@endif</div>
+            <div class="small"><span class="text-muted">การชำระ:</span> {{ $purchaseOrder->is_credit ? 'เครดิต (ตั้งหนี้)' : 'เงินสด' }}</div>
+        </div></div>
+    </div>
+
+    <div class="content-card overflow-hidden">
+        <table class="table table-sm align-middle mb-0">
+            <thead><tr><th>รหัส</th><th>สินค้า</th><th>หน่วย</th><th class="text-end">สั่ง</th><th class="text-end">รับแล้ว</th><th class="text-end">ค้างรับ</th><th class="text-end">ราคา/หน่วย</th><th class="text-end">รวม</th></tr></thead>
+            <tbody>
+                @foreach($purchaseOrder->items as $item)
+                <tr>
+                    <td class="fw-semibold">{{ $item->product->sku_code }}</td>
+                    <td>{{ $item->product->name_th }}</td>
+                    <td class="text-muted">{{ $item->product->baseUnit?->cleanName() ?? '-' }}</td>
+                    <td class="text-end">{{ number_format($item->qty, 2) }}</td>
+                    <td class="text-end text-success">{{ number_format($item->received_qty, 2) }}</td>
+                    <td class="text-end {{ (float)$item->received_qty < (float)$item->qty ? 'text-warning fw-semibold' : 'text-muted' }}">{{ number_format(max(0, (float)$item->qty - (float)$item->received_qty), 2) }}</td>
+                    <td class="text-end">{{ $item->unit_price > 0 ? number_format($item->unit_price, 2) : '-' }}</td>
+                    <td class="text-end fw-semibold">{{ $item->unit_price > 0 ? number_format($item->qty * $item->unit_price, 2) : '-' }}</td>
+                </tr>
+                @endforeach
+            </tbody>
+            <tfoot><tr class="fw-bold"><td colspan="7" class="text-end">รวมทั้งสิ้น</td><td class="text-end">{{ number_format($purchaseOrder->total_amount, 2) }}</td></tr></tfoot>
+        </table>
+    </div>
+
+    <div class="content-card mt-3 overflow-hidden">
+        <div class="px-3 py-2 border-bottom d-flex justify-content-between align-items-center">
+            <span class="fw-bold small"><i class="bi bi-clipboard-data me-1"></i>ใบสอบราคา — เทียบผู้ขาย</span>
+            @if($comparison['quotes']->count() > 1)
+                <span class="small text-muted">ส่วนต่างถูกสุด–แพงสุด <b>{{ number_format($comparison['spread'], 2) }}</b></span>
+            @endif
+        </div>
+
+        @if($comparison['quotes']->isEmpty())
+            <div class="p-3 text-muted small">
+                ยังไม่มีใบเสนอราคา — บันทึกราคาจากผู้ขายอย่างน้อยสองเจ้าก่อนสั่งซื้อ
+                จะได้ตอบได้ว่าทำไมถึงเลือกเจ้านั้น
+            </div>
+        @else
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>ผู้ขาย</th>
+                        @foreach($purchaseOrder->items as $item)
+                            <th class="text-end">{{ $item->product->sku_code }}</th>
+                        @endforeach
+                        <th class="text-end">รวม</th>
+                        <th class="text-end">ต่างจากถูกสุด</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach($comparison['quotes'] as $quote)
+                    @php($gap = (float) $quote->total_amount - $comparison['cheapest_total'])
+                    <tr class="{{ $quote->is_selected ? 'table-success' : '' }}">
+                        <td>
+                            <div class="fw-semibold">{{ $quote->supplier->name_th }}</div>
+                            <div class="small text-muted">
+                                @if($quote->id === $comparison['cheapest_id'])<span class="badge text-bg-success-subtle text-success">ราคาต่ำสุด</span>@endif
+                                @if($quote->reference) เลขที่ {{ $quote->reference }}@endif
+                                @if($quote->valid_until) · ยืนราคาถึง {{ $quote->valid_until->format('d/m/Y') }}@endif
+                            </div>
+                            @if($quote->is_selected && $quote->selection_reason)
+                                <div class="small text-success mt-1"><i class="bi bi-info-circle me-1"></i>{{ $quote->selection_reason }}</div>
+                            @endif
+                        </td>
+                        @foreach($purchaseOrder->items as $item)
+                            <td class="text-end">{{ number_format((float) ($comparison['prices'][$quote->id][$item->id]->unit_price ?? 0), 2) }}</td>
+                        @endforeach
+                        <td class="text-end fw-bold">{{ number_format((float) $quote->total_amount, 2) }}</td>
+                        <td class="text-end {{ $gap > 0 ? 'text-danger' : 'text-muted' }}">
+                            {{ $gap > 0 ? '+'.number_format($gap, 2) : '-' }}
+                        </td>
+                        <td class="text-end">
+                            @if($quote->is_selected)
+                                <span class="badge text-bg-success">เลือกแล้ว</span>
+                            @elseif($purchaseOrder->status === 'approved')
+                                <form method="post" action="{{ route('purchase-orders.quotes.select', $quote) }}" class="d-flex gap-1 justify-content-end">
+                                    @csrf
+                                    {{-- เลือกเจ้าที่แพงกว่าได้ แต่ต้องบอกเหตุผล ไม่งั้น service จะปฏิเสธ --}}
+                                    @if($quote->id !== $comparison['cheapest_id'])
+                                        <input type="text" name="selection_reason" required maxlength="255"
+                                               class="form-control form-control-sm" style="max-width:220px"
+                                               placeholder="เหตุผลที่ไม่เลือกราคาต่ำสุด">
+                                    @endif
+                                    <button class="btn btn-sm btn-outline-primary">เลือก</button>
+                                </form>
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+                </tbody>
+            </table>
+        </div>
+        @endif
+
+        @if($comparison['can_quote'])
+        <form method="post" action="{{ route('purchase-orders.quotes.store', $purchaseOrder) }}" class="border-top p-3">
+            @csrf
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small text-muted mb-1">ผู้ขาย</label>
+                    <select name="supplier_id" class="form-select form-select-sm" required>
+                        <option value="">-- เลือกผู้ขาย --</option>
+                        @foreach($suppliers as $supplier)
+                            <option value="{{ $supplier->id }}">
+                                {{ $supplier->code }} - {{ $supplier->name_th }}@if(in_array($supplier->id, $comparison['quoted_supplier_ids'])) (แก้ราคาเดิม)@endif
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small text-muted mb-1">เลขที่ใบเสนอราคา</label>
+                    <input type="text" name="reference" maxlength="100" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small text-muted mb-1">ยืนราคาถึง</label>
+                    <input type="date" name="valid_until" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label small text-muted mb-1">หมายเหตุ</label>
+                    <input type="text" name="note" maxlength="1000" class="form-control form-control-sm"
+                           placeholder="เช่น ส่งภายใน 3 วัน เครดิต 30 วัน">
+                </div>
+            </div>
+            <div class="row g-2 mt-1">
+                @foreach($purchaseOrder->items as $item)
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted mb-1">
+                            {{ $item->product->sku_code }} <span class="text-muted">× {{ number_format($item->qty, 2) }}</span>
+                        </label>
+                        <input type="number" step="0.0001" min="0" required
+                               name="unit_price[{{ $item->id }}]" class="form-control form-control-sm text-end"
+                               placeholder="ราคา/หน่วย">
+                    </div>
+                @endforeach
+            </div>
+            <div class="text-end mt-2">
+                <button class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>บันทึกใบเสนอราคา</button>
+            </div>
+        </form>
+        @endif
+    </div>
+
+    @if($purchaseOrder->receipts->isNotEmpty())
+    <div class="content-card overflow-hidden mt-3">
+        <div class="px-3 py-2 border-bottom fw-bold small">ประวัติรับสินค้าตาม PO</div>
+        <table class="table table-sm align-middle mb-0">
+            <thead><tr><th>รอบ</th><th>ใบซื้อ</th><th>วันที่รับ</th><th>ผู้รับ</th><th class="text-end">มูลค่า</th><th></th></tr></thead>
+            <tbody>@foreach($purchaseOrder->receipts as $receipt)<tr>
+                <td>{{ $loop->iteration }}</td><td class="fw-semibold">{{ $receipt->document->doc_number }}</td>
+                <td>{{ $receipt->received_at->thaiDate(true) }}</td><td>{{ $receipt->receiver?->name ?? '-' }}</td>
+                <td class="text-end">{{ number_format($receipt->document->total_amount, 2) }}</td>
+                <td class="text-end"><a class="btn btn-sm btn-outline-success" href="{{ route('purchases.show', $receipt->document) }}"><i class="bi bi-box-arrow-up-right"></i></a></td>
+            </tr>@endforeach</tbody>
+        </table>
+    </div>
+    @endif
+
+    {{-- Order modal: ระบุซัพพลายเออร์ + ราคา --}}
+    <div class="po-backdrop" x-show="orderOpen" x-cloak x-transition.opacity @keydown.escape.window="orderOpen = false">
+        <div class="po-modal" @click.outside="orderOpen = false" x-transition>
+            <div class="d-flex justify-content-between align-items-center px-4 pt-4 pb-2">
+                <h3 class="h5 fw-bold mb-0">ยืนยันสั่งซื้อ</h3>
+                <button type="button" class="btn btn-light rounded-circle" @click="orderOpen = false"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <form method="post" action="{{ route('purchase-orders.order', $purchaseOrder) }}">
+                @csrf
+                <div class="px-4 pb-4">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label small text-muted">ซัพพลายเออร์</label>
+                            <select name="supplier_id" required class="form-select" @change="loadSupplierPrices($event.target.value)">
+                                <option value="">-- เลือกซัพพลายเออร์ --</option>
+                                @foreach($suppliers as $s)<option value="{{ $s->id }}" @selected($s->id === $purchaseOrder->supplier_id)>{{ $s->code }} - {{ $s->name_th }}</option>@endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <div class="form-check"><input type="hidden" name="is_credit" value="0"><input type="checkbox" name="is_credit" value="1" class="form-check-input" id="poCredit" {{ $purchaseOrder->is_credit ? 'checked' : '' }}><label class="form-check-label small" for="poCredit">ซื้อเชื่อ (ตั้งหนี้)</label></div>
+                        </div>
+                    </div>
+                    <table class="table table-sm align-middle">
+                        <thead><tr><th>สินค้า</th><th class="text-end">จำนวน</th><th class="text-end" style="width:150px">ราคา/หน่วย</th></tr></thead>
+                        <tbody>
+                            @foreach($purchaseOrder->items as $item)
+                            <tr>
+                                <td class="small">{{ $item->product->sku_code }} {{ $item->product->name_th }}</td>
+                                <td class="text-end">{{ number_format($item->qty, 2) }}</td>
+                                <td><input type="number" step="0.00000001" min="0" name="unit_price[{{ $item->id }}]" value="{{ $item->unit_price }}" required data-po-price="{{ $item->id }}" class="form-control form-control-sm text-end"><small class="text-success" data-po-price-hint="{{ $item->id }}"></small></td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-end gap-2 px-4 pb-4">
+                    <button type="button" class="btn btn-light border px-4" @click="orderOpen = false">ยกเลิก</button>
+                    <button type="submit" class="btn btn-primary px-5" :disabled="priceLoading"><i class="bi bi-cart-check me-1"></i><span x-text="priceLoading ? 'กำลังอ่านราคาผู้ขาย...' : 'ยืนยันสั่งซื้อ'"></span></button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="po-backdrop" x-show="receiveOpen" x-cloak x-transition.opacity @keydown.escape.window="receiveOpen = false">
+        <div class="po-modal" @click.outside="receiveOpen = false" x-transition>
+            <div class="d-flex justify-content-between align-items-center px-4 pt-4 pb-2">
+                <h3 class="h5 fw-bold mb-0">รับสินค้าเข้าคลัง</h3>
+                <button type="button" class="btn btn-light rounded-circle" @click="receiveOpen = false"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <form method="post" action="{{ route('purchase-orders.receive', $purchaseOrder) }}">
+                @csrf
+                <div class="px-4 pb-3">
+                    <p class="small text-muted">ระบุ Lot และวันของสินค้าที่ควบคุมอายุ ระบบจะคำนวณวันหมดอายุให้อัตโนมัติเมื่อสินค้าได้ตั้งอายุไว้</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead><tr><th>สินค้า</th><th style="width:100px">ค้างรับ</th><th style="width:120px">รับครั้งนี้</th><th>Lot</th><th>วันผลิต</th><th>วันหมดอายุ</th></tr></thead>
+                            <tbody>
+                            @foreach($purchaseOrder->items as $item)
+                                @php($outstanding = max(0, (float)$item->qty - (float)$item->received_qty))
+                                @if($outstanding > 0.0001)
+                                <tr>
+                                    <td class="small">{{ $item->product->sku_code }}<br>{{ $item->product->name_th }} @if($item->product->tracks_expiry)<span class="badge text-bg-warning">คุมอายุ</span>@endif</td>
+                                    <td class="text-end">{{ number_format($outstanding, 2) }}</td>
+                                    <td><input type="number" step="0.0001" min="0" max="{{ $outstanding }}" name="receive_qty[{{ $item->id }}]" value="{{ $outstanding }}" class="form-control form-control-sm text-end"></td>
+                                    <td><input name="lots[{{ $item->id }}][lot_number]" class="form-control form-control-sm"></td>
+                                    <td><input type="date" name="lots[{{ $item->id }}][manufacture_date]" class="form-control form-control-sm"></td>
+                                    <td><input type="date" name="lots[{{ $item->id }}][expiry_date]" class="form-control form-control-sm"></td>
+                                </tr>
+                                @endif
+                            @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end gap-2 px-4 pb-4">
+                    <button type="button" class="btn btn-light border" @click="receiveOpen = false">ยกเลิก</button>
+                    <button class="btn btn-success" onclick="return confirm('ยืนยันรับสินค้าเข้าคลังและสร้างเจ้าหนี้?')"><i class="bi bi-check2-circle me-1"></i>ยืนยันรับสินค้า</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endsection
+
+@push('head')
+<style>
+    [x-cloak] { display: none !important; }
+    .po-backdrop { position: fixed; inset: 0; z-index: 2000; background: rgba(15,23,42,.42); display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .po-modal { width: min(720px, 100%); max-height: calc(100vh - 48px); overflow: auto; background: #fff; border-radius: 18px; box-shadow: 0 24px 80px rgba(15,23,42,.24); }
+</style>
+@endpush

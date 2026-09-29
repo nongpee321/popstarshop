@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: pop_erp_db
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-pop_erp}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - pop_erp_network
+
+  app:
+    build:
+      context: .
+      network: host
+    container_name: pop_erp_app
+    restart: always
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    networks:
+      - pop_erp_network
+    depends_on:
+      - db
+    command: php artisan serve --host=0.0.0.0 --port=8000
+
+  adminer:
+    image: adminer
+    container_name: pop_erp_adminer
+    restart: always
+    ports:
+      - "8080:8080"
+    networks:
+      - pop_erp_network
+
+volumes:
+  db-data:
+
+networks:
+  pop_erp_network:
+    driver: bridge

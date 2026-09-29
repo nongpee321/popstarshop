@@ -1,0 +1,19 @@
+storage/*.db
+storage/*.db-*
+storage/receipts/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec.bak
+*.egg-info/
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+

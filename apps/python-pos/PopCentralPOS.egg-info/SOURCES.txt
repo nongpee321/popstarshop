@@ -1,0 +1,5 @@
+setup.py
+PopCentralPOS.egg-info/PKG-INFO
+PopCentralPOS.egg-info/SOURCES.txt
+PopCentralPOS.egg-info/dependency_links.txt
+PopCentralPOS.egg-info/top_level.txt

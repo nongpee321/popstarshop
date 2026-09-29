@@ -1,0 +1,712 @@
+<?php
+
+use App\Http\Controllers\AccountingAutomationController;
+use App\Http\Controllers\AccountingPeriodController;
+use App\Http\Controllers\AppLauncherController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BankAccountController;
+use App\Http\Controllers\BillingNoteController;
+use App\Http\Controllers\BookingController;
+use App\Http\Controllers\BplusOperationController;
+use App\Http\Controllers\CashSaleController;
+use App\Http\Controllers\CashTransferController;
+use App\Http\Controllers\ChartOfAccountController;
+use App\Http\Controllers\ChequeController;
+use App\Http\Controllers\CreditDebitNoteController;
+use App\Http\Controllers\CrmController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DatabaseStructureController;
+use App\Http\Controllers\DeliveryNoteController;
+use App\Http\Controllers\DiscountCardController;
+use App\Http\Controllers\DocumentBookController;
+use App\Http\Controllers\DocumentBrowserController;
+use App\Http\Controllers\EcommerceChannelController;
+use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\ErpMockupController;
+use App\Http\Controllers\ExecutiveDashboardController;
+use App\Http\Controllers\FeatureController;
+use App\Http\Controllers\FinancialStatementController;
+use App\Http\Controllers\FixedAssetController;
+use App\Http\Controllers\FlashSaleController;
+use App\Http\Controllers\GlJournalController;
+use App\Http\Controllers\LegacyBackofficeSalesController;
+use App\Http\Controllers\LegacyReportController;
+use App\Http\Controllers\LegacyTableMappingController;
+use App\Http\Controllers\LineIntegrationController;
+use App\Http\Controllers\ManagementControlController;
+use App\Http\Controllers\ManualController;
+use App\Http\Controllers\MasterDataSetupController;
+use App\Http\Controllers\MemberController;
+use App\Http\Controllers\MemberPointController;
+use App\Http\Controllers\ModuleControlController;
+use App\Http\Controllers\MonthlyAccountingController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\OcrDocumentController;
+use App\Http\Controllers\OperationsController;
+use App\Http\Controllers\OrganizationalUnitController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\PosBuildController;
+use App\Http\Controllers\PosController;
+use App\Http\Controllers\PosReleaseController;
+use App\Http\Controllers\PriceTableController;
+use App\Http\Controllers\PriceTagController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductionController;
+use App\Http\Controllers\ProductUnitController;
+use App\Http\Controllers\PromotionController;
+use App\Http\Controllers\PurchaseController;
+use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\QtyPromotionController;
+use App\Http\Controllers\QuotationController;
+use App\Http\Controllers\ReceiptTemplateController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReportGovernanceController;
+use App\Http\Controllers\SaleController;
+use App\Http\Controllers\SaleReturnController;
+use App\Http\Controllers\SalesAreaController;
+use App\Http\Controllers\SalesmanController;
+use App\Http\Controllers\ScalePriceController;
+use App\Http\Controllers\SearchController;
+use App\Http\Controllers\StockAdjustmentController;
+use App\Http\Controllers\StockCountController;
+use App\Http\Controllers\StockIssueController;
+use App\Http\Controllers\StockTransferController;
+use App\Http\Controllers\StockTransformController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SystemSettingController;
+use App\Http\Controllers\TaxComplianceController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\WarehouseLocationController;
+use App\Http\Controllers\WarehouseMobileController;
+use App\Http\Controllers\WorkflowDefinitionController;
+use Illuminate\Support\Facades\Route;
+
+// Auth: ทุก route ถูกคุมโดย ErpAuthorize middleware (ดู bootstrap/app.php +
+// App\Support\RoutePermissions สำหรับ mapping เมนู -> สิทธิ์)
+Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+Route::post('/login', [AuthController::class, 'login'])->name('login.attempt');
+Route::get('/mfa/challenge', [AuthController::class, 'showMfaChallenge'])->name('mfa.challenge');
+Route::post('/mfa/challenge', [AuthController::class, 'verifyMfaChallenge'])->name('mfa.verify');
+Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+// Compatibility URL for bookmarks from the retired Vue/Tauri POS. The supported
+// cashier application is now the Python/PySide6 POS.
+Route::get('/download/pos', fn () => redirect()->route('python-pos.download'))->name('pos.download');
+Route::get('/download/pos/latest.json', [PosReleaseController::class, 'latest'])->name('pos.release.latest');
+Route::get('/download/pos/releases/{filename}', [PosReleaseController::class, 'download'])->name('pos.release.download');
+Route::get('/download/python-pos', [SystemSettingController::class, 'downloadPythonPos'])->name('python-pos.download');
+Route::get('/password/change', [AuthController::class, 'showChangePassword'])->name('password.change');
+Route::post('/password/change', [AuthController::class, 'updatePassword'])->name('password.update');
+Route::get('/security/mfa', [AuthController::class, 'showMfaSetup'])->name('mfa.setup');
+Route::post('/security/mfa', [AuthController::class, 'enableMfa'])->name('mfa.enable');
+Route::delete('/security/mfa', [AuthController::class, 'disableMfa'])->name('mfa.disable');
+
+Route::get('/', fn () => redirect()->route('dashboard'));
+Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');
+Route::post('/employees', [EmployeeController::class, 'store'])->name('employees.store');
+// หน้าตัวอย่างการออกแบบระบบหลังบ้าน — ข้อมูลจำลองล้วน ไม่แตะฐานข้อมูล
+Route::prefix('erp-mockup')->name('erp-mockup.')->group(function () {
+    Route::get('/', [ErpMockupController::class, 'launcher'])->name('launcher');
+    Route::get('/dashboard', [ErpMockupController::class, 'dashboard'])->name('dashboard');
+    Route::get('/products', [ErpMockupController::class, 'products'])->name('products');
+    Route::get('/products/form', [ErpMockupController::class, 'productForm'])->name('product-form');
+    Route::get('/pos-orders', [ErpMockupController::class, 'posOrders'])->name('pos-orders');
+    Route::get('/inventory', [ErpMockupController::class, 'inventory'])->name('inventory');
+    Route::get('/purchase', [ErpMockupController::class, 'purchase'])->name('purchase');
+});
+Route::prefix('master-data-setup')->name('master-data-setup.')->group(function () {
+    Route::get('/', [MasterDataSetupController::class, 'index'])->name('index');
+    Route::get('/template/{type}', [MasterDataSetupController::class, 'template'])->name('template');
+    Route::post('/preview/{type}', [MasterDataSetupController::class, 'preview'])->name('preview');
+    Route::post('/apply/{type}', [MasterDataSetupController::class, 'apply'])->name('apply');
+});
+Route::prefix('organizational-units')->name('organizational-units.')->group(function () {
+    Route::get('/', [OrganizationalUnitController::class, 'index'])->name('index');
+    Route::post('/', [OrganizationalUnitController::class, 'store'])->name('store');
+    Route::put('/{organizationalUnit}', [OrganizationalUnitController::class, 'update'])->name('update');
+    Route::delete('/{organizationalUnit}', [OrganizationalUnitController::class, 'destroy'])->name('destroy');
+    Route::post('/assignments', [OrganizationalUnitController::class, 'assign'])->name('assign');
+    Route::delete('/assignments/{assignment}', [OrganizationalUnitController::class, 'removeAssignment'])->name('assignments.destroy');
+});
+
+Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+Route::get('/executive', [ExecutiveDashboardController::class, 'index'])->name('executive.index');
+Route::get('/executive/data', [ExecutiveDashboardController::class, 'data'])->name('executive.data');
+Route::prefix('management-controls')->name('management-controls.')->group(function () {
+    Route::get('/', [ManagementControlController::class, 'index'])->name('index');
+    Route::post('/cost-centers', [ManagementControlController::class, 'storeCostCenter'])->name('cost-centers.store');
+    Route::post('/budgets', [ManagementControlController::class, 'storeBudget'])->name('budgets.store');
+    Route::post('/purchase-plans/generate', [ManagementControlController::class, 'generatePurchasePlan'])->name('purchase-plans.generate');
+    Route::post('/attendance', [ManagementControlController::class, 'storeAttendance'])->name('attendance.store');
+    Route::post('/payroll/generate', [ManagementControlController::class, 'generatePayroll'])->name('payroll.generate');
+    // Payroll approve/pay workflow: edit WHT (draft) -> approve (payroll.approve) -> pay -> payslip
+    Route::get('/payroll/{run}', [ManagementControlController::class, 'showPayrollRun'])->name('payroll.show');
+    Route::post('/payroll/{run}/items', [ManagementControlController::class, 'updatePayrollItems'])->name('payroll.items');
+    Route::post('/payroll/{run}/approve', [ManagementControlController::class, 'approvePayroll'])->name('payroll.approve');
+    Route::post('/payroll/{run}/pay', [ManagementControlController::class, 'markPayrollPaid'])->name('payroll.pay');
+    Route::get('/payroll/items/{item}/payslip', [ManagementControlController::class, 'payslip'])->name('payroll.payslip');
+    Route::post('/ecommerce/orders', [ManagementControlController::class, 'importEcommerceOrder'])->name('ecommerce.orders.store');
+    // Budget variance + approve
+    Route::get('/budgets/{budget}', [ManagementControlController::class, 'showBudget'])->name('budgets.show');
+    Route::post('/budgets/{budget}/approve', [ManagementControlController::class, 'approveBudget'])->name('budgets.approve');
+});
+
+// กระดิ่งแจ้งเตือน header: รายการตามภาระหน้าที่ของผู้ใช้ (ทุกคนที่ล็อกอินเรียกได้
+// ตัวกรองสิทธิ์อยู่ใน NotificationService)
+Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+
+Route::prefix('ocr/documents')->name('ocr.documents.')->group(function () {
+    Route::get('/', [OcrDocumentController::class, 'index'])->name('index');
+    Route::get('/create', [OcrDocumentController::class, 'create'])->name('create');
+    Route::post('/', [OcrDocumentController::class, 'store'])->name('store');
+    Route::get('/{document}', [OcrDocumentController::class, 'show'])->name('show');
+    Route::get('/{document}/file', [OcrDocumentController::class, 'file'])->name('file');
+    Route::post('/{document}/process', [OcrDocumentController::class, 'process'])->name('process');
+    Route::post('/{document}/review', [OcrDocumentController::class, 'review'])->name('review');
+    Route::post('/{document}/approve', [OcrDocumentController::class, 'approve'])->name('approve');
+    Route::post('/{document}/reject', [OcrDocumentController::class, 'reject'])->name('reject');
+    Route::post('/{document}/post-to-goods-receipt', [OcrDocumentController::class, 'postToGoodsReceipt'])->name('post');
+});
+
+// POS: full-screen selling interface, separate layout from ERP backend.
+Route::prefix('pos')->name('pos.')->group(function () {
+    Route::get('/', [PosController::class, 'index'])->name('index');
+    Route::get('/preview', [PosController::class, 'preview'])->name('preview');
+    Route::view('/compare', 'pos.compare')->name('compare');
+    Route::get('/control', [PosController::class, 'control'])->name('control');
+    Route::get('/products', [PosController::class, 'products'])->name('products');
+    Route::post('/products/quick-add', [PosController::class, 'quickAddProduct'])->name('products.quick-add');
+    Route::get('/members', [PosController::class, 'members'])->name('members');
+    Route::get('/promotions', [PosController::class, 'promotions'])->name('promotions');
+    Route::get('/shift', [PosController::class, 'activeShift'])->name('shift.active');
+    Route::post('/shift/open', [PosController::class, 'openShift'])->name('shift.open');
+    Route::post('/shift/close', [PosController::class, 'closeShift'])->name('shift.close');
+    Route::post('/shift/cash-movement', [PosController::class, 'recordCashMovement'])->name('shift.cash-movement');
+    Route::get('/shifts/{shift}/z-report', [PosController::class, 'zReport'])->name('shift.z-report');
+    Route::get('/held-bills', [PosController::class, 'heldBills'])->name('held-bills.index');
+    Route::post('/held-bills', [PosController::class, 'holdBill'])->name('held-bills.store');
+    Route::post('/held-bills/{heldBill}/resume', [PosController::class, 'resumeHeldBill'])->name('held-bills.resume');
+    Route::post('/receipts/{receipt}/void', [PosController::class, 'voidReceipt'])->name('receipts.void');
+    Route::get('/checkout', fn () => redirect()->route('pos.index'))->name('checkout.redirect');
+    Route::post('/checkout', [PosController::class, 'checkout'])->name('checkout');
+});
+// คลังมือถือ: หน้าเดียวสำหรับมือถือ/PDA — รับเข้า (ใบซื้อ/รับตาม PO) + เช็คสต๊อก
+Route::prefix('wh')->name('wh.')->group(function () {
+    Route::get('/', [WarehouseMobileController::class, 'index'])->name('index');
+    Route::get('/lookup', [WarehouseMobileController::class, 'lookup'])->name('lookup');
+    Route::get('/products/{product}', [WarehouseMobileController::class, 'productDetail'])->name('products.detail');
+    Route::get('/stock', [WarehouseMobileController::class, 'stock'])->name('stock');
+    Route::post('/receive', [WarehouseMobileController::class, 'receiveStore'])->name('receive');
+    Route::get('/purchase-orders', [WarehouseMobileController::class, 'purchaseOrders'])->name('purchase-orders');
+    Route::get('/purchase-orders/{purchaseOrder}', [WarehouseMobileController::class, 'purchaseOrderDetail'])->name('purchase-orders.detail');
+    Route::post('/purchase-orders/{purchaseOrder}/receive', [WarehouseMobileController::class, 'purchaseOrderReceive'])->name('purchase-orders.receive');
+});
+
+Route::get('/apps', [AppLauncherController::class, 'index'])->name('apps.launcher');
+// หน้าตัวอย่างแพตเทิร์นผิวใหม่ (Vue 3 + Tailwind v4 + โทน JET) — แยกขาดจากหลังบ้านเดิม
+Route::view('/greenfield', 'greenfield.index')->name('greenfield');
+Route::get('/crm', [CrmController::class, 'index'])->name('crm.index');
+Route::post('/crm/activities', [CrmController::class, 'storeActivity'])->name('crm.activities.store');
+Route::patch('/crm/activities/{activity}/complete', [CrmController::class, 'completeActivity'])->name('crm.activities.complete');
+Route::get('/crm/pipeline', [CrmController::class, 'pipeline'])->name('crm.pipeline');
+Route::post('/crm/opportunities', [CrmController::class, 'storeOpportunity'])->name('crm.opportunities.store');
+Route::patch('/crm/opportunities/{opportunity}/stage', [CrmController::class, 'updateOpportunityStage'])->name('crm.opportunities.stage');
+Route::get('/features', [FeatureController::class, 'index'])->name('features.index');
+Route::get('/core-modules', [ManualController::class, 'index'])->name('core-modules.index');
+Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+Route::get('/legacy-reports', [LegacyReportController::class, 'index'])->name('legacy-reports.index');
+Route::get('/legacy-backoffice-sales', [LegacyBackofficeSalesController::class, 'index'])->name('legacy-backoffice-sales.index');
+
+// Typeahead search (Alpine.js pickers on the booking/sale/purchase forms).
+Route::get('/search/customers', [SearchController::class, 'customers'])->name('search.customers');
+Route::get('/search/products', [SearchController::class, 'products'])->name('search.products');
+Route::get('/search/suppliers', [SearchController::class, 'suppliers'])->name('search.suppliers');
+Route::get('/search/salesmen', [SearchController::class, 'salesmen'])->name('search.salesmen');
+Route::get('/search/branches', [SearchController::class, 'branches'])->name('search.branches');
+Route::get('/search/stock-balance', [SearchController::class, 'stockBalance'])->name('search.stock-balance');
+
+// Booking (ใบจอง): reserves stock for a customer. "แปลงเป็นใบขายเชื่อ" converts a
+// pending booking into a real credit sale (see SaleController for the result).
+Route::prefix('bookings')->name('bookings.')->group(function () {
+    Route::get('/', [BookingController::class, 'index'])->name('index');
+    Route::get('/create', [BookingController::class, 'create'])->name('create');
+    Route::post('/', [BookingController::class, 'store'])->name('store');
+    Route::get('/legacy/{diKey}', [BookingController::class, 'legacyShow'])->name('legacy-show');
+    Route::get('/{booking}', [BookingController::class, 'show'])->name('show');
+    Route::post('/{booking}/convert', [BookingController::class, 'convert'])->name('convert');
+    Route::post('/{booking}/delivery', [BookingController::class, 'recordDelivery'])->name('delivery');
+});
+
+// Cash sale (ใบขายสด): direct stock-out without booking or AR.
+Route::prefix('cash-sales')->name('cash-sales.')->group(function () {
+    Route::get('/', [CashSaleController::class, 'index'])->name('index');
+    Route::post('/', [CashSaleController::class, 'store'])->name('store');
+    Route::get('/{cashSale}', [CashSaleController::class, 'show'])->name('show');
+});
+
+// Sale return (ใบรับคืนสินค้า): reverses a sale, restores stock, optionally reduces AR.
+Route::prefix('sale-returns')->name('sale-returns.')->group(function () {
+    Route::get('/', [SaleReturnController::class, 'index'])->name('index');
+    Route::post('/', [SaleReturnController::class, 'store'])->name('store');
+    Route::get('/{saleReturn}', [SaleReturnController::class, 'show'])->name('show');
+});
+
+// Payment receipt / voucher show page.
+Route::get('/payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
+Route::get('/payments/{payment}/print', [PaymentController::class, 'print'])->name('payments.print');
+
+// ใบเสนอราคา (Quotation): เสนอราคาก่อนขาย พิมพ์ได้ แปลงเป็นใบจองต่อได้
+Route::prefix('quotations')->name('quotations.')->group(function () {
+    Route::get('/', [QuotationController::class, 'index'])->name('index');
+    Route::post('/', [QuotationController::class, 'store'])->name('store');
+    Route::get('/{quotation}', [QuotationController::class, 'show'])->name('show');
+    Route::post('/{quotation}/status', [QuotationController::class, 'updateStatus'])->name('status');
+    Route::post('/{quotation}/convert', [QuotationController::class, 'convert'])->name('convert');
+});
+
+// ใบลดหนี้ / ใบเพิ่มหนี้ (Credit/Debit Note): ปรับยอดหนี้ลูกค้าแบบการเงินล้วน
+Route::prefix('credit-debit-notes')->name('credit-debit-notes.')->group(function () {
+    Route::get('/', [CreditDebitNoteController::class, 'index'])->name('index');
+    Route::post('/', [CreditDebitNoteController::class, 'store'])->name('store');
+    Route::get('/customers/{customer}/open-items', [CreditDebitNoteController::class, 'openItems'])->name('open-items');
+    Route::post('/{note}/approve', [CreditDebitNoteController::class, 'approve'])->name('approve');
+    Route::post('/{note}/reject', [CreditDebitNoteController::class, 'reject'])->name('reject');
+    Route::get('/{note}/print', [CreditDebitNoteController::class, 'print'])->name('print');
+});
+
+// ใบวางบิล (Billing Note): รวบใบขายเชื่อค้างชำระเป็นใบวางบิลรอบเก็บเงิน
+Route::prefix('billing-notes')->name('billing-notes.')->group(function () {
+    Route::get('/', [BillingNoteController::class, 'index'])->name('index');
+    Route::post('/', [BillingNoteController::class, 'store'])->name('store');
+    Route::get('/customers/{customer}/open-items', [BillingNoteController::class, 'openItems'])->name('open-items');
+    Route::get('/{billingNote}', [BillingNoteController::class, 'show'])->name('show');
+    Route::post('/{billingNote}/status', [BillingNoteController::class, 'updateStatus'])->name('status');
+});
+
+// ทะเบียนเช็ครับ-จ่าย (FN): สร้างอัตโนมัติจากการรับ/จ่ายชำระด้วยเช็ค
+// สถานะ: ในมือ -> นำฝาก -> ผ่าน | คืน (รับ) / ออกเช็ค -> ตัดบัญชี (จ่าย)
+Route::prefix('cheques')->name('cheques.')->group(function () {
+    Route::get('/', [ChequeController::class, 'index'])->name('index');
+    Route::post('/', [ChequeController::class, 'store'])->name('store');
+    Route::post('/{cheque}/deposit', [ChequeController::class, 'deposit'])->name('deposit');
+    Route::post('/{cheque}/clear', [ChequeController::class, 'clear'])->name('clear');
+    Route::post('/{cheque}/bounce', [ChequeController::class, 'bounce'])->name('bounce');
+    Route::post('/{cheque}/cancel', [ChequeController::class, 'cancel'])->name('cancel');
+});
+
+// Credit sale (ใบขายเชื่อ): read-only view of a posted sale document (cuts stock,
+// opens an AR entry) - created only via BookingController::convert for now.
+Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
+Route::get('/sales/{sale}/print', [SaleController::class, 'print'])->name('sales.print');
+
+// Purchase (ใบซื้อ): receives stock from a supplier. Credit purchases also open
+// an AP debt (supplier_ledger). The "stock IN" counterpart to bookings/sales.
+// ใบขอซื้อ/ใบสั่งซื้อ (AP ต้นน้ำ): ขอซื้อ -> อนุมัติ -> สั่งซื้อ -> รับของ (สร้างใบซื้อจริง)
+Route::prefix('purchase-orders')->name('purchase-orders.')->group(function () {
+    // ใบสอบราคา: บันทึกราคาที่ได้จากแต่ละผู้ขาย แล้วเลือกหนึ่งใบไปสั่งซื้อ
+    Route::post('/{purchaseOrder}/quotes', [PurchaseOrderController::class, 'storeQuote'])->name('quotes.store');
+    Route::post('/quotes/{quote}/select', [PurchaseOrderController::class, 'selectQuote'])->name('quotes.select');
+    Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
+    Route::post('/', [PurchaseOrderController::class, 'store'])->name('store');
+    Route::get('/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->name('show');
+    Route::get('/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('print');
+    Route::post('/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])->name('approve');
+    Route::get('/{purchaseOrder}/supplier-prices', [PurchaseOrderController::class, 'supplierPrices'])->name('supplier-prices');
+    Route::post('/{purchaseOrder}/order', [PurchaseOrderController::class, 'order'])->name('order');
+    Route::post('/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])->name('receive');
+    Route::post('/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('cancel');
+});
+
+Route::prefix('purchases')->name('purchases.')->group(function () {
+    Route::get('/', [PurchaseController::class, 'index'])->name('index');
+    Route::get('/create', [PurchaseController::class, 'create'])->name('create');
+    Route::post('/', [PurchaseController::class, 'store'])->name('store');
+    Route::get('/{purchase}', [PurchaseController::class, 'show'])->name('show');
+});
+
+// Product master data (สินค้า/หน่วยนับ): the read-only ETL'd catalog is now editable
+// here too - new products created in-app live alongside the BPlus-imported ones.
+Route::prefix('products')->name('products.')->group(function () {
+    Route::get('/', [ProductController::class, 'index'])->name('index');
+    Route::post('/', [ProductController::class, 'store'])->name('store');
+    Route::get('/{product}', [ProductController::class, 'show'])->name('show');
+    Route::put('/{product}', [ProductController::class, 'update'])->name('update');
+    Route::get('/{product}/lots/{stockLot}/trace', [ProductController::class, 'lotTrace'])->name('lots.trace');
+    Route::put('/{product}/lots/{stockLot}/quality', [ProductController::class, 'updateLotQuality'])->name('lots.quality');
+    Route::post('/{product}/lots/{stockLot}/quality-checks', [ProductController::class, 'storeLotQualityCheck'])->name('lots.quality-checks.store');
+    Route::post('/{product}/lots/{stockLot}/recalls', [ProductController::class, 'openRecall'])->name('lots.recalls.store');
+    Route::put('/recall-contacts/{recallContact}', [ProductController::class, 'updateRecallContact'])->name('recall-contacts.update');
+    Route::post('/{product}/barcodes', [ProductController::class, 'addBarcode'])->name('barcodes.store');
+    Route::put('/{product}/barcodes/{productBarcode}', [ProductController::class, 'updateBarcode'])->name('barcodes.update');
+    Route::post('/{product}/prices', [ProductController::class, 'upsertPrice'])->name('prices.upsert');
+    Route::post('/{product}/pos-price-schedules', [ProductController::class, 'storePosPriceSchedule'])->name('pos-price-schedules.store');
+    Route::delete('/{product}/pos-price-schedules/{schedule}', [ProductController::class, 'cancelPosPriceSchedule'])->name('pos-price-schedules.destroy');
+    Route::post('/{product}/suppliers', [ProductController::class, 'upsertSupplier'])->name('suppliers.upsert');
+    Route::delete('/{product}/suppliers/{productSupplier}', [ProductController::class, 'removeSupplier'])->name('suppliers.destroy');
+    Route::post('/{product}/supplier-prices', [ProductController::class, 'storeSupplierPrice'])->name('supplier-prices.store');
+    Route::delete('/{product}/supplier-prices/{supplierPriceSchedule}', [ProductController::class, 'removeSupplierPrice'])->name('supplier-prices.destroy');
+    Route::delete('/{product}', [ProductController::class, 'destroy'])->name('destroy');
+    Route::post('/{product}/quick-stock-in', [ProductController::class, 'quickStockIn'])->name('quick-stock-in');
+});
+
+// Stock transfer (โอนย้ายสต็อก) and stock count adjustment (ตรวจนับสต็อก) - both
+// touch stock_balances directly without going through a customer/supplier.
+Route::prefix('stock-transfers')->name('stock-transfers.')->group(function () {
+    Route::get('/', [StockTransferController::class, 'index'])->name('index');
+    // ขอโอน (พนักงานสาขา, stock.request) - ต้องมาก่อน /{stockTransfer}
+    Route::get('/request', [StockTransferController::class, 'requestForm'])->name('request');
+    Route::post('/request', [StockTransferController::class, 'requestStore'])->name('request.store');
+    Route::post('/', [StockTransferController::class, 'store'])->name('store');
+    Route::post('/{stockTransfer}/approve', [StockTransferController::class, 'approve'])->name('approve');
+    Route::post('/{stockTransfer}/reject', [StockTransferController::class, 'reject'])->name('reject');
+    Route::get('/{stockTransfer}', [StockTransferController::class, 'show'])->name('show');
+});
+
+Route::prefix('stock-adjustments')->name('stock-adjustments.')->group(function () {
+    Route::get('/', [StockAdjustmentController::class, 'index'])->name('index');
+    Route::post('/', [StockAdjustmentController::class, 'store'])->name('store');
+    Route::get('/{stockAdjustment}', [StockAdjustmentController::class, 'show'])->name('show');
+    Route::post('/{stockAdjustment}/approve', [StockAdjustmentController::class, 'approve'])->name('approve');
+    Route::post('/{stockAdjustment}/reject', [StockAdjustmentController::class, 'reject'])->name('reject');
+});
+
+// Stock issues (งานคลังสินค้าตามคู่มือ BPlus บทที่ 5): ใบเบิก (DR ตัดสต๊อก),
+// ใบคืนสินค้าจากการเบิก (IR รับกลับ), ใบตัดสินค้าชำรุด (DD ตัดของเสีย).
+Route::prefix('stock-issues')->name('stock-issues.')->group(function () {
+    Route::get('/', [StockIssueController::class, 'index'])->name('index');
+    Route::post('/', [StockIssueController::class, 'store'])->name('store');
+    Route::get('/{stockIssue}', [StockIssueController::class, 'show'])->name('show');
+    Route::post('/{stockIssue}/approve', [StockIssueController::class, 'approve'])->name('approve');
+    Route::post('/{stockIssue}/reject', [StockIssueController::class, 'reject'])->name('reject');
+});
+
+// Stock transforms (ใบแปรรูปสินค้า DT): consume raw materials, receive outputs
+// with % cost allocation.
+Route::prefix('stock-transforms')->name('stock-transforms.')->group(function () {
+    Route::get('/', [StockTransformController::class, 'index'])->name('index');
+    Route::post('/', [StockTransformController::class, 'store'])->name('store');
+    Route::post('/{stockTransform}/packages', [StockTransformController::class, 'addPackages'])->name('packages.store');
+    Route::get('/{stockTransform}/labels', [StockTransformController::class, 'labels'])->name('labels');
+    Route::get('/{stockTransform}', [StockTransformController::class, 'show'])->name('show');
+});
+
+// Stock counts (ใบตรวจนับสินค้า): per-branch counting sheet - snapshot system
+// qty, key in / export-import counted qty via CSV, post diffs as an adjustment.
+Route::prefix('stock-counts')->name('stock-counts.')->group(function () {
+    Route::get('/', [StockCountController::class, 'index'])->name('index');
+    Route::post('/', [StockCountController::class, 'store'])->name('store');
+    Route::get('/{stockCount}', [StockCountController::class, 'show'])->name('show');
+    Route::post('/{stockCount}/items', [StockCountController::class, 'saveItems'])->name('items.save');
+    Route::post('/{stockCount}/submit', [StockCountController::class, 'submit'])->name('submit');
+    Route::get('/{stockCount}/export', [StockCountController::class, 'export'])->name('export');
+    Route::post('/{stockCount}/import', [StockCountController::class, 'import'])->name('import');
+    Route::post('/{stockCount}/post', [StockCountController::class, 'post'])->name('post');
+});
+
+// Chart of accounts (ผังบัญชี): plain master data, not yet wired into any
+// posting flow (gl_journals exists but nothing writes to it yet).
+Route::prefix('chart-of-accounts')->name('chart-of-accounts.')->group(function () {
+    Route::get('/', [ChartOfAccountController::class, 'index'])->name('index');
+    Route::post('/', [ChartOfAccountController::class, 'store'])->name('store');
+    Route::post('/import', [ChartOfAccountController::class, 'import'])->name('import');
+    Route::put('/{chartOfAccount}', [ChartOfAccountController::class, 'update'])->name('update');
+});
+
+// General journal (สมุดรายวันทั่วไป): read-only view of gl_journals, auto-posted
+// by GlPostingService whenever a customer/supplier payment is recorded.
+Route::get('/gl-journals', [GlJournalController::class, 'index'])->name('gl-journals.index');
+
+// งบการเงิน: งบทดลอง / กำไรขาดทุน / งบดุล จาก gl_journals
+Route::get('/financial-statements', [FinancialStatementController::class, 'index'])->name('financial-statements.index');
+
+// FA ทะเบียนทรัพย์สิน + ค่าเสื่อมราคา (เส้นตรงรายเดือน)
+Route::prefix('fixed-assets')->name('fixed-assets.')->group(function () {
+    Route::get('/', [FixedAssetController::class, 'index'])->name('index');
+    Route::post('/', [FixedAssetController::class, 'store'])->name('store');
+    Route::post('/depreciate', [FixedAssetController::class, 'runDepreciation'])->name('depreciate');
+    Route::get('/{fixedAsset}', [FixedAssetController::class, 'show'])->name('show');
+    Route::post('/{fixedAsset}/dispose', [FixedAssetController::class, 'dispose'])->name('dispose');
+});
+
+Route::prefix('product-units')->name('product-units.')->group(function () {
+    Route::get('/', [ProductUnitController::class, 'index'])->name('index');
+    Route::post('/', [ProductUnitController::class, 'store'])->name('store');
+    Route::put('/{productUnit}', [ProductUnitController::class, 'update'])->name('update');
+});
+
+// Customer master data (ลูกค้า): editable here; addresses/contacts feed the
+// booking/sale forms, openItems shows their AR (customer_open_items) history.
+Route::prefix('customers')->name('customers.')->group(function () {
+    Route::get('/', [CustomerController::class, 'index'])->name('index');
+    Route::post('/', [CustomerController::class, 'store'])->name('store');
+    Route::get('/{customer}', [CustomerController::class, 'show'])->name('show');
+    Route::put('/{customer}', [CustomerController::class, 'update'])->name('update');
+    Route::post('/{customer}/addresses', [CustomerController::class, 'addAddress'])->name('addresses.store');
+    Route::post('/{customer}/contacts', [CustomerController::class, 'addContact'])->name('contacts.store');
+    Route::post('/{customer}/payments', [PaymentController::class, 'storeCustomerPayment'])->name('payments.store');
+    // เปลี่ยนวงเงินเครดิตต้องอนุมัติ (finance.credit.approve) - ผู้ขอกดเองไม่ได้
+    Route::post('/{customer}/credit-limit/approve', [CustomerController::class, 'approveCreditLimit'])->name('credit-limit.approve');
+    Route::post('/{customer}/credit-limit/reject', [CustomerController::class, 'rejectCreditLimit'])->name('credit-limit.reject');
+});
+
+// Supplier master data (ซัพพลายเออร์): editable here; ledgerEntries shows their
+// AP (supplier_ledger) history, built up by the purchases module.
+Route::prefix('suppliers')->name('suppliers.')->group(function () {
+    Route::get('/', [SupplierController::class, 'index'])->name('index');
+    Route::post('/', [SupplierController::class, 'store'])->name('store');
+    Route::get('/{supplier}', [SupplierController::class, 'show'])->name('show');
+    Route::put('/{supplier}', [SupplierController::class, 'update'])->name('update');
+    Route::post('/{supplier}/addresses', [SupplierController::class, 'addAddress'])->name('addresses.store');
+    Route::post('/{supplier}/payments', [PaymentController::class, 'storeSupplierPayment'])->name('payments.store');
+});
+
+// Legacy salesman bookmarks redirect to Users. Salesman rows remain internal adapters.
+Route::prefix('salesmen')->name('salesmen.')->group(function () {
+    Route::get('/', [SalesmanController::class, 'index'])->name('index');
+});
+Route::prefix('sales-areas')->name('sales-areas.')->group(function () {
+    Route::post('/', [SalesAreaController::class, 'store'])->name('store');
+    Route::put('/{salesArea}', [SalesAreaController::class, 'update'])->name('update');
+});
+
+Route::prefix('warehouse-locations')->name('warehouse-locations.')->group(function () {
+    Route::get('/', [WarehouseLocationController::class, 'index'])->name('index');
+    Route::post('/', [WarehouseLocationController::class, 'store'])->name('store');
+    Route::put('/{warehouseLocation}', [WarehouseLocationController::class, 'update'])->name('update');
+});
+
+// ฝาก/ถอนเงินสดกับธนาคาร — แหล่งที่หกของสมุดเงินสด
+Route::prefix('cash-transfers')->name('cash-transfers.')->group(function () {
+    Route::get('/', [CashTransferController::class, 'index'])->name('index');
+    Route::post('/', [CashTransferController::class, 'store'])->name('store');
+});
+
+Route::prefix('bank-accounts')->name('bank-accounts.')->group(function () {
+    Route::get('/', [BankAccountController::class, 'index'])->name('index');
+    Route::post('/', [BankAccountController::class, 'store'])->name('store');
+    Route::put('/{bankAccount}', [BankAccountController::class, 'update'])->name('update');
+});
+
+Route::prefix('accounting-periods')->name('accounting-periods.')->group(function () {
+    Route::get('/', [AccountingPeriodController::class, 'index'])->name('index');
+    Route::post('/', [AccountingPeriodController::class, 'store'])->name('store');
+    Route::post('/{accountingPeriod}/close', [AccountingPeriodController::class, 'close'])->name('close');
+    Route::post('/{accountingPeriod}/reopen', [AccountingPeriodController::class, 'reopen'])->name('reopen');
+});
+
+Route::prefix('accounting-automation')->name('accounting-automation.')->group(function () {
+    Route::get('/', [AccountingAutomationController::class, 'index'])->name('index');
+    Route::post('/recurring-rules', [AccountingAutomationController::class, 'storeRecurring'])->name('recurring.store');
+    Route::post('/recurring-rules/{rule}/run', [AccountingAutomationController::class, 'runRecurring'])->name('recurring.run');
+    Route::post('/imports', [AccountingAutomationController::class, 'uploadImport'])->name('imports.upload');
+    Route::post('/imports/{batch}/review', [AccountingAutomationController::class, 'reviewImport'])->name('imports.review');
+});
+
+Route::prefix('monthly-accounting')->name('monthly-accounting.')->group(function () {
+    Route::get('/', [MonthlyAccountingController::class, 'index'])->name('index');
+    Route::post('/expenses', [MonthlyAccountingController::class, 'storeExpense'])->name('expenses.store');
+    Route::post('/statements/import', [MonthlyAccountingController::class, 'importStatement'])->name('statements.import');
+    Route::post('/statements/{bankStatement}/reconcile', [MonthlyAccountingController::class, 'reconcile'])->name('statements.reconcile');
+    Route::post('/statements/auto-reconcile', [MonthlyAccountingController::class, 'autoReconcile'])->name('statements.auto-reconcile');
+    Route::post('/export', [MonthlyAccountingController::class, 'export'])->name('export');
+    Route::get('/exports/{run}', [MonthlyAccountingController::class, 'downloadRun'])->name('exports.download');
+});
+
+Route::prefix('tax-compliance')->name('tax-compliance.')->group(function () {
+    Route::get('/', [TaxComplianceController::class, 'index'])->name('index');
+    Route::post('/filings', [TaxComplianceController::class, 'prepare'])->name('filings.prepare');
+    Route::post('/filings/{run}/review', [TaxComplianceController::class, 'review'])->name('filings.review');
+    Route::post('/filings/{run}/submit', [TaxComplianceController::class, 'submit'])->name('filings.submit');
+    Route::get('/filings/{run}/download', [TaxComplianceController::class, 'download'])->name('filings.download');
+    Route::post('/etax', [TaxComplianceController::class, 'prepareEtax'])->name('etax.prepare');
+    Route::post('/etax/{etaxDocument}/status', [TaxComplianceController::class, 'updateEtax'])->name('etax.status');
+});
+
+Route::prefix('operations')->name('operations.')->group(function () {
+    Route::get('/', [OperationsController::class, 'index'])->name('index');
+    Route::post('/backup', [OperationsController::class, 'backup'])->name('backup');
+    Route::post('/restore-verify', [OperationsController::class, 'verifyRestore'])->name('restore-verify');
+    Route::post('/users/{user}/mfa-reset', [OperationsController::class, 'resetMfa'])->name('mfa-reset');
+});
+Route::get('/database-structure', [DatabaseStructureController::class, 'index'])->name('database-structure.index');
+Route::get('/legacy-mappings', [LegacyTableMappingController::class, 'index'])->name('legacy-mappings.index');
+
+Route::prefix('members')->name('members.')->group(function () {
+    Route::get('/', [MemberController::class, 'index'])->name('index');
+    Route::post('/', [MemberController::class, 'store'])->name('store');
+    Route::put('/{member}', [MemberController::class, 'update'])->name('update');
+});
+
+Route::prefix('production')->name('production.')->group(function () {
+    Route::get('/', [ProductionController::class, 'index'])->name('index');
+    Route::post('/recipes', [ProductionController::class, 'storeRecipe'])->name('recipes.store');
+    Route::put('/recipes/{recipe}', [ProductionController::class, 'updateRecipe'])->name('recipes.update');
+    Route::post('/recipes/{recipe}/items', [ProductionController::class, 'storeRecipeItem'])->name('recipes.items.store');
+    Route::delete('/recipes/items/{recipeItem}', [ProductionController::class, 'destroyRecipeItem'])->name('recipes.items.destroy');
+    Route::post('/orders', [ProductionController::class, 'storeOrder'])->name('orders.store');
+    Route::put('/orders/{order}', [ProductionController::class, 'updateOrder'])->name('orders.update');
+    Route::post('/orders/{order}/receive', [ProductionController::class, 'receiveOrder'])->name('orders.receive');
+});
+
+// สมุดเอกสาร (Document Books): แยกเอกสารประเภทเดียวเป็นหลายเล่ม แต่ละเล่มเลขรันเอง
+Route::prefix('document-books')->name('document-books.')->group(function () {
+    Route::get('/', [DocumentBookController::class, 'index'])->name('index');
+    Route::post('/', [DocumentBookController::class, 'store'])->name('store');
+    Route::put('/{documentBook}', [DocumentBookController::class, 'update'])->name('update');
+});
+
+// ศูนย์เอกสารย้อนหลัง: ต้นไม้ ประเภท->ปี->เดือน + กรองรายวัน ทุกประเภทเอกสาร
+Route::get('/documents', [DocumentBrowserController::class, 'index'])->name('documents.browser');
+Route::get('/documents/legacy/{diKey}', [DocumentBrowserController::class, 'legacyShow'])->name('documents.legacy-show');
+
+// ใบส่งของ/ใบส่งของชั่วคราว (A5): พิมพ์ได้จากใบจองและใบขายทุกชนิด
+Route::get('/documents/{document}/delivery-note', [DeliveryNoteController::class, 'show'])->name('documents.delivery-note');
+// ใบกำกับภาษีเต็มรูปแบบ A4 (ขายสด/ขายเชื่อ) ตามหลัก 9 จุดของสรรพากร
+Route::get('/documents/{document}/tax-invoice', [DeliveryNoteController::class, 'taxInvoice'])->name('documents.tax-invoice');
+
+// Users & roles (ผู้ใช้และสิทธิ์แบบ BPlus)
+Route::prefix('users')->name('users.')->group(function () {
+    Route::get('/', [UserController::class, 'index'])->name('index');
+    Route::post('/', [UserController::class, 'store'])->name('store');
+    Route::post('/{user}/reset-password', [UserController::class, 'resetPassword'])->name('reset-password');
+    Route::post('/{user}/reset-pos-pin', [UserController::class, 'resetPosPin'])->name('reset-pos-pin');
+    Route::post('/{user}/align-pos-branch', [UserController::class, 'alignPosBranch'])->name('align-pos-branch');
+    Route::put('/{user}', [UserController::class, 'update'])->name('update');
+});
+
+// Price tables (ตารางราคา): named price lists assigned per branch so different
+// branches can sell the same product at different prices.
+Route::prefix('price-tables')->name('price-tables.')->group(function () {
+    Route::get('/', [PriceTableController::class, 'index'])->name('index');
+    Route::post('/', [PriceTableController::class, 'store'])->name('store');
+    Route::get('/{priceTable}', [PriceTableController::class, 'show'])->name('show');
+    Route::put('/{priceTable}', [PriceTableController::class, 'update'])->name('update');
+    Route::post('/{priceTable}/prices', [PriceTableController::class, 'upsertPrice'])->name('prices.upsert');
+    Route::post('/{priceTable}/assign-branch', [PriceTableController::class, 'assignBranch'])->name('assign-branch');
+    Route::get('/{priceTable}/search-products', [PriceTableController::class, 'searchProducts'])->name('search-products');
+});
+
+// ราคาเครื่องชั่ง: หน้าเดียวจบสำหรับราคา/กก. ของสินค้าชั่ง (PLU 800xxx)
+// ต้องตั้งให้ตรงกับเครื่องชั่งเสมอ — POS คำนวณน้ำหนักย้อนกลับจากราคานี้
+Route::prefix('scale-prices')->name('scale-prices.')->group(function () {
+    Route::get('/', [ScalePriceController::class, 'index'])->name('index');
+    Route::post('/', [ScalePriceController::class, 'update'])->name('update');
+    Route::post('/attach', [ScalePriceController::class, 'attachPlu'])->name('attach');
+    Route::get('/export', [ScalePriceController::class, 'export'])->name('export');
+});
+
+Route::prefix('promotions')->name('promotions.')->group(function () {
+    Route::get('/', [PromotionController::class, 'index'])->name('index');
+    Route::post('/', [PromotionController::class, 'store'])->name('store');
+    Route::put('/{promotion}', [PromotionController::class, 'update'])->name('update');
+});
+
+// Flash sale (ราคานาทีทอง): time-boxed special prices on specific products,
+// picked up by the POS products endpoint while the campaign window is active.
+Route::prefix('flash-sales')->name('flash-sales.')->group(function () {
+    Route::get('/', [FlashSaleController::class, 'index'])->name('index');
+    Route::post('/', [FlashSaleController::class, 'store'])->name('store');
+    Route::get('/{flashSale}', [FlashSaleController::class, 'show'])->name('show');
+    Route::put('/{flashSale}', [FlashSaleController::class, 'update'])->name('update');
+    Route::post('/{flashSale}/items', [FlashSaleController::class, 'upsertItem'])->name('items.upsert');
+    Route::delete('/{flashSale}/items/{item}', [FlashSaleController::class, 'destroyItem'])->name('items.destroy');
+    Route::get('/{flashSale}/search-products', [FlashSaleController::class, 'searchProducts'])->name('search-products');
+});
+
+// Price tags (ป้ายราคา): named label styles (ราคาปกติ/ตารางราคา/นาทีทอง/ไม่มีราคา)
+// used to print shelf labels for a chosen set of products.
+Route::prefix('price-tags')->name('price-tags.')->group(function () {
+    Route::get('/', [PriceTagController::class, 'index'])->name('index');
+    Route::post('/', [PriceTagController::class, 'store'])->name('store');
+    Route::put('/{priceTag}', [PriceTagController::class, 'update'])->name('update');
+    Route::get('/print', [PriceTagController::class, 'print'])->name('print');
+    Route::get('/search-products', [PriceTagController::class, 'searchProducts'])->name('search-products');
+    Route::post('/preview', [PriceTagController::class, 'preview'])->name('preview');
+});
+
+// Discount cards (บัตรส่วนลด): cards a cashier scans at POS checkout to apply
+// a fixed/percent discount to the whole bill.
+Route::prefix('discount-cards')->name('discount-cards.')->group(function () {
+    Route::get('/', [DiscountCardController::class, 'index'])->name('index');
+    Route::post('/', [DiscountCardController::class, 'store'])->name('store');
+    Route::put('/{discountCard}', [DiscountCardController::class, 'update'])->name('update');
+    Route::post('/check', [DiscountCardController::class, 'check'])->name('check');
+});
+
+// Member points (แต้มทอง/แต้มทวีคูณ): earning rules + multiplier campaigns and
+// the audit ledger. POS earns/redeems points at checkout via MemberPointService.
+Route::prefix('member-points')->name('member-points.')->group(function () {
+    Route::get('/', [MemberPointController::class, 'index'])->name('index');
+    Route::post('/', [MemberPointController::class, 'store'])->name('store');
+    Route::put('/{memberPointRule}', [MemberPointController::class, 'update'])->name('update');
+});
+
+// Qty promotions (แคมเปญซื้อจำนวนครบ): buy N get free item (ซื้อ 1 แถม 1) or
+// buy N get percent/baht discount. POS auto-applies while the campaign runs.
+Route::prefix('qty-promotions')->name('qty-promotions.')->group(function () {
+    Route::get('/', [QtyPromotionController::class, 'index'])->name('index');
+    Route::post('/', [QtyPromotionController::class, 'store'])->name('store');
+    Route::put('/{qtyPromotion}', [QtyPromotionController::class, 'update'])->name('update');
+});
+
+// System settings (ตั้งค่าระบบ): logo + company info used across layouts and
+// printed document headers.
+Route::prefix('settings')->name('settings.')->group(function () {
+    Route::get('/', [SystemSettingController::class, 'index'])->name('index');
+    Route::post('/', [SystemSettingController::class, 'update'])->name('update');
+    Route::post('/layout', [SystemSettingController::class, 'updateLayout'])->name('layout.update');
+    Route::get('/pos-designer', [SystemSettingController::class, 'posDesigner'])->name('pos-designer');
+    Route::post('/pos-designer', [SystemSettingController::class, 'savePosLayout'])->name('pos-designer.save');
+    Route::get('/pos-builds', [PosBuildController::class, 'index'])->name('pos-builds.index');
+    Route::post('/pos-builds', [PosBuildController::class, 'store'])->name('pos-builds.store');
+    Route::post('/pos-builds/{posBuild}/refresh', [PosBuildController::class, 'refresh'])->name('pos-builds.refresh');
+    Route::get('/reports', [ReportGovernanceController::class, 'index'])->name('reports');
+    Route::post('/reports', [ReportGovernanceController::class, 'update'])->name('reports.update');
+    Route::get('/workflows', [WorkflowDefinitionController::class, 'index'])->name('workflows');
+    Route::put('/workflows/{workflowDefinition}', [WorkflowDefinitionController::class, 'update'])->name('workflows.update');
+    Route::get('/module-controls', [ModuleControlController::class, 'index'])->name('module-controls');
+    Route::post('/module-controls/taxonomies/{type}', [ModuleControlController::class, 'storeTaxonomy'])->name('module-controls.taxonomies.store');
+    Route::put('/module-controls/taxonomies/{type}/{id}', [ModuleControlController::class, 'updateTaxonomy'])->name('module-controls.taxonomies.update');
+    Route::delete('/module-controls/taxonomies/{type}/{id}', [ModuleControlController::class, 'destroyTaxonomy'])->name('module-controls.taxonomies.destroy');
+    Route::get('/receipt-template', [ReceiptTemplateController::class, 'edit'])->name('receipt-template.edit');
+    Route::post('/receipt-template', [ReceiptTemplateController::class, 'update'])->name('receipt-template.update');
+    Route::post('/pos-token', [SystemSettingController::class, 'issuePosToken'])->name('pos-token.issue');
+    Route::post('/pos-token/rotate', [SystemSettingController::class, 'rotatePosToken'])->name('pos-token.rotate');
+    Route::post('/pos-terminal/hardware', [SystemSettingController::class, 'updatePosTerminalHardware'])->name('pos-terminal.hardware');
+    Route::post('/pos-release', [SystemSettingController::class, 'publishPosRelease'])->name('pos-release.publish');
+});
+
+Route::prefix('line-integrations')->name('line-integrations.')->group(function () {
+    Route::get('/', [LineIntegrationController::class, 'index'])->name('index');
+    Route::post('/', [LineIntegrationController::class, 'store'])->name('store');
+    Route::put('/{lineIntegration}', [LineIntegrationController::class, 'update'])->name('update');
+});
+
+Route::prefix('ecommerce-channels')->name('ecommerce-channels.')->group(function () {
+    Route::get('/', [EcommerceChannelController::class, 'index'])->name('index');
+    Route::post('/', [EcommerceChannelController::class, 'store'])->name('store');
+    Route::put('/{ecommerceChannel}', [EcommerceChannelController::class, 'update'])->name('update');
+});
+
+Route::prefix('bplus')->name('bplus.')->group(function () {
+    Route::get('/pos-preparation', [BplusOperationController::class, 'posPreparation'])->name('pos-preparation');
+    Route::post('/pos-preparation', [BplusOperationController::class, 'storePosPreparation'])->name('pos-preparation.store');
+    Route::get('/pos-workbench', [BplusOperationController::class, 'posWorkbench'])->name('pos-workbench');
+    Route::get('/purchase-planning', [BplusOperationController::class, 'purchasePlanning'])->name('purchase-planning');
+    Route::post('/purchase-planning', [BplusOperationController::class, 'storePurchasePlan'])->name('purchase-planning.store');
+    Route::post('/purchase-planning/generate-requisitions', [BplusOperationController::class, 'generatePurchaseRequisitions'])->name('purchase-planning.generate-requisitions');
+    Route::get('/approvals', [BplusOperationController::class, 'approvals'])->name('approvals');
+    Route::post('/approvals', [BplusOperationController::class, 'storeApproval'])->name('approvals.store');
+    Route::get('/finance', [BplusOperationController::class, 'finance'])->name('finance');
+    Route::post('/cash-books', [BplusOperationController::class, 'storeCashBook'])->name('cash-books.store');
+    Route::get('/tax', [BplusOperationController::class, 'tax'])->name('tax');
+    Route::post('/vat-rates', [BplusOperationController::class, 'storeVatRate'])->name('vat-rates.store');
+    Route::get('/qr-payments', [BplusOperationController::class, 'qrPayments'])->name('qr-payments');
+    Route::post('/qr-payments', [BplusOperationController::class, 'storeQrPayment'])->name('qr-payments.store');
+    Route::put('/qr-payments/{qrPaymentConfig}', [BplusOperationController::class, 'updateQrPayment'])->name('qr-payments.update');
+    Route::delete('/qr-payments/{qrPaymentConfig}', [BplusOperationController::class, 'destroyQrPayment'])->name('qr-payments.destroy');
+    Route::get('/show-price', [BplusOperationController::class, 'showPrice'])->name('show-price');
+    Route::post('/show-price', [BplusOperationController::class, 'storeShowPrice'])->name('show-price.store');
+});
+
+Route::post('/api/ai-chat', [\App\Http\Controllers\AiChatController::class, 'chat'])->name('ai.chat');

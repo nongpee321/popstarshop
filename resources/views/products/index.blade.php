@@ -1,0 +1,431 @@
+@extends('layout')
+
+@section('title', 'สินค้า - PopCentral')
+@section('page-title', 'สินค้า / บริการ')
+@section('page-subtitle', 'ทะเบียนสินค้า หน่วยนับ บาร์โค้ด และราคาเริ่มต้น')
+
+@section('content')
+    <div x-data="productPage()" x-cloak class="product-page">
+        <div class="product-toolbar mb-3">
+            <form method="get" class="product-filter-bar" x-ref="filterForm">
+                <div class="product-filter-field search-field">
+                    <label>ค้นหาสินค้า</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" name="q" value="{{ $q }}" class="form-control" placeholder="รหัสหรือชื่อสินค้า" autocomplete="off" @input.debounce.450ms="$refs.filterForm.requestSubmit()">
+                        <input type="hidden" name="status" value="{{ $status }}">
+                    </div>
+                </div>
+                <div class="product-filter-field">
+                    <label>ประเภทสินค้า</label>
+                <select name="category_id" class="form-select" style="max-width:240px" @change="$refs.filterForm.requestSubmit()">
+                    <option value="">ทุกหมวดสินค้า</option>
+                    @foreach($categories as $category)
+                        <option value="{{ $category->id }}" @selected($categoryId === $category->id)>{{ $category->name_th }}</option>
+                    @endforeach
+                </select>
+                </div>
+                <div class="product-filter-field" style="min-width:190px">
+                    <label>รูปแบบการขาย</label>
+                    <select name="product_type" class="form-select" @change="$refs.filterForm.requestSubmit()">
+                        <option value="">สินค้าทั้งหมด</option>
+                        <option value="scale" @selected($productType === 'scale')>สินค้าชั่งน้ำหนัก</option>
+                    </select>
+                </div>
+                @if($q !== '' || $categoryId || $productType)<a href="{{ route('products.index') }}" class="btn btn-light border align-self-end">ล้าง</a>@endif
+            </form>
+            <div class="product-actions">
+                <a href="{{ route('product-units.index') }}" class="btn btn-light border px-3">
+                    <i class="bi bi-rulers me-1"></i> จัดการหน่วยนับ
+                </a>
+                <button type="button" class="btn btn-primary px-3" @click="modalOpen = true">
+                    <i class="bi bi-plus-lg me-1"></i> เพิ่มสินค้า
+                </button>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            @foreach([['key' => 'all', 'label' => 'สินค้าทั้งหมด', 'tone' => 'primary', 'icon' => 'bi-boxes'], ['key' => 'active', 'label' => 'กำลังใช้งาน', 'tone' => 'success', 'icon' => 'bi-box-seam'], ['key' => 'inactive', 'label' => 'ไม่ใช้งาน / พักไว้', 'tone' => 'secondary', 'icon' => 'bi-box']] as $summary)
+                <div class="col-md-4"><a href="{{ route('products.index', array_filter(['q' => $q, 'category_id' => $categoryId, 'product_type' => $productType, 'status' => $summary['key'] === 'all' ? null : $summary['key']])) }}" class="status-summary {{ $status === $summary['key'] ? 'is-selected' : '' }}"><span class="status-summary-icon text-{{ $summary['tone'] }}"><i class="bi {{ $summary['icon'] }}"></i></span><span><small>{{ $summary['label'] }}</small><strong>{{ number_format($counts[$summary['key']]) }}</strong></span></a></div>
+            @endforeach
+        </div>
+
+        <div class="scale-plu-summary mb-3">
+            <div class="scale-plu-icon"><i class="bi bi-upc-scan"></i></div>
+            <div><span>PLU สินค้าชั่งล่าสุด</span><strong>{{ $maxScalePlu }}</strong></div>
+            <i class="bi bi-arrow-right text-muted"></i>
+            <div><span>เลขถัดไปที่ระบบจะใช้</span><strong class="text-success">{{ $nextScalePlu }}</strong></div>
+            <a href="{{ route('scale-prices.index') }}" class="btn btn-outline-primary ms-auto"><i class="bi bi-speedometer2 me-1"></i>ทะเบียนสินค้าเครื่องชั่ง</a>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-4"><div class="inventory-summary"><span class="inventory-summary-icon text-primary"><i class="bi bi-boxes"></i></span><span><small>สินค้าตามตัวกรอง</small><strong>{{ number_format($stockSummary['products']) }}</strong></span></div></div>
+            <div class="col-md-4"><div class="inventory-summary"><span class="inventory-summary-icon text-success"><i class="bi bi-stack"></i></span><span><small>คงเหลือรวมทุกคลัง</small><strong>{{ number_format($stockSummary['on_hand'], 4) }}</strong></span></div></div>
+            <div class="col-md-4"><div class="inventory-summary"><span class="inventory-summary-icon text-warning"><i class="bi bi-exclamation-triangle"></i></span><span><small>ถึงจุดสั่งซื้อ</small><strong>{{ number_format($stockSummary['low_stock']) }}</strong></span></div></div>
+        </div>
+
+        <div class="content-card product-table-card">
+            <div class="table-responsive">
+                <table class="table align-middle product-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>รหัส</th><th>ชื่อสินค้า</th><th>หมวด</th><th>ยี่ห้อ</th>
+                            <th>หน่วยหลัก</th><th class="text-end">คงเหลือ</th><th class="text-end">ราคาเริ่มต้น</th><th>สถานะ</th><th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($products as $product)
+                            <tr>
+                                <td class="fw-semibold">{{ $product->sku_code }}</td>
+                                <td>{{ $product->name_th }}</td>
+                                <td>{{ $product->category?->name_th ?? '-' }}</td>
+                                <td>{{ $product->brand?->name_th ?? '-' }}</td>
+                                <td>{{ $product->baseUnit?->displayLabel() ?? '-' }}</td>
+                                <td class="text-end fw-semibold">{{ number_format((float) $product->stockBalances->sum('on_hand_qty'), 4) }}</td>
+                                <td class="text-end">{{ number_format($product->default_price ?? 0, 2) }}</td>
+                                <td>
+                                    <span class="badge {{ $product->is_active ? 'text-bg-success' : 'text-bg-secondary' }}">
+                                        {{ $product->is_active ? 'ใช้งาน' : 'ปิดใช้งาน' }}
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <div class="d-flex gap-1 justify-content-end">
+                                        <a href="{{ route('products.show', $product) }}" class="btn btn-sm btn-primary" @click.prevent="openProduct('{{ route('products.show', $product) }}?popup=1')"><i class="bi bi-pencil-square me-1"></i>แก้ไข</a>
+                                        <button type="button" class="btn btn-sm btn-success"
+                                            @click="openStockIn({{ $product->id }}, '{{ addslashes($product->name_th) }}', '{{ $product->sku_code }}')">
+                                            <i class="bi bi-box-arrow-in-down"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                            @click="openDelete({{ $product->id }}, '{{ addslashes($product->name_th) }}', '{{ $product->sku_code }}')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="9" class="py-5 text-center text-muted">ไม่พบสินค้า</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            <div class="product-pagination">{{ $products->links() }}</div>
+        </div>
+
+        <div class="product-popup-backdrop" x-show="productPopupOpen" x-transition.opacity @keydown.escape.window="closeProduct()">
+            <div class="product-popup-window" x-transition @click.outside="closeProduct()">
+                <div class="product-popup-titlebar">
+                    <div><i class="bi bi-box-seam me-2"></i>แฟ้มสินค้า</div>
+                    <button type="button" @click="closeProduct()" aria-label="ปิด"><i class="bi bi-x-lg"></i></button>
+                </div>
+                <iframe x-show="productUrl" :src="productUrl" title="รายละเอียดสินค้า"></iframe>
+            </div>
+        </div>
+
+        <div class="booking-modal-backdrop" x-show="modalOpen" x-transition.opacity @keydown.escape.window="modalOpen = false">
+            <div class="booking-modal" style="width: min(720px, 100%);" @click.outside="modalOpen = false" x-transition>
+                <div class="modal-header border-0 px-4 pt-4 pb-2">
+                    <h3 class="h4 fw-bold mb-0">เพิ่มสินค้าใหม่</h3>
+                    <button type="button" class="btn btn-light rounded-circle" @click="modalOpen = false" aria-label="Close">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <form method="post" action="{{ route('products.store') }}">
+                    @csrf
+                    <div class="modal-body px-4 pb-4">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">ประเภทสินค้า <span class="text-danger">*</span></label>
+                                <select name="product_category_id" required class="form-select">
+                                    <option value="">-- เลือกประเภทเพื่อรันรหัสอัตโนมัติ --</option>
+                                    @foreach($categories as $category)
+                                        <option value="{{ $category->id }}">{{ $category->code }} - {{ $category->name_th }}</option>
+                                    @endforeach
+                                </select>
+                                <div class="form-text">ระบบจะรันรหัสตามประเภท เช่น 101001, 101002 โดยไม่ต้องกรอกเอง</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">หน่วยหลัก</label>
+                                <select name="base_unit_id" required class="form-select">
+                                    @foreach($units as $unit)
+                                        <option value="{{ $unit->id }}">{{ $unit->displayLabel() }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label text-muted small">ชื่อสินค้า (ไทย)</label>
+                                <input type="text" name="name_th" required class="form-control">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label text-muted small">ชื่อสินค้า (อังกฤษ)</label>
+                                <input type="text" name="name_en" class="form-control">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label text-muted small">หมายเหตุสินค้า / ข้อมูลช่วยจำ</label>
+                                <textarea name="note" rows="2" maxlength="2000" class="form-control" placeholder="เช่น วิธีเก็บรักษา รุ่น สี หรือเงื่อนไขที่พนักงานควรทราบ"></textarea>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-muted small">ขายเมื่อสต๊อกไม่พอ</label>
+                                <select name="negative_stock_policy" class="form-select" required>
+                                    <option value="allow">เตือนแล้วอนุญาต</option>
+                                    <option value="block">ห้ามขายเกินสต๊อก</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3"><label class="form-label text-muted small">จุดสั่งซื้อ</label><input type="number" step="0.0001" min="0" name="reorder_point" class="form-control"></div>
+                            <div class="col-md-3"><label class="form-label text-muted small">สต๊อกขั้นต่ำ</label><input type="number" step="0.0001" min="0" name="minimum_stock" class="form-control"></div>
+                            <div class="col-md-3"><label class="form-label text-muted small">สต๊อกสูงสุด</label><input type="number" step="0.0001" min="0" name="maximum_stock" class="form-control"></div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">แผนก</label>
+                                <select name="product_department_id" class="form-select">
+                                    <option value="">-- ไม่ระบุ --</option>
+                                    @foreach($departments as $department)
+                                        <option value="{{ $department->id }}">{{ $department->name_th }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">ยี่ห้อ</label>
+                                <select name="product_brand_id" class="form-select">
+                                    <option value="">-- ไม่ระบุ --</option>
+                                    @foreach($brands as $brand)
+                                        <option value="{{ $brand->id }}">{{ $brand->name_th }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">ราคาเริ่มต้น</label>
+                                <input type="number" step="0.01" min="0" name="default_price" class="form-control">
+                                <div class="form-check mt-2">
+                                    <input type="checkbox" name="is_vat" value="1" checked class="form-check-input" id="newProductVat">
+                                    <label class="form-check-label" for="newProductVat">คิด VAT</label>
+                                </div>
+                                <div class="form-check mt-2">
+                                    <input type="checkbox" name="tracks_expiry" value="1" class="form-check-input" id="newProductExpiry">
+                                    <label class="form-check-label" for="newProductExpiry">ควบคุม Lot และวันหมดอายุ</label>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label text-muted small">ราคาขายสูงสุด/หน่วยฐาน</label>
+                                <input type="number" step="0.00000001" min="0" name="maximum_sale_price" class="form-control">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label text-muted small">กำไรขั้นต่ำ (%)</label>
+                                <input type="number" step="0.00000001" max="100" name="minimum_margin_percent" class="form-control">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label text-muted small">ควบคุมกำไร</label>
+                                <select name="margin_control_policy" class="form-select"><option value="warn">แจ้งเตือน</option><option value="block">บังคับขออนุมัติ</option></select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-muted small">เตือนก่อนหมดอายุ (วัน)</label>
+                                <input type="number" min="0" max="3650" name="expiry_warning_days" value="30" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-muted small">อายุสินค้านับจากวันผลิต (วัน)</label>
+                                <input type="number" min="1" max="36500" name="shelf_life_days" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-muted small">เริ่มระบายก่อนหมดอายุ (วัน)</label>
+                                <input type="number" min="0" max="3650" name="clearance_warning_days" value="7" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-muted small">ส่วนลดระบายแนะนำ (%)</label>
+                                <input type="number" step="0.01" min="0" max="100" name="clearance_discount_percent" value="0" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-muted small">เมื่อ Lot หมดอายุ</label>
+                                <select name="expiry_sale_policy" class="form-select" required>
+                                    <option value="block">ห้ามขาย/ห้ามใช้</option>
+                                    <option value="allow">เตือนแต่อนุญาต</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 d-flex align-items-center">
+                                <div class="form-check">
+                                    <input type="checkbox" name="is_active" value="1" checked class="form-check-input" id="newProductActive">
+                                    <label class="form-check-label" for="newProductActive">ใช้งาน</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0 px-4 pb-4 pt-0">
+                        <button type="button" class="btn btn-light border px-4" @click="modalOpen = false">ยกเลิก</button>
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="bi bi-check2-circle me-1"></i> บันทึกสินค้า
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {{-- Quick Stock In modal --}}
+        <div class="booking-modal-backdrop" x-show="stockInOpen" x-transition.opacity @keydown.escape.window="stockInOpen = false" style="display:none">
+            <div class="booking-modal" style="width:min(480px,100%)" @click.outside="stockInOpen = false" x-transition>
+                <div class="p-4 border-bottom d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0"><i class="bi bi-box-arrow-in-down me-2 text-success"></i>เพิ่มสต็อกสินค้า</h5>
+                    <button type="button" class="btn btn-light rounded-circle" @click="stockInOpen = false"><i class="bi bi-x-lg"></i></button>
+                </div>
+                <form method="POST" :action="stockInUrl" class="p-4">
+                    @csrf
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">สินค้า</label>
+                        <div class="form-control bg-light" x-text="stockInName"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">คลังสินค้า / ตำแหน่งเก็บ <span class="text-danger">*</span></label>
+                        <select name="warehouse_location_id" class="form-select" required>
+                            <option value="">-- เลือกตำแหน่งเก็บ --</option>
+                            @foreach($branches as $branch)
+                                @foreach($branch->warehouses as $wh)
+                                    @foreach($wh->locations as $loc)
+                                        <option value="{{ $loc->id }}">{{ $branch->name_th }} › {{ $wh->name }} › {{ $loc->name }}</option>
+                                    @endforeach
+                                @endforeach
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">จำนวนที่เพิ่ม <span class="text-danger">*</span></label>
+                            <input type="number" name="qty" step="0.0001" min="0.0001" class="form-control" placeholder="เช่น 10" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">ราคาทุน/หน่วย</label>
+                            <input type="number" name="unit_cost" step="0.01" min="0" class="form-control" placeholder="0.00">
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">หมายเหตุ</label>
+                        <input type="text" name="remark" class="form-control" placeholder="เช่น รับสินค้าจากซัพพลายเออร์">
+                    </div>
+                    <div class="d-flex gap-2 justify-content-end">
+                        <button type="button" class="btn btn-light border px-4" @click="stockInOpen = false">ยกเลิก</button>
+                        <button type="submit" class="btn btn-success px-4"><i class="bi bi-check2-circle me-1"></i> บันทึกสต็อก</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {{-- Delete product modal --}}
+        <div class="booking-modal-backdrop" x-show="deleteOpen" x-transition.opacity @keydown.escape.window="deleteOpen = false" style="display:none">
+            <div class="booking-modal" style="width:min(420px,100%)" @click.outside="deleteOpen = false" x-transition>
+                <div class="p-4 border-bottom d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0 text-danger"><i class="bi bi-trash me-2"></i>ลบสินค้า</h5>
+                    <button type="button" class="btn btn-light rounded-circle" @click="deleteOpen = false"><i class="bi bi-x-lg"></i></button>
+                </div>
+                <div class="p-4">
+                    <div class="alert alert-warning mb-3">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <strong>คำเตือน:</strong> ถ้ายังมีสต็อกในคลัง จะไม่สามารถลบได้
+                    </div>
+                    <p class="mb-4">คุณต้องการลบ <strong x-text="deleteName"></strong> ใช่หรือไม่?</p>
+                    <form method="POST" :action="deleteUrl">
+                        @csrf
+                        @method('DELETE')
+                        <div class="d-flex gap-2 justify-content-end">
+                            <button type="button" class="btn btn-light border px-4" @click="deleteOpen = false">ยกเลิก</button>
+                            <button type="submit" class="btn btn-danger px-4"><i class="bi bi-trash me-1"></i> ยืนยันลบ</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+    </div>
+@endsection
+
+@push('head')
+<style>
+    .status-summary { display:flex; align-items:center; gap:12px; height:72px; padding:12px 16px; background:var(--erp-surface, #fff); border:1px solid var(--erp-border); border-radius:14px; color:inherit; text-decoration:none; transition:.15s ease; }
+    .inventory-summary { display:flex; align-items:center; gap:12px; min-height:72px; padding:12px 16px; background:var(--erp-surface, #fff); border:1px solid var(--erp-border); border-radius:14px; box-shadow:0 3px 12px rgba(15,51,74,.04); }
+    .inventory-summary-icon { width:38px; height:38px; display:grid; place-items:center; border-radius:11px; background:var(--erp-surface-2); font-size:19px; }
+    .inventory-summary small { display:block; color:var(--erp-muted); font-size:12px; }
+    .inventory-summary strong { display:block; color:var(--erp-text); font-size:21px; line-height:1.1; }
+    .status-summary:hover, .status-summary.is-selected { border-color:#93c5fd; box-shadow:0 6px 18px rgba(30,64,175,.10); transform:translateY(-1px); }
+    .status-summary-icon { width:38px; height:38px; display:grid; place-items:center; border-radius:11px; background:var(--erp-surface-2); font-size:19px; }
+    .status-summary small { display:block; color:var(--erp-muted); font-size:12px; }
+    .status-summary strong { display:block; color:var(--erp-text); font-size:21px; line-height:1.1; }
+    [x-cloak] { display: none !important; }
+    .booking-modal-backdrop {
+        position: fixed; inset: 0; z-index: 2000;
+        background: rgba(15, 23, 42, .42);
+        display: flex; align-items: center; justify-content: center; padding: 24px;
+    }
+    .booking-modal {
+        width: min(1120px, 100%); max-height: calc(100vh - 48px); overflow: auto;
+        background: var(--erp-surface, #fff); border-radius: 18px; box-shadow: 0 24px 80px rgba(15, 23, 42, .24);
+    }
+    .product-popup-backdrop { position:fixed; inset:0; z-index:1950; display:flex; align-items:center; justify-content:center; padding:12px; background:rgba(15,23,42,.48); }
+    .product-popup-window { width:min(760px,calc(100vw - 24px)); height:min(540px,calc(100vh - 24px)); display:flex; flex-direction:column; overflow:hidden; border:1px solid #777d83; border-radius:2px; background:#ececec; box-shadow:0 18px 52px rgba(15,23,42,.3); }
+    .product-popup-titlebar { min-height:32px; display:flex; align-items:center; justify-content:space-between; padding:0 4px 0 9px; color:#111827; background:#f5f5f5; border-bottom:1px solid #9da2a7; font:700 12px Tahoma,"Noto Sans Thai",sans-serif; }
+    .product-popup-titlebar button { width:28px; height:27px; display:grid; place-items:center; border:0; border-radius:0; color:#374151; background:transparent; }
+    .product-popup-titlebar button:hover { color:#b91c1c; background:#fee2e2; }
+    .product-popup-window iframe { width:100%; height:100%; flex:1 1 auto; border:0; background:#eef5f9; }
+    .product-page { --product-border:var(--erp-border); --product-ink:var(--erp-text); }
+    .product-toolbar { display:flex; align-items:flex-end; justify-content:space-between; gap:9px; padding:9px 10px; border:1px solid var(--product-border); border-radius:10px; background:rgba(255,255,255,.88); box-shadow:0 3px 10px rgba(15,51,74,.04); }
+    .product-filter-bar { display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap; flex:1 1 auto; }
+    .product-filter-field { display:grid; gap:2px; min-width:150px; }
+    .product-filter-field.search-field { width:min(250px,100%); }
+    .product-filter-field label { margin:0; color:var(--erp-muted); font-size:9px; line-height:1.1; font-weight:700; }
+    .product-filter-field .form-control,.product-filter-field .form-select,.product-filter-field .input-group-text { min-height:32px; height:32px; border-color:var(--erp-border); font-size:11px; padding-top:3px; padding-bottom:3px; }
+    .product-filter-field .form-select { max-width:none!important; }
+    .product-filter-bar .btn,.product-actions .btn { min-height:32px; height:32px; border-radius:7px; font-size:11px; padding:4px 10px; font-weight:700; white-space:nowrap; }
+    .product-actions { display:flex; gap:8px; align-items:center; flex:0 0 auto; }
+    .scale-plu-summary { display:flex; align-items:center; gap:10px; padding:7px 10px; border:1px solid var(--erp-border); border-radius:9px; background:var(--erp-surface, #fff); box-shadow:0 2px 8px rgba(30,64,175,.03); }
+    .scale-plu-summary>div:not(.scale-plu-icon) { display:grid; gap:2px; }
+    .scale-plu-summary span { color:var(--erp-muted); font-size:10px; font-weight:700; }
+    .scale-plu-summary strong { color:var(--product-ink); font-size:15px; line-height:1.05; letter-spacing:.035em; }
+    .scale-plu-icon { width:31px; height:31px; display:grid; place-items:center; border-radius:7px; color:#fff; background:linear-gradient(145deg,var(--erp-primary-ink),var(--erp-primary-ink)); font-size:14px; box-shadow:0 3px 8px rgba(22,143,202,.15); }
+    .scale-plu-summary .btn { min-height:30px; border-radius:7px; font-size:10px; padding:4px 9px; font-weight:700; }
+    .product-table-card { overflow:hidden; padding:0; border:1px solid var(--product-border); border-radius:14px; box-shadow:0 5px 18px rgba(15,51,74,.055); background:var(--erp-surface, #fff); }
+    .product-table { font-size:11px; }
+    .product-table thead th { padding:8px 10px; border:0; background:var(--erp-primary-soft); color:var(--erp-primary-dark); font-size:9px; font-weight:800; letter-spacing:.01em; white-space:nowrap; }
+    .product-table tbody td { padding:7px 10px; border-color:var(--erp-success-soft); color:var(--erp-text); vertical-align:middle; line-height:1.2; }
+    .product-table tbody tr { transition:background-color .15s ease; }
+    .product-table tbody tr:hover { background:var(--erp-surface-2); }
+    .product-table .badge { border-radius:5px; padding:3px 6px; font-size:9px; font-weight:700; }
+    .product-table tbody .btn-primary { min-width:58px; min-height:27px; border-radius:6px; font-size:9px; font-weight:700; padding:3px 7px; box-shadow:none; }
+    .product-pagination { padding:12px 14px 4px; border-top:1px solid var(--erp-surface-2); }
+    @media(max-width:1200px){.product-toolbar{align-items:stretch;flex-direction:column}.product-actions{justify-content:flex-end}.product-filter-field.search-field{width:min(280px,100%)}}
+    @media(max-width:720px){.product-toolbar{padding:10px}.product-filter-bar,.product-filter-field,.product-filter-field.search-field{width:100%}.product-filter-field{min-width:0}.product-filter-bar .btn{flex:1}.product-actions{display:grid;grid-template-columns:1fr 1fr}.product-actions .btn{display:flex;align-items:center;justify-content:center}.product-table thead th,.product-table tbody td{padding:9px 10px}.product-popup-backdrop{padding:0}.product-popup-window{width:100vw;height:100vh;border:0;border-radius:0}}
+    @media(max-width:720px){.scale-plu-summary{align-items:flex-start;flex-wrap:wrap}.scale-plu-summary .btn{width:100%;margin-left:0!important}}
+</style>
+@endpush
+
+@push('scripts')
+<script>
+    function productPage() {
+        return {
+            modalOpen: false,
+            stockInOpen: false,
+            stockInUrl: '',
+            stockInName: '',
+            deleteOpen: false,
+            deleteUrl: '',
+            deleteName: '',
+            productPopupOpen: false,
+            productUrl: '',
+            openStockIn(id, name, sku) {
+                this.stockInUrl = `{{ url('/products') }}/${id}/quick-stock-in`;
+                this.stockInName = `${name} (${sku})`;
+                this.stockInOpen = true;
+            },
+            openDelete(id, name, sku) {
+                this.deleteUrl = `{{ url('/products') }}/${id}`;
+                this.deleteName = `${name} (${sku})`;
+                this.deleteOpen = true;
+            },
+            openProduct(url) {
+                this.productUrl = url;
+                this.productPopupOpen = true;
+                document.body.style.overflow = 'hidden';
+            },
+            closeProduct() {
+                this.productPopupOpen = false;
+                this.productUrl = '';
+                document.body.style.overflow = '';
+                window.location.reload();
+            }
+        };
+    }
+</script>
+@endpush

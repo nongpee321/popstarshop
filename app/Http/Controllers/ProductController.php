@@ -1,0 +1,676 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\AuditLog;
+use App\Models\Branch;
+use App\Models\PriceChange;
+use App\Models\PriceTable;
+use App\Models\Product;
+use App\Models\ProductBarcode;
+use App\Models\ProductBrand;
+use App\Models\ProductCategory;
+use App\Models\ProductDepartment;
+use App\Models\ProductPrice;
+use App\Models\ProductSupplier;
+use App\Models\PosPriceSchedule;
+use App\Support\BarcodePolicy;
+use App\Models\ProductUnit;
+use App\Models\RecallCase;
+use App\Models\RecallContact;
+use App\Models\StockLot;
+use App\Models\StockLotQualityCheck;
+use App\Models\StockBalance;
+use App\Models\StockMovement;
+use App\Models\Supplier;
+use App\Models\SupplierPriceSchedule;
+use App\Services\Inventory\ProductCostHistoryService;
+use App\Services\Inventory\FifoStockService;
+use App\Services\ProductSkuAllocator;
+use App\Support\DecimalMath;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
+
+class ProductController extends Controller
+{
+    public function index(Request $request): View
+    {
+        $q = trim((string) $request->query('q', ''));
+        $categoryId = $request->integer('category_id') ?: null;
+        $productType = trim((string) $request->query('product_type', ''));
+        $status = in_array($request->query('status'), ['active', 'inactive'], true)
+            ? (string) $request->query('status')
+            : 'all';
+        $productScope = Product::query()->when($q !== '', fn ($query) => $query->where(fn ($w) => $w
+            ->where('sku_code', 'ilike', "%{$q}%")
+            ->orWhere('name_th', 'ilike', "%{$q}%")
+        ));
+        $counts = [
+            'all' => (clone $productScope)->count(),
+            'active' => (clone $productScope)->where('is_active', true)->count(),
+            'inactive' => (clone $productScope)->where('is_active', false)->count(),
+        ];
+
+        $filteredProductScope = (clone $productScope)
+            ->when($status !== 'all', fn ($query) => $query->where('is_active', $status === 'active'))
+            ->when($categoryId, fn ($query) => $query->where('product_category_id', $categoryId))
+            ->when($productType === 'scale', fn ($query) => $query->whereHas('barcodes', fn ($b) => $b
+                ->where('is_active', true)
+                ->where(fn ($w) => $w->where('barcode', 'like', '800%')->orWhere('barcode', 'like', '801%'))));
+        $filteredProductIds = (clone $filteredProductScope)->pluck('id');
+        $stockBalances = StockBalance::whereIn('product_id', $filteredProductIds)->get(['product_id', 'on_hand_qty']);
+        $stockByProduct = $stockBalances->groupBy('product_id')->map(fn ($balances) => (float) $balances->sum('on_hand_qty'));
+        $stockSummary = [
+            'products' => $filteredProductIds->count(),
+            'on_hand' => (float) $stockBalances->sum('on_hand_qty'),
+            'low_stock' => (clone $filteredProductScope)->whereNotNull('reorder_point')->where('reorder_point', '>', 0)
+                ->get(['id', 'reorder_point'])
+                ->filter(fn ($product) => ($stockByProduct[$product->id] ?? 0) <= (float) $product->reorder_point)
+                ->count(),
+        ];
+
+        $products = (clone $filteredProductScope)
+            ->with(['category', 'brand', 'baseUnit', 'stockBalances'])
+            ->orderBy('name_th')
+            ->paginate(30)
+            ->withQueryString();
+
+        $maxScalePlu = ProductBarcode::where('is_active', true)
+            ->where('barcode', 'like', '800%')
+            ->pluck('barcode')
+            ->filter(fn ($barcode) => preg_match('/^800[0-9]{3}$/', (string) $barcode) === 1)
+            ->map(fn ($barcode) => (int) $barcode)
+            ->max();
+        $nextScalePlu = str_pad((string) (($maxScalePlu ?: 800000) + 1), 6, '0', STR_PAD_LEFT);
+
+        return view('products.index', [
+            'products' => $products,
+            'q' => $q,
+            'categoryId' => $categoryId,
+            'productType' => $productType,
+            'status' => $status,
+            'counts' => $counts,
+            'maxScalePlu' => $maxScalePlu ? str_pad((string) $maxScalePlu, 6, '0', STR_PAD_LEFT) : '-',
+            'nextScalePlu' => $nextScalePlu,
+            'stockSummary' => $stockSummary,
+            'categories' => ProductCategory::orderBy('name_th')->get(),
+            'departments' => ProductDepartment::orderBy('name_th')->get(),
+            'brands' => ProductBrand::orderBy('name_th')->get(),
+            'units' => ProductUnit::orderBy('name')->get()
+                ->reject(fn (ProductUnit $unit) => $unit->isCorrupted())
+                ->values(),
+            'branches' => Branch::where('is_active', true)->with('warehouses.locations')->orderBy('code')->get(),
+        ]);
+    }
+
+    public function store(Request $request, ProductSkuAllocator $skuAllocator): RedirectResponse
+    {
+        $data = $this->validateProduct($request);
+        if (empty($data['product_category_id'])) {
+            throw ValidationException::withMessages(['product_category_id' => 'ต้องเลือกประเภทสินค้า ระบบจึงจะรันรหัสสินค้าได้']);
+        }
+
+        $product = DB::transaction(function () use ($data, $skuAllocator): Product {
+            // SKU เป็นเลขควบคุมของระบบ ไม่รับค่าที่ส่งมาจากฟอร์มเพื่อกันการข้ามลำดับ.
+            $data['sku_code'] = $skuAllocator->nextForCategory((int) $data['product_category_id']);
+
+            return Product::create($data);
+        });
+
+        return redirect()->route('products.show', $product)->with('success', "เพิ่มสินค้า {$product->sku_code} แล้ว");
+    }
+
+    public function show(Product $product, ProductCostHistoryService $costHistoryService): View
+    {
+        $product->load([
+            'category', 'brand', 'department', 'baseUnit',
+            'barcodes.unit',
+            'stockBalances.warehouseLocation.warehouse',
+            'stockLots' => fn ($query) => $query->with('warehouseLocation.warehouse')
+                ->where('remaining_qty', '>', 0)->orderBy('expiry_date')->orderBy('received_date'),
+            'suppliers.supplier',
+            'supplierPriceSchedules' => fn ($query) => $query
+                ->with(['supplier', 'unit'])
+                ->orderByDesc('effective_from')
+                ->orderByDesc('minimum_qty'),
+            'posPriceSchedules' => fn ($query) => $query
+                ->with(['branch', 'unit'])
+                ->orderByDesc('effective_from'),
+        ]);
+
+        // Load all price tables with this product's prices + which branches use each table
+        $priceTables = PriceTable::where('is_active', true)->where('is_default', true)->orderBy('code')->get();
+
+        $productPrices = ProductPrice::with(['unit', 'priceTable'])
+            ->where('product_id', $product->id)
+            ->get()
+            ->groupBy('price_table_id');
+
+        // Map branches to their price tables
+        $branchesByTable = Branch::whereNotNull('price_table_id')
+            ->get(['id', 'code', 'name_th', 'price_table_id'])
+            ->groupBy('price_table_id');
+
+        $defaultPriceTable = PriceTable::where('is_default', true)->first();
+        $currentVatRate = (float) (DB::table('vat_rates')
+            ->where('effective_from', '<=', now()->toDateString())
+            ->where(fn ($query) => $query->whereNull('effective_to')->orWhere('effective_to', '>=', now()->toDateString()))
+            ->orderByDesc('effective_from')->value('rate_percent') ?? 7);
+
+        // เลข PLU เครื่องชั่งถัดไป (รันต่อจากรหัสสูงสุดในช่วง 800xxx +1) — DB-agnostic
+        $maxScalePlu = ProductBarcode::where('barcode', 'like', '800%')
+            ->pluck('barcode')
+            ->filter(fn ($b) => preg_match('/^800[0-9]{3}$/', (string) $b) === 1)
+            ->map(fn ($b) => (int) $b)
+            ->max();
+        $nextScalePlu = str_pad((string) (($maxScalePlu ?: 800000) + 1), 6, '0', STR_PAD_LEFT);
+
+        $legacyUnitIds = collect([$product->base_unit_id])
+            ->merge($product->barcodes->pluck('unit_id'))
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique();
+
+        return view('products.show', [
+            'product' => $product,
+            'units' => ProductUnit::orderBy('name')->get()
+                ->filter(fn (ProductUnit $unit) => ! $unit->isCorrupted() || $legacyUnitIds->contains($unit->id))
+                ->values(),
+            'categories' => ProductCategory::orderBy('name_th')->get(),
+            'departments' => ProductDepartment::orderBy('name_th')->get(),
+            'brands' => ProductBrand::orderBy('name_th')->get(),
+            'priceTables' => $priceTables,
+            'productPrices' => $productPrices,
+            'branchesByTable' => $branchesByTable,
+            'defaultPriceTable' => $defaultPriceTable,
+            'currentVatRate' => $currentVatRate,
+            'nextScalePlu' => $nextScalePlu,
+            'costHistory' => $costHistoryService->history($product),
+            'suppliers' => Supplier::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name_th']),
+            'branches' => Branch::where('is_active', true)->with('warehouses.locations')->orderBy('code')->get(),
+        ]);
+    }
+
+    public function storePosPriceSchedule(Request $request, Product $product): RedirectResponse
+    {
+        $data = $request->validate([
+            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
+            'unit_id' => ['nullable', 'integer', 'exists:product_units,id'],
+            'price' => ['required', 'numeric', 'min:0'],
+            'effective_from' => ['required', 'date'],
+            'effective_to' => ['nullable', 'date', 'after:effective_from'],
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        PosPriceSchedule::create([
+            ...$data,
+            'status' => 'published',
+            'created_by' => auth()->id(),
+            'published_by' => auth()->id(),
+            'published_at' => now(),
+        ]);
+
+        return back()->with('success', 'เผยแพร่ราคาขาย POS ตามเวลาที่กำหนดแล้ว เครื่อง POS จะรับเมื่อ sync ครั้งถัดไป');
+    }
+
+    public function cancelPosPriceSchedule(Product $product, PosPriceSchedule $schedule): RedirectResponse
+    {
+        abort_unless((int) $schedule->product_id === (int) $product->id, 404);
+        $schedule->update(['status' => 'cancelled']);
+
+        return back()->with('success', 'ยกเลิกช่วงราคาขาย POS แล้ว เครื่อง POS จะนำออกเมื่อ sync ครั้งถัดไป');
+    }
+
+    // Upsert price from product show page
+    public function upsertPrice(Request $request, Product $product): JsonResponse|RedirectResponse
+    {
+        $data = $request->validate([
+            'price_table_id' => ['required', 'integer', 'exists:price_tables,id'],
+            'unit_id' => ['nullable', 'integer', 'exists:product_units,id'],
+            'price' => ['required', 'numeric', 'min:0'],
+            'cost_price' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $identity = [
+            'product_id' => $product->id,
+            'price_table_id' => $data['price_table_id'],
+            'unit_id' => $data['unit_id'] ?? null,
+        ];
+        $oldPrice = ProductPrice::where($identity)->value('price');
+        $pp = ProductPrice::updateOrCreate(
+            $identity,
+            [
+                'price' => $data['price'],
+                'cost_price' => $data['cost_price'] ?? 0,
+                'is_active' => true,
+            ]
+        );
+        if ($oldPrice === null || DecimalMath::compare($oldPrice, $data['price']) !== 0) {
+            PriceChange::create([
+                'product_id' => $product->id,
+                'old_price' => $oldPrice,
+                'new_price' => $data['price'],
+                'effective_date' => now()->toDateString(),
+                'changed_by' => auth()->id(),
+            ]);
+        }
+
+        if ($request->boolean('compact_form')) {
+            return redirect()->route('products.show', [
+                'product' => $product,
+                'popup' => $request->boolean('popup') ? 1 : null,
+            ])->with('success', 'บันทึกราคาขายแล้ว');
+        }
+
+        return response()->json(['success' => true, 'id' => $pp->id, 'price' => (float) $pp->price]);
+    }
+
+    public function update(Request $request, Product $product): RedirectResponse
+    {
+        $data = $this->validateProduct($request, $product->id);
+
+        $product->update($data);
+
+        return redirect()->route('products.show', ['product' => $product, 'popup' => $request->boolean('popup') ? 1 : null])->with('success', 'บันทึกข้อมูลสินค้าแล้ว');
+    }
+
+    public function updateLotQuality(Request $request, Product $product, StockLot $stockLot): RedirectResponse
+    {
+        abort_unless($stockLot->product_id === $product->id, 404);
+        $data = $request->validate([
+            'quality_status' => ['required', 'in:available,hold,quarantine,recalled'],
+            'quality_reason' => ['nullable', 'string', 'max:2000'],
+        ]);
+        if ($data['quality_status'] !== 'available' && blank($data['quality_reason'] ?? null)) {
+            return back()->withErrors(['quality_reason' => 'ต้องระบุเหตุผลเมื่อพักตรวจ กักกัน หรือเรียกคืน Lot']);
+        }
+
+        DB::transaction(function () use ($data, $stockLot): void {
+            $old = $stockLot->only(['quality_status', 'quality_reason', 'quality_updated_by', 'quality_updated_at']);
+            $stockLot->update([
+                ...$data,
+                'quality_reason' => filled($data['quality_reason'] ?? null) ? $data['quality_reason'] : null,
+                'quality_updated_by' => auth()->id(),
+                'quality_updated_at' => now(),
+            ]);
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'lot_quality',
+                'table_name' => 'stock_lots',
+                'record_id' => $stockLot->id,
+                'old_values' => $old,
+                'new_values' => $stockLot->fresh()->only(['quality_status', 'quality_reason', 'quality_updated_by', 'quality_updated_at']),
+            ]);
+        });
+
+        return back()->with('success', "อัปเดตสถานะ Lot {$stockLot->lot_number} แล้ว");
+    }
+
+    public function lotTrace(Product $product, StockLot $stockLot): View
+    {
+        abort_unless($stockLot->product_id === $product->id, 404);
+        $stockLot->load([
+            'warehouseLocation.warehouse', 'sourceDocument.documentType', 'qualityUpdatedBy',
+            'qualityChecks.checkedBy', 'recallCases.contacts.customer', 'recallCases.contacts.branch',
+            'recallCases.contacts.document',
+            'movements' => fn ($query) => $query->with(['document.documentType', 'document.branch'])
+                ->orderBy('movement_date')->orderBy('id'),
+        ]);
+
+        return view('products.lot-trace', compact('product', 'stockLot'));
+    }
+
+    public function storeLotQualityCheck(Request $request, Product $product, StockLot $stockLot): RedirectResponse
+    {
+        abort_unless($stockLot->product_id === $product->id, 404);
+        $data = $request->validate([
+            'result' => ['required', 'in:pass,hold,fail'],
+            'note' => ['nullable', 'string', 'max:2000'],
+            'evidence' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+        ]);
+        $path = $request->file('evidence')?->store('quality-evidence/'.$stockLot->id);
+        DB::transaction(function () use ($data, $path, $stockLot): void {
+            StockLotQualityCheck::create([
+                'stock_lot_id' => $stockLot->id, 'result' => $data['result'],
+                'note' => $data['note'] ?? null, 'evidence_path' => $path,
+                'checked_by' => auth()->id(), 'checked_at' => now(),
+            ]);
+            $status = match ($data['result']) {
+                'pass' => 'available', 'fail' => 'quarantine', default => 'hold',
+            };
+            $stockLot->update([
+                'quality_status' => $status,
+                'quality_reason' => $data['result'] === 'pass' ? null : ($data['note'] ?? 'รอตรวจสอบ'),
+                'quality_updated_by' => auth()->id(), 'quality_updated_at' => now(),
+            ]);
+        });
+
+        return back()->with('success', 'บันทึกผลตรวจคุณภาพ Lot แล้ว');
+    }
+
+    public function openRecall(Request $request, Product $product, StockLot $stockLot): RedirectResponse
+    {
+        abort_unless($stockLot->product_id === $product->id, 404);
+        $data = $request->validate([
+            'severity' => ['required', 'in:low,medium,high,critical'],
+            'reason' => ['required', 'string', 'max:2000'],
+        ]);
+        DB::transaction(function () use ($data, $stockLot): void {
+            if (RecallCase::where('stock_lot_id', $stockLot->id)->where('status', 'open')->exists()) {
+                throw ValidationException::withMessages(['reason' => 'Lot นี้มี Recall ที่ยังเปิดอยู่แล้ว']);
+            }
+            $case = RecallCase::create([
+                'case_no' => 'RC-'.now()->format('Ymd-His').'-'.$stockLot->id,
+                'stock_lot_id' => $stockLot->id, 'severity' => $data['severity'],
+                'status' => 'open', 'reason' => $data['reason'],
+                'opened_by' => auth()->id(), 'opened_at' => now(),
+            ]);
+            $lotIds = collect([$stockLot->id]);
+            do {
+                $children = StockLot::whereIn('source_lot_id', $lotIds)->whereNotIn('id', $lotIds)->pluck('id')
+                    ->merge(DB::table('stock_lot_lineages')->whereIn('input_lot_id', $lotIds)->pluck('output_lot_id'));
+                $before = $lotIds->count();
+                $lotIds = $lotIds->merge($children)->unique()->values();
+            } while ($lotIds->count() > $before);
+            $movements = StockMovement::with('document')
+                ->whereIn('stock_lot_id', $lotIds)->whereIn('movement_type', ['out', 'transform_out'])
+                ->whereNotNull('document_id')->get()->groupBy('document_id');
+            foreach ($movements as $documentId => $rows) {
+                $document = $rows->first()->document;
+                RecallContact::create([
+                    'recall_case_id' => $case->id, 'document_id' => $documentId,
+                    'customer_id' => $document?->customer_id, 'branch_id' => $document?->branch_id,
+                    'qty' => $rows->sum('qty'), 'contact_status' => 'pending',
+                ]);
+            }
+            StockLot::whereIn('id', $lotIds)->update([
+                'quality_status' => 'recalled', 'quality_reason' => $data['reason'],
+                'quality_updated_by' => auth()->id(), 'quality_updated_at' => now(),
+            ]);
+        });
+
+        return back()->with('success', 'เปิดเคส Recall และสร้างรายการติดต่อลูกค้าแล้ว');
+    }
+
+    public function updateRecallContact(Request $request, RecallContact $recallContact): RedirectResponse
+    {
+        $data = $request->validate([
+            'contact_status' => ['required', 'in:pending,contacted,returned,unreachable,closed'],
+            'contact_note' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $recallContact->update([
+            ...$data, 'contacted_by' => auth()->id(),
+            'contacted_at' => $data['contact_status'] === 'pending' ? null : now(),
+        ]);
+
+        return back()->with('success', 'อัปเดตผลติดต่อลูกค้าแล้ว');
+    }
+
+    public function addBarcode(Request $request, Product $product): RedirectResponse
+    {
+        $data = $request->validate([
+            'barcode_mode' => ['nullable', 'in:manual,auto_ean13'],
+            'barcode' => [$request->input('barcode_mode') === 'auto_ean13' ? 'nullable' : 'required', 'string', 'max:50', 'unique:product_barcodes,barcode'],
+            'barcode_type' => ['required', Rule::in(BarcodePolicy::ALL)],
+            'unit_id' => ['required', 'integer', 'exists:product_units,id'],
+            'unit_factor' => ['required', 'numeric', 'min:0.0001'],
+            'price' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $auto = $request->input('barcode_mode') === 'auto_ean13';
+        unset($data['barcode_mode']);
+
+        if (! $auto && ($failure = $this->barcodeRuleFailure($data['barcode_type'], $data['barcode']))) {
+            return back()->withInput()->withErrors(['barcode' => $failure]);
+        }
+
+        if ($auto) {
+            DB::transaction(function () use ($product, $data): void {
+                // กันเลขชนกันกรณีผู้ใช้หลายคนกดสร้างพร้อมกัน
+                DB::statement('SELECT pg_advisory_xact_lock(299013)');
+                $data['barcode'] = $this->nextInternalEan13();
+                // เลขช่วง 299 เป็นรหัสที่ร้านตั้งเอง ไม่ใช่ของที่ได้รับจัดสรรจาก GS1
+                // จึงติดป้ายเป็นรหัสภายใน ไม่ใช่ EAN-13 มาตรฐาน
+                $data['barcode_type'] = BarcodePolicy::INTERNAL_13;
+                $product->barcodes()->create($data + ['is_active' => true]);
+            });
+        } else {
+            $product->barcodes()->create($data + ['is_active' => true]);
+        }
+
+        return redirect()->route('products.show', [
+            'product' => $product,
+            'popup' => $request->boolean('popup') ? 1 : null,
+        ])->with('success', 'เพิ่มบาร์โค้ดแล้ว');
+    }
+
+    /** คืนข้อความถ้าบาร์โค้ดผิดกฎของประเภทนั้น ไม่ผิดคืน null */
+    private function barcodeRuleFailure(string $type, ?string $barcode): ?string
+    {
+        $checked = app(BarcodePolicy::class)->check($type, (string) $barcode);
+
+        return $checked['ok'] ? null : implode(' · ', $checked['errors']);
+    }
+
+    /** สร้าง EAN-13 ภายในร้าน ช่วง 299 + running 9 หลัก + check digit */
+    private function nextInternalEan13(): string
+    {
+        $last = ProductBarcode::query()
+            ->where('barcode', 'like', '299%')
+            ->whereRaw('LENGTH(barcode) = 13')
+            ->orderByDesc('barcode')
+            ->lockForUpdate()
+            ->value('barcode');
+
+        $sequence = $last ? ((int) substr((string) $last, 3, 9)) + 1 : 1;
+        while ($sequence <= 999999999) {
+            $body = '299'.str_pad((string) $sequence, 9, '0', STR_PAD_LEFT);
+            $barcode = $body.$this->ean13CheckDigit($body);
+            if (! ProductBarcode::where('barcode', $barcode)->exists()) {
+                return $barcode;
+            }
+            $sequence++;
+        }
+
+        throw new \RuntimeException('เลขบาร์โค้ด EAN-13 ภายในร้านเต็มแล้ว');
+    }
+
+    private function ean13CheckDigit(string $body): int
+    {
+        $sum = 0;
+        foreach (str_split($body) as $index => $digit) {
+            $sum += ((int) $digit) * ($index % 2 === 0 ? 1 : 3);
+        }
+
+        return (10 - ($sum % 10)) % 10;
+    }
+
+    public function updateBarcode(Request $request, Product $product, ProductBarcode $productBarcode): RedirectResponse
+    {
+        abort_unless($productBarcode->product_id === $product->id, 404);
+
+        $data = $request->validate([
+            'barcode' => ['required', 'string', 'max:50', 'unique:product_barcodes,barcode,'.$productBarcode->id],
+            'barcode_type' => ['required', Rule::in(BarcodePolicy::ALL)],
+            'unit_id' => ['required', 'integer', 'exists:product_units,id'],
+            'unit_factor' => ['required', 'numeric', 'min:0.0001'],
+            'price' => ['nullable', 'numeric', 'min:0'],
+            'is_active' => ['required', 'boolean'],
+        ]);
+
+        if ($failure = $this->barcodeRuleFailure($data['barcode_type'], $data['barcode'])) {
+            return back()->withInput()->withErrors(['barcode' => $failure]);
+        }
+
+        // บันทึกค่าที่ผู้ใช้กรอกตามนั้น ไม่แก้ให้เองแม้จะรู้ว่าควรเป็นเลขอะไร
+        // ของที่พิมพ์ติดสินค้าไปแล้วไม่ได้เปลี่ยนตามค่าในฐาน
+        $productBarcode->update($data);
+
+        return redirect()->route('products.show', [
+            'product' => $product,
+            'popup' => $request->boolean('popup') ? 1 : null,
+        ])->with('success', 'แก้ไขบาร์โค้ดแล้ว');
+    }
+
+    public function upsertSupplier(Request $request, Product $product): RedirectResponse
+    {
+        $data = $request->validate([
+            'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
+            'supplier_sku' => ['nullable', 'string', 'max:80'],
+            'last_purchase_price' => ['nullable', 'numeric', 'min:0'],
+            'minimum_order_qty' => ['nullable', 'numeric', 'min:0'],
+            'lead_time_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
+            'is_primary' => ['nullable', 'boolean'],
+            'note' => ['nullable', 'string', 'max:1000'],
+        ]);
+        $primary = $request->boolean('is_primary');
+        if ($primary) {
+            $product->suppliers()->update(['is_primary' => false]);
+        }
+        ProductSupplier::updateOrCreate(
+            ['product_id' => $product->id, 'supplier_id' => $data['supplier_id']],
+            [...$data, 'is_primary' => $primary],
+        );
+
+        return back()->with('success', 'บันทึกผู้จำหน่ายของสินค้าแล้ว');
+    }
+
+    public function removeSupplier(Product $product, ProductSupplier $productSupplier): RedirectResponse
+    {
+        abort_unless($productSupplier->product_id === $product->id, 404);
+        $productSupplier->delete();
+
+        return back()->with('success', 'นำผู้จำหน่ายออกจากแฟ้มสินค้าแล้ว');
+    }
+
+    public function storeSupplierPrice(Request $request, Product $product): RedirectResponse
+    {
+        $data = $request->validate([
+            'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
+            'unit_id' => ['nullable', 'integer', 'exists:product_units,id'],
+            'minimum_qty' => ['required', 'numeric', 'gt:0'],
+            'unit_price' => ['required', 'numeric', 'min:0'],
+            'vat_mode' => ['required', 'in:included,excluded,exempt'],
+            'effective_from' => ['required', 'date'],
+            'effective_to' => ['nullable', 'date', 'after_or_equal:effective_from'],
+            'is_active' => ['nullable', 'boolean'],
+            'note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $product->supplierPriceSchedules()->create([
+            ...$data,
+            'is_active' => $request->boolean('is_active', true),
+        ]);
+
+        ProductSupplier::firstOrCreate(
+            ['product_id' => $product->id, 'supplier_id' => $data['supplier_id']],
+            ['last_purchase_price' => $data['unit_price']],
+        );
+
+        return back()->with('success', 'เพิ่มตารางราคาซื้อผู้จำหน่ายแล้ว');
+    }
+
+    public function removeSupplierPrice(Product $product, SupplierPriceSchedule $supplierPriceSchedule): RedirectResponse
+    {
+        abort_unless($supplierPriceSchedule->product_id === $product->id, 404);
+        $supplierPriceSchedule->delete();
+
+        return back()->with('success', 'ลบช่วงราคาซื้อแล้ว');
+    }
+
+    private function validateProduct(Request $request, ?int $ignoreId = null): array
+    {
+        $data = $request->validate([
+            'name_th' => ['required', 'string', 'max:250'],
+            'name_en' => ['nullable', 'string', 'max:250'],
+            'note' => ['nullable', 'string', 'max:2000'],
+            'product_category_id' => ['nullable', 'integer', 'exists:product_categories,id'],
+            'product_department_id' => ['nullable', 'integer', 'exists:product_departments,id'],
+            'product_brand_id' => ['nullable', 'integer', 'exists:product_brands,id'],
+            'base_unit_id' => ['required', 'integer', 'exists:product_units,id'],
+            'default_price' => ['nullable', 'numeric', 'min:0'],
+            'maximum_sale_price' => ['nullable', 'numeric', 'min:0'],
+            'minimum_margin_percent' => ['nullable', 'numeric', 'min:-1000', 'max:100'],
+            'margin_control_policy' => ['nullable', 'in:warn,block'],
+            'is_active' => ['nullable', 'boolean'],
+            'is_vat' => ['nullable', 'boolean'],
+            'tracks_expiry' => ['nullable', 'boolean'],
+            'shelf_life_days' => ['nullable', 'integer', 'min:1', 'max:36500'],
+            'expiry_warning_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
+            'clearance_warning_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
+            'clearance_discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'expiry_sale_policy' => ['nullable', 'in:block,allow'],
+            'negative_stock_policy' => ['required', 'in:block,allow'],
+            'reorder_point' => ['nullable', 'numeric', 'min:0'],
+            'minimum_stock' => ['nullable', 'numeric', 'min:0'],
+            'maximum_stock' => ['nullable', 'numeric', 'min:0', 'gte:minimum_stock'],
+        ]);
+        $data['is_active'] = $request->boolean('is_active', true);
+        $data['is_vat'] = $request->boolean('is_vat');
+        $data['tracks_expiry'] = $request->boolean('tracks_expiry');
+        $data['expiry_warning_days'] = $data['expiry_warning_days'] ?? 30;
+        $data['clearance_warning_days'] = $data['clearance_warning_days'] ?? 7;
+        $data['clearance_discount_percent'] = $data['clearance_discount_percent'] ?? 0;
+        $data['expiry_sale_policy'] = $data['expiry_sale_policy'] ?? 'block';
+        $data['margin_control_policy'] = $data['margin_control_policy'] ?? 'warn';
+
+        // ไม่อนุญาตให้ฟอร์มสร้าง/แก้ SKU เอง; สร้างใหม่เท่านั้นที่ allocator กำหนดค่า.
+        unset($data['sku_code']);
+
+        return $data;
+    }
+
+    /** ลบสินค้า (soft delete) */
+    public function destroy(Product $product): RedirectResponse
+    {
+        // ตรวจว่ายังมีสต็อกอยู่ไหม
+        $hasStock = \App\Models\StockBalance::where('product_id', $product->id)
+            ->where('on_hand_qty', '>', 0)
+            ->exists();
+
+        if ($hasStock) {
+            return back()->with('error', "ไม่สามารถลบสินค้า \"{$product->name_th}\" ได้ เนื่องจากยังมีสินค้าคงเหลืออยู่ในคลัง");
+        }
+
+        $product->delete();
+
+        return redirect()->route('products.index')
+            ->with('success', "ลบสินค้า \"{$product->name_th}\" เรียบร้อยแล้ว");
+    }
+
+    /** เพิ่มสต็อกสินค้าแบบด่วน (stock in adjustment) */
+    public function quickStockIn(Request $request, Product $product, FifoStockService $stockService): RedirectResponse
+    {
+        $data = $request->validate([
+            'warehouse_location_id' => ['required', 'integer', 'exists:warehouse_locations,id'],
+            'qty'                   => ['required', 'numeric', 'min:0.0001'],
+            'unit_cost'             => ['nullable', 'numeric', 'min:0'],
+            'remark'                => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $location = \App\Models\WarehouseLocation::findOrFail($data['warehouse_location_id']);
+
+        DB::transaction(function () use ($product, $data, $location, $stockService) {
+            $stockService->receive(
+                $product->id,
+                $location->id,
+                $data['qty'],
+                null,
+                'adjust_in',
+                null,
+                null,
+                null,
+                $data['unit_cost'] ?? $product->average_cost ?? 0,
+                null,
+                $data['remark'] ?? 'เพิ่มสต็อกด่วน',
+            );
+        });
+
+        return back()->with('success', "เพิ่มสต็อก {$data['qty']} ชิ้น ให้ \"{$product->name}\" เรียบร้อยแล้ว");
+    }
+}

@@ -1,0 +1,99 @@
+*.log
+*.bak
+*.bak.*
+.DS_Store
+.env
+.env.backup
+.env.production
+.phpactor.json
+.phpunit.result.cache
+/.claude
+/.codex
+/.cursor/
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+/auth.json
+/deploy/env.local
+/node_modules
+/public/build
+/public/downloads
+/public/fonts-manifest.dev.json
+/public/hot
+/public/storage
+/storage/_bak
+/storage/deploy-backups
+/storage/framework/.config
+/storage/*.key
+/storage/pail
+/vendor
+_ide_helper.php
+Homestead.json
+Homestead.yaml
+Thumbs.db
+
+# ไฟล์ฐานข้อมูลและ backup ของระบบเดิม — ห้ามขึ้น GitHub เด็ดขาด
+*.mdf
+*.ldf
+*.ndf
+*.bak
+*.trn
+*.zip
+*.Zip
+*.7z
+/LegacyAnalysis/
+
+# =============================================================
+# Debug & one-off scripts — ไม่ควรเผยแพร่
+# =============================================================
+/_debug_scripts/
+/tools/
+
+# สคริปต์ Python one-off ในรากโปรเจกต์
+add_branches_api.py
+clean_js.py
+extract_js.py
+find_btn.py
+find_open_payment.py
+find_open_payment2.py
+find_open_payment3.py
+find_topbar.py
+fix_quote.py
+remove_bom.py
+replace.py
+replace2.py
+replace_idx.py
+update_config.py
+update_config2.py
+
+# =============================================================
+# ไฟล์ temp / scratch ในรากโปรเจกต์
+# =============================================================
+script.js
+script_clean.js
+btn.txt
+openPayment.txt
+topbar.txt
+recovered.blade.php
+
+# =============================================================
+# Electron POS — build artifacts & dependencies
+# =============================================================
+/electron-pos/dist/
+/electron-pos/node_modules/
+/electron-pos/temp_check/
+
+# =============================================================
+# temp_zip — Electron build output (binary ขนาดใหญ่)
+# =============================================================
+/temp_zip/
+
+# Ignore large build files
+public/*.exe
+apps/python-pos/build/
+apps/python-pos/dist/
+apps/python-pos/venv/
+public/**/*.exe
+public/temp_unzip/

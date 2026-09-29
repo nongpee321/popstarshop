@@ -1,0 +1,373 @@
+<?php
+
+namespace App\Services\Accounting;
+
+use App\Models\ChartOfAccount;
+use App\Models\Document;
+use App\Models\GlJournal;
+use App\Models\PaymentDocument;
+use App\Services\Inventory\CostingService;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
+
+/**
+ * Posts double-entry GL journal lines (gl_journals, legacy: TRANPAYJ) for a
+ * payment_document. The schema only journals payments (not sales/purchases/
+ * stock - there's no account linkage on those tables), so this is intentionally
+ * narrow: receipt = debit cash, credit AR; payment voucher = debit AP, credit
+ * cash. Missing account mappings are fatal so an operational document can never
+ * be committed without its required accounting entry.
+ */
+class GlPostingService
+{
+    public function postCustomerReceipt(PaymentDocument $paymentDocument, float $amount, string $entryDate, string $remark): void
+    {
+        $cashAccount = ChartOfAccount::where('default_role', ChartOfAccount::ROLE_CASH)->first();
+        $arAccount = ChartOfAccount::where('default_role', ChartOfAccount::ROLE_AR)->first();
+        if (! $cashAccount || ! $arAccount) {
+            throw new RuntimeException('ผังบัญชีเงินสดหรือลูกหนี้ยังไม่ครบ ไม่สามารถรับชำระโดยไม่ลง GL ได้');
+        }
+
+        GlJournal::create([
+            'payment_document_id' => $paymentDocument->id,
+            'account_id' => $cashAccount->id,
+            'debit' => $amount,
+            'credit' => 0,
+            'remark' => $remark,
+            'entry_date' => $entryDate,
+        ]);
+        GlJournal::create([
+            'payment_document_id' => $paymentDocument->id,
+            'account_id' => $arAccount->id,
+            'debit' => 0,
+            'credit' => $amount,
+            'remark' => $remark,
+            'entry_date' => $entryDate,
+        ]);
+    }
+
+    public function postSupplierPayment(PaymentDocument $paymentDocument, float $amount, string $entryDate, string $remark): void
+    {
+        $cashAccount = ChartOfAccount::where('default_role', ChartOfAccount::ROLE_CASH)->first();
+        $apAccount = ChartOfAccount::where('default_role', ChartOfAccount::ROLE_AP)->first();
+        if (! $cashAccount || ! $apAccount) {
+            throw new RuntimeException('ผังบัญชีเงินสดหรือเจ้าหนี้ยังไม่ครบ ไม่สามารถจ่ายชำระโดยไม่ลง GL ได้');
+        }
+
+        GlJournal::create([
+            'payment_document_id' => $paymentDocument->id,
+            'account_id' => $apAccount->id,
+            'debit' => $amount,
+            'credit' => 0,
+            'remark' => $remark,
+            'entry_date' => $entryDate,
+        ]);
+        GlJournal::create([
+            'payment_document_id' => $paymentDocument->id,
+            'account_id' => $cashAccount->id,
+            'debit' => 0,
+            'credit' => $amount,
+            'remark' => $remark,
+            'entry_date' => $entryDate,
+        ]);
+    }
+
+    // อัตรา VAT ปัจจุบัน (ไม่มี = 7%)
+    private function vatRate(): float
+    {
+        $rate = DB::table('vat_rates')
+            ->where('effective_from', '<=', now()->toDateString())
+            ->where(fn ($w) => $w->whereNull('effective_to')->orWhere('effective_to', '>=', now()->toDateString()))
+            ->orderByDesc('effective_from')->value('rate_percent');
+
+        return $rate !== null ? (float) $rate : 7.0;
+    }
+
+    /** @return array{subtotal:float,vat:float,total:float} */
+    private function salesBreakdown(Document $document): array
+    {
+        $document->loadMissing('stockDocument.items.product');
+        $rate = $this->vatRate();
+        $subtotal = 0.0;
+        $vat = 0.0;
+
+        foreach ($document->stockDocument?->items ?? [] as $item) {
+            $gross = abs((float) $item->qty * (float) $item->unit_price);
+            if ($item->product?->is_vat && $rate > 0) {
+                $base = round($gross * 100 / (100 + $rate), 4);
+                $lineVat = round($gross - $base, 4);
+                $subtotal += $base;
+                $vat += $lineVat;
+                $item->update(['vat_amount' => $lineVat]);
+            } else {
+                $subtotal += $gross;
+                $item->update(['vat_amount' => 0]);
+            }
+        }
+
+        $total = round($subtotal + $vat, 2);
+        $subtotal = round($subtotal, 2);
+
+        return ['subtotal' => $subtotal, 'vat' => round($total - $subtotal, 2), 'total' => $total];
+    }
+
+    private function role(string $role): ?ChartOfAccount
+    {
+        return ChartOfAccount::where('default_role', $role)->first();
+    }
+
+    /**
+     * สร้างคู่ debit/credit ให้ครบ - ถ้าบัญชี role ไหนยังไม่ได้ตั้งจะข้ามทั้งชุด
+     * (เอกสารยังบันทึกได้ปกติ นักบัญชีแค่ยังไม่เห็นใน GL จนกว่าจะตั้งผังบัญชี)
+     *
+     * @param  array<int, array{role:string, debit?:float, credit?:float}>  $lines
+     */
+    private function postDocument(Document $document, array $lines, string $remark): void
+    {
+        $resolved = [];
+        foreach ($lines as $line) {
+            if (($line['debit'] ?? 0) == 0.0 && ($line['credit'] ?? 0) == 0.0) {
+                continue;
+            }
+            $account = $this->role($line['role']);
+            if (! $account) {
+                throw new RuntimeException("ยังไม่ได้ผูกบัญชีเริ่มต้น [{$line['role']}] ไม่สามารถบันทึกเอกสารโดยไม่ลง GL ได้");
+            }
+            $resolved[] = [$account->id, round($line['debit'] ?? 0, 2), round($line['credit'] ?? 0, 2)];
+        }
+
+        // ล้างรายการเดิมของเอกสารนี้ก่อน (กันโพสต์ซ้ำ)
+        GlJournal::where('document_id', $document->id)->delete();
+
+        foreach ($resolved as [$accountId, $debit, $credit]) {
+            if ($debit == 0.0 && $credit == 0.0) {
+                continue;
+            }
+            GlJournal::create([
+                'document_id' => $document->id,
+                'account_id' => $accountId,
+                'debit' => $debit,
+                'credit' => $credit,
+                'remark' => $remark,
+                'entry_date' => $document->doc_date->toDateString(),
+            ]);
+        }
+    }
+
+    // ต้นทุนขาย: ขาย = Dr ต้นทุนขาย / Cr สินค้าคงเหลือ; รับคืน (reverse) = ตรงข้าม
+    // แนบเข้าไปในเอกสารเดิม โดยไม่ล้าง (append) รายการที่ post ไว้ก่อน
+    private function appendCogs(Document $document, string $remark, bool $reverse = false): void
+    {
+        $cogs = app(CostingService::class)->cogsForDocument($document);
+        if ($cogs <= 0) {
+            return;
+        }
+
+        $cogsAccount = $this->role(ChartOfAccount::ROLE_COGS);
+        $inventoryAccount = $this->role(ChartOfAccount::ROLE_INVENTORY);
+        if (! $cogsAccount || ! $inventoryAccount) {
+            throw new RuntimeException('ผังบัญชีต้นทุนขายหรือสินค้าคงเหลือยังไม่ครบ ไม่สามารถลงต้นทุนขายได้');
+        }
+
+        // ขาย: Dr COGS / Cr Inventory | รับคืน: Dr Inventory / Cr COGS (สินค้ากลับเข้าคลัง)
+        [$cogsDr, $cogsCr, $invDr, $invCr] = $reverse ? [0, $cogs, $cogs, 0] : [$cogs, 0, 0, $cogs];
+        $label = ($reverse ? 'กลับต้นทุนขาย ' : 'ต้นทุนขาย ').$remark;
+
+        GlJournal::create([
+            'document_id' => $document->id, 'account_id' => $cogsAccount->id,
+            'debit' => $cogsDr, 'credit' => $cogsCr, 'remark' => $label,
+            'entry_date' => $document->doc_date->toDateString(),
+        ]);
+        GlJournal::create([
+            'document_id' => $document->id, 'account_id' => $inventoryAccount->id,
+            'debit' => $invDr, 'credit' => $invCr, 'remark' => $label,
+            'entry_date' => $document->doc_date->toDateString(),
+        ]);
+    }
+
+    // ขายเชื่อ: Dr ลูกหนี้ / Cr รายได้ + ภาษีขาย (ราคารวม VAT) + ต้นทุนขาย
+    public function postCreditSale(Document $document): void
+    {
+        $amounts = $this->salesBreakdown($document);
+        $total = (float) $document->total_amount;
+        $document->update(['subtotal_amount' => $amounts['subtotal'], 'vat_amount' => $amounts['vat']]);
+        $this->postDocument($document, [
+            ['role' => ChartOfAccount::ROLE_AR, 'debit' => $total],
+            ['role' => ChartOfAccount::ROLE_SALES_REVENUE, 'credit' => $amounts['subtotal']],
+            ['role' => ChartOfAccount::ROLE_VAT_OUTPUT, 'credit' => $amounts['vat']],
+        ], 'ขายเชื่อ '.$document->doc_number);
+        $this->appendCogs($document, $document->doc_number);
+    }
+
+    // ขายสด: Dr เงินสด / Cr รายได้ + ภาษีขาย + ต้นทุนขาย
+    public function postCashSale(Document $document): void
+    {
+        $amounts = $this->salesBreakdown($document);
+        $total = (float) $document->total_amount;
+        $document->update(['subtotal_amount' => $amounts['subtotal'], 'vat_amount' => $amounts['vat']]);
+        $this->postDocument($document, [
+            ['role' => ChartOfAccount::ROLE_CASH, 'debit' => $total],
+            ['role' => ChartOfAccount::ROLE_SALES_REVENUE, 'credit' => $amounts['subtotal']],
+            ['role' => ChartOfAccount::ROLE_VAT_OUTPUT, 'credit' => $amounts['vat']],
+        ], 'ขายสด '.$document->doc_number);
+        $this->appendCogs($document, $document->doc_number);
+    }
+
+    /**
+     * การเปลี่ยนมูลค่าสินค้าคงเหลือที่ไม่ได้มาจากการซื้อหรือขาย
+     * (ปรับปรุง ตรวจนับ ตัดชำรุด) — ของเกินเพิ่มสินค้าคงเหลือ ของขาดลดลง
+     * อีกขาลงบัญชีผลต่าง เพื่อให้มูลค่าสต๊อกในบัญชีตรงกับของจริงเสมอ
+     *
+     * @param  float  $valueChange  บวก = มูลค่าสต๊อกเพิ่ม, ลบ = ลดลง
+     */
+    public function postInventoryAdjustment(Document $document, float $valueChange, string $label): void
+    {
+        $amount = round(abs($valueChange), 2);
+        if ($amount < 0.01) {
+            return;
+        }
+
+        $this->postDocument($document, $valueChange > 0
+            ? [
+                ['role' => ChartOfAccount::ROLE_INVENTORY, 'debit' => $amount],
+                ['role' => ChartOfAccount::ROLE_INVENTORY_ADJUSTMENT, 'credit' => $amount],
+            ]
+            : [
+                ['role' => ChartOfAccount::ROLE_INVENTORY_ADJUSTMENT, 'debit' => $amount],
+                ['role' => ChartOfAccount::ROLE_INVENTORY, 'credit' => $amount],
+            ], $label.' '.$document->doc_number);
+    }
+
+    /** ย้ายเงินระหว่างลิ้นชักกับบัญชีธนาคาร ไม่ใช่รายได้หรือค่าใช้จ่าย จึงกระทบแค่สองบัญชีนี้ */
+    public function postCashTransfer(Document $document, float $amount, bool $isDeposit): void
+    {
+        $this->postDocument($document, $isDeposit
+            ? [
+                ['role' => ChartOfAccount::ROLE_BANK, 'debit' => $amount],
+                ['role' => ChartOfAccount::ROLE_CASH, 'credit' => $amount],
+            ]
+            : [
+                ['role' => ChartOfAccount::ROLE_CASH, 'debit' => $amount],
+                ['role' => ChartOfAccount::ROLE_BANK, 'credit' => $amount],
+            ], ($isDeposit ? 'ฝากเงินสดเข้าธนาคาร ' : 'ถอนเงินสดจากธนาคาร ').$document->doc_number);
+    }
+
+    public function reverseDocument(Document $document, string $remark): void
+    {
+        $lines = GlJournal::where('document_id', $document->id)
+            ->where('remark', 'not like', 'VOID REVERSAL:%')
+            ->get();
+
+        if ($lines->isEmpty()) {
+            return;
+        }
+
+        $alreadyReversed = GlJournal::where('document_id', $document->id)
+            ->where('remark', 'like', 'VOID REVERSAL:%')
+            ->exists();
+        if ($alreadyReversed) {
+            return;
+        }
+
+        foreach ($lines as $line) {
+            GlJournal::create([
+                'document_id' => $document->id,
+                'account_id' => $line->account_id,
+                'debit' => (float) $line->credit,
+                'credit' => (float) $line->debit,
+                'remark' => 'VOID REVERSAL: '.$remark,
+                'entry_date' => now()->toDateString(),
+            ]);
+        }
+    }
+
+    // ซื้อ: Dr สินค้าคงเหลือ + ภาษีซื้อ / Cr เจ้าหนี้ (เครดิต) หรือเงินสด
+    public function postPurchase(Document $document, bool $isCredit = true): void
+    {
+        $total = (float) $document->total_amount;
+        $base = (float) ($document->subtotal_amount ?? $total);
+        $vat = (float) ($document->vat_amount ?? 0);
+        $this->postDocument($document, [
+            ['role' => ChartOfAccount::ROLE_INVENTORY, 'debit' => $base],
+            ['role' => ChartOfAccount::ROLE_VAT_INPUT, 'debit' => $vat],
+            ['role' => $isCredit ? ChartOfAccount::ROLE_AP : ChartOfAccount::ROLE_CASH, 'credit' => $total],
+        ], 'ซื้อสินค้า '.$document->doc_number);
+    }
+
+    public function postExpense(
+        Document $document,
+        int $expenseAccountId,
+        float $baseAmount,
+        float $vatAmount,
+        float $withholdingAmount,
+        string $paymentMethod,
+    ): void {
+        $expenseAccount = ChartOfAccount::whereKey($expenseAccountId)->where('account_type', 'expense')->first();
+        $paymentAccount = $this->role($paymentMethod === 'cash' ? ChartOfAccount::ROLE_CASH : ChartOfAccount::ROLE_BANK);
+        $vatAccount = $vatAmount > 0 ? $this->role(ChartOfAccount::ROLE_VAT_INPUT) : null;
+        $withholdingAccount = $withholdingAmount > 0 ? $this->role(ChartOfAccount::ROLE_WHT_PAYABLE) : null;
+
+        if (! $expenseAccount || ! $paymentAccount || ($vatAmount > 0 && ! $vatAccount) || ($withholdingAmount > 0 && ! $withholdingAccount)) {
+            throw new RuntimeException('ผังบัญชีสำหรับค่าใช้จ่าย ภาษีซื้อ ธนาคาร หรือภาษีหัก ณ ที่จ่ายยังตั้งค่าไม่ครบ');
+        }
+
+        $paidAmount = round($baseAmount + $vatAmount - $withholdingAmount, 2);
+        $lines = [[$expenseAccount->id, $baseAmount, 0]];
+        if ($vatAmount > 0) {
+            $lines[] = [$vatAccount->id, $vatAmount, 0];
+        }
+        $lines[] = [$paymentAccount->id, 0, $paidAmount];
+        if ($withholdingAmount > 0) {
+            $lines[] = [$withholdingAccount->id, 0, $withholdingAmount];
+        }
+
+        foreach ($lines as [$accountId, $debit, $credit]) {
+            GlJournal::create([
+                'document_id' => $document->id,
+                'account_id' => $accountId,
+                'debit' => round($debit, 2),
+                'credit' => round($credit, 2),
+                'remark' => 'ค่าใช้จ่าย '.$document->doc_number,
+                'entry_date' => $document->doc_date->toDateString(),
+            ]);
+        }
+    }
+
+    // รับคืนสินค้า: Dr รับคืน + ภาษีขาย(กลับ) / Cr ลูกหนี้ (ขายเชื่อ) หรือเงินสด
+    // (ขายสด) + กลับต้นทุนขาย (สินค้ากลับเข้าคลัง). $againstAr = คืนที่ลดลูกหนี้
+    public function postSaleReturn(Document $document, bool $againstAr = true): void
+    {
+        $total = (float) $document->total_amount;
+        $base = round($total * 100 / (100 + $this->vatRate()), 2);
+        $this->postDocument($document, [
+            ['role' => ChartOfAccount::ROLE_SALES_RETURN, 'debit' => $base],
+            ['role' => ChartOfAccount::ROLE_VAT_OUTPUT, 'debit' => round($total - $base, 2)],
+            ['role' => $againstAr ? ChartOfAccount::ROLE_AR : ChartOfAccount::ROLE_CASH, 'credit' => $total],
+        ], 'รับคืนสินค้า '.$document->doc_number);
+        $this->appendCogs($document, $document->doc_number, reverse: true);
+    }
+
+    // ใบลดหนี้: Dr รับคืน/ส่วนลด + ภาษีขาย(กลับ) / Cr ลูกหนี้
+    public function postCreditNote(Document $document): void
+    {
+        $total = (float) $document->total_amount;
+        $base = round($total * 100 / (100 + $this->vatRate()), 2);
+        $this->postDocument($document, [
+            ['role' => ChartOfAccount::ROLE_SALES_RETURN, 'debit' => $base],
+            ['role' => ChartOfAccount::ROLE_VAT_OUTPUT, 'debit' => round($total - $base, 2)],
+            ['role' => ChartOfAccount::ROLE_AR, 'credit' => $total],
+        ], 'ใบลดหนี้ '.$document->doc_number);
+    }
+
+    // ใบเพิ่มหนี้: Dr ลูกหนี้ / Cr รายได้ + ภาษีขาย
+    public function postDebitNote(Document $document): void
+    {
+        $total = (float) $document->total_amount;
+        $base = round($total * 100 / (100 + $this->vatRate()), 2);
+        $this->postDocument($document, [
+            ['role' => ChartOfAccount::ROLE_AR, 'debit' => $total],
+            ['role' => ChartOfAccount::ROLE_SALES_REVENUE, 'credit' => $base],
+            ['role' => ChartOfAccount::ROLE_VAT_OUTPUT, 'credit' => round($total - $base, 2)],
+        ], 'ใบเพิ่มหนี้ '.$document->doc_number);
+    }
+}

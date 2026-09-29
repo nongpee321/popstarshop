@@ -1,0 +1,867 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Http\Controllers\PosController;
+use App\Models\AppSetting;
+use App\Models\AuditLog;
+use App\Models\PosDevice;
+use App\Models\PosReceipt;
+use App\Models\PosTerminal;
+use App\Models\QrPaymentConfig;
+use App\Models\Salesman;
+use App\Models\User;
+use App\Models\UserPosCredential;
+use App\Services\Sales\SaleReturnService;
+use App\Support\DecimalMath;
+use App\Support\PosReceiptTemplate;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use RuntimeException;
+
+/**
+ * ทางเข้า API สำหรับ POS desktop (Tauri). auth ผ่าน AuthenticatePosDevice
+ * (Bearer token → login แทน cashier user) แล้ว delegate ไปตรรกะเดิมใน PosController
+ * ส่วน checkout ห่อ idempotency: บิลเดิม (idempotency key เดิม) จะได้ response เดิมเป๊ะ
+ * ไม่สร้างซ้ำ — จำเป็นสำหรับ offline-first ที่ client retry ได้
+ */
+class PosApiController extends Controller
+{
+    /** health check + บอก client ว่า device นี้ผูกสาขา/พนักงานอะไร */
+    public function ping(Request $request): JsonResponse
+    {
+        $device = $request->attributes->get('pos_device');
+        $user = $request->user();
+        $user?->loadMissing('branch');
+        $device?->loadMissing('branch');
+        // สาขาของ "อุปกรณ์" มาก่อนสาขาของ user เสมอ ให้ตรงกับ enforcedBranchId()
+        // ที่ /products, /shift, /checkout ใช้จริง ไม่งั้น POS ถือ branch_id คนละตัว
+        // กับที่เซิร์ฟเวอร์บังคับ แล้วไปพังตอนเปิดกะ (branch_id required)
+        $branchId = $device?->branch_id ?: $user?->branch_id;
+        $branchName = ($device?->branch_id ? $device->branch?->name_th : null) ?: $user?->branch?->name_th;
+        $terminal = $device?->terminal_code
+            ? PosTerminal::where('code', $device->terminal_code)->first()
+            : null;
+        $terminal ??= PosTerminal::where('branch_id', $branchId)
+            ->orderBy('id')
+            ->first();
+        $qrPayment = QrPaymentConfig::query()
+            ->where('is_active', true)
+            ->with('bankAccount:id,branch_id,bank_name,account_name')
+            ->where(function ($query) use ($branchId) {
+                $query->whereNull('bank_account_id')
+                    ->orWhereHas('bankAccount', fn ($bank) => $bank
+                        ->whereNull('branch_id')
+                        ->when($branchId, fn ($branch) => $branch->orWhere('branch_id', $branchId)));
+            })
+            ->orderBy('id')
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'server_time' => now()->toIso8601String(),
+            'device' => [
+                'id' => $device?->id,
+                'name' => $device?->name,
+                'terminal_code' => $device?->terminal_code,
+                'user_id' => $device?->user_id,
+            ],
+            'branch_id' => $branchId,
+            'branch_name' => $branchName,
+            'device_user' => $user?->name,
+            'cashier_login_mode' => AppSetting::get('pos_passwordless_login') === '1' ? 'selection' : 'pin',
+            'qr_payment' => $qrPayment ? [
+                'code' => $qrPayment->code,
+                'name' => $qrPayment->name,
+                'qr_type' => $qrPayment->qr_type,
+                'merchant_ref' => $qrPayment->merchant_ref,
+                'payload_template' => $qrPayment->payload_template,
+                'bank_name' => $qrPayment->bankAccount?->bank_name,
+                'account_name' => $qrPayment->bankAccount?->account_name,
+            ] : null,
+            // กฎการอ่านป้ายเครื่องชั่งมาจากที่นี่ที่เดียว เครื่องขายไม่ต้องเดารูปแบบเอง
+            // เดิมทั้ง ERP และ POS ต่างฝังกฎของตัวเองไว้ แก้ทีต้องไล่แก้ให้ตรงกันสองที่
+            'scale_profiles' => DB::table('scale_barcode_profiles')
+                ->where('is_active', true)
+                ->orderByRaw("case when check_digit = 'ean13' then 0 else 1 end")
+                ->orderByDesc('total_length')
+                ->get(['code', 'prefix', 'plu_length', 'value_length', 'value_type', 'check_digit', 'total_length'])
+                ->map(fn ($profile) => [
+                    'code' => $profile->code,
+                    'prefix' => $profile->prefix,
+                    'plu_length' => (int) $profile->plu_length,
+                    'value_length' => (int) $profile->value_length,
+                    'value_type' => $profile->value_type,
+                    'check_digit' => $profile->check_digit,
+                    'total_length' => (int) $profile->total_length,
+                ]),
+            // หัวบิลใบกำกับภาษีอย่างย่อ (มาตรา 86/6) — desktop แคชไว้พิมพ์ใบเสร็จได้แม้ออฟไลน์
+            'company' => [
+                'name' => AppSetting::company('name_th'),
+                'tax_id' => AppSetting::company('tax_id'),
+                'address' => AppSetting::company('address'),
+                'phone' => AppSetting::company('phone'),
+                'logo_url' => AppSetting::logoUrl(),
+            ],
+            'receipt_template' => PosReceiptTemplate::get(),
+            'hardware_profile' => $terminal?->hardware_profile ?? [
+                'printer_driver' => 'browser',
+                'paper_width' => '80mm',
+                'scanner_mode' => 'keyboard',
+                'scale_mode' => 'keyboard',
+                'customer_display' => 'none',
+                'cash_drawer_enabled' => false,
+                'auto_print' => false,
+                'print_copies' => 1,
+            ],
+            'pos_layout' => $this->publishedPosLayout(),
+            'vat_rate' => (float) (DB::table('vat_rates')
+                ->where('effective_from', '<=', now()->toDateString())
+                ->where(fn ($w) => $w->whereNull('effective_to')->orWhere('effective_to', '>=', now()->toDateString()))
+                ->orderByDesc('effective_from')->value('rate_percent') ?? 7.0),
+        ]);
+    }
+
+    private function publishedPosLayout(): array
+    {
+        $layout = json_decode((string) AppSetting::get('pos_layout_published'), true);
+        if (! is_array($layout) || ! is_array($layout['components'] ?? null)) {
+            return [
+                'schema' => 'popcentral-pos-layout', 'version' => 1,
+                'canvas' => ['columns' => 12, 'rows' => 8],
+                'components' => [
+                    ['id' => 'search', 'type' => 'search', 'x' => 1, 'y' => 1, 'w' => 7, 'h' => 1],
+                    ['id' => 'category', 'type' => 'category_tabs', 'x' => 1, 'y' => 2, 'w' => 7, 'h' => 1],
+                    ['id' => 'products', 'type' => 'product_grid', 'x' => 1, 'y' => 3, 'w' => 7, 'h' => 5],
+                    ['id' => 'cart', 'type' => 'cart', 'x' => 8, 'y' => 1, 'w' => 5, 'h' => 5],
+                    ['id' => 'payment', 'type' => 'payment', 'x' => 8, 'y' => 6, 'w' => 5, 'h' => 2],
+                ],
+            ];
+        }
+        return $layout;
+    }
+
+    public function cashiers(Request $request): JsonResponse
+    {
+        $device = $request->attributes->get('pos_device');
+        $branchId = $device?->branch_id ?: $request->user()?->branch_id;
+
+        $cashiers = $this->cashierCandidates($branchId, null, $device?->user_id)
+            ->orderBy(User::select('name')->whereColumn('users.id', 'salesmen.user_id'))
+            ->get()
+            ->map(fn (Salesman $cashier) => $this->cashierPayload($cashier));
+
+        return response()->json(['success' => true, 'cashiers' => $cashiers]);
+    }
+
+    public function authorizeAdmin(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'username' => ['required', 'string', 'max:150'],
+            'password' => ['required', 'string', 'max:200'],
+        ]);
+        $admin = User::query()
+            ->where('username', $data['username'])
+            ->orWhere('email', $data['username'])
+            ->orWhere('phone', $data['username'])
+            ->first();
+        if (! $admin || ! $admin->is_active || ! Hash::check($data['password'], (string) $admin->password)
+            || (! $admin->hasPermission('settings.manage') && ! $admin->hasPermission('users.manage'))) {
+            return response()->json(['success' => false, 'message' => 'บัญชีผู้ดูแลไม่ถูกต้องหรือไม่มีสิทธิ์ตั้งค่า POS'], 422);
+        }
+        $device = $request->attributes->get('pos_device');
+        AuditLog::create([
+            'user_id' => $admin->id,
+            'branch_id' => $device?->branch_id,
+            'action' => 'pos_admin_settings_authorized',
+            'table_name' => 'pos_devices',
+            'record_id' => $device?->id,
+            'new_values' => ['admin_username' => $admin->username],
+        ]);
+        return response()->json(['success' => true, 'admin' => ['username' => $admin->username]]);
+    }
+
+    public function cashierLogin(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            // code ยังรับได้เพื่อรองรับ POS รุ่นเก่า แต่ desktop รุ่นใหม่ใช้ PIN อย่างเดียว
+            'code' => ['nullable', 'string', 'max:40'],
+            'cashier_id' => ['nullable', 'integer'],
+            'pin' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $device = $request->attributes->get('pos_device');
+        $branchId = $device?->branch_id ?: $request->user()?->branch_id;
+        $passwordless = AppSetting::get('pos_passwordless_login') === '1';
+        if ($passwordless && isset($data['cashier_id']) && blank($data['pin'] ?? null)) {
+            $cashier = $this->cashierCandidates($branchId, null, $device?->user_id)->find($data['cashier_id']);
+            if (! $cashier) {
+                return response()->json(['success' => false, 'message' => 'ไม่พบพนักงานในสาขานี้'], 422);
+            }
+
+            return $this->authenticatedCashierResponse($request, $cashier, $device, $branchId, null);
+        }
+        if (blank($data['pin'] ?? null)) {
+            return response()->json(['success' => false, 'message' => 'กรุณาระบุ PIN'], 422);
+        }
+        $matches = $this->cashierCandidates($branchId, $data['code'] ?? null, $device?->user_id)
+            ->get()
+            ->filter(fn (Salesman $candidate) => $this->pinMatches($candidate, $data['pin']))
+            ->values();
+
+        if ($matches->isEmpty()) {
+            // ห้ามบอกว่า PIN ตรงกับใครหรือมีรหัสใดในสาขา เพื่อไม่ให้เดา credential ได้
+            return response()->json(['success' => false, 'message' => 'PIN ไม่ถูกต้อง'], 422);
+        }
+        if ($matches->count() > 1 && ! isset($data['cashier_id'])) {
+            // โหมดเริ่มต้นที่ใช้ PIN กลาง เช่น 1234: ยังต้องเลือกชื่อเพื่อเก็บ audit/ยอดขายรายคน
+            return response()->json([
+                'success' => true,
+                'selection_required' => true,
+                'cashiers' => $matches->map(fn (Salesman $candidate) => $this->cashierPayload($candidate))->values(),
+            ]);
+        }
+        $cashier = $matches->firstWhere('id', (int) ($data['cashier_id'] ?? 0));
+        if (isset($data['cashier_id']) && ! $cashier) {
+            return response()->json(['success' => false, 'message' => 'ไม่พบพนักงานที่อนุญาตบนเครื่องนี้'], 422);
+        }
+        $cashier ??= $matches->count() === 1 ? $matches->first() : null;
+        if (! $cashier) {
+            return response()->json(['success' => false, 'message' => 'กรุณาเลือกชื่อพนักงานใหม่'], 422);
+        }
+
+        return $this->authenticatedCashierResponse($request, $cashier, $device, $branchId, $data['pin']);
+    }
+
+    /** รับ audit ที่ POS บันทึกไว้ระหว่างออฟไลน์; event_uuid ป้องกันการซ้ำตอน retry */
+    public function authEvents(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'events' => ['required', 'array', 'min:1', 'max:100'],
+            'events.*.event_uuid' => ['required', 'uuid'],
+            'events.*.cashier_code' => ['required', 'string', 'max:40'],
+            // audit_logs.action is 60 chars including the "pos_" namespace.
+            'events.*.event_type' => ['required', 'string', 'max:56'],
+            'events.*.success' => ['required', 'boolean'],
+            'events.*.reason' => ['nullable', 'string', 'max:1000'],
+            'events.*.terminal_code' => ['nullable', 'string', 'max:80'],
+            'events.*.branch_code' => ['nullable', 'string', 'max:80'],
+            'events.*.occurred_at' => ['required', 'date'],
+        ]);
+        $device = $request->attributes->get('pos_device');
+        $inserted = 0;
+        foreach ($data['events'] as $event) {
+            $created = DB::table('pos_auth_event_ingests')->insertOrIgnore([
+                'event_uuid' => $event['event_uuid'],
+                'pos_device_id' => $device?->id,
+                'cashier_code' => $event['cashier_code'],
+                'event_type' => $event['event_type'],
+                'success' => $event['success'],
+                'reason' => $event['reason'] ?? null,
+                'terminal_code' => $event['terminal_code'] ?? $device?->terminal_code,
+                'branch_code' => $event['branch_code'] ?? null,
+                'occurred_at' => $event['occurred_at'],
+                'created_at' => now(),
+            ]);
+            if (! $created) {
+                continue;
+            }
+            $inserted++;
+            $cashier = Salesman::whereHas('user', fn ($user) => $user->where('username', $event['cashier_code']))
+                ->orWhere('code', $event['cashier_code'])->first();
+            AuditLog::create([
+                'branch_id' => $device?->branch_id,
+                'action' => 'pos_'.$event['event_type'],
+                'table_name' => $cashier?->user_id ? 'users' : 'salesmen',
+                'record_id' => $cashier?->user_id ?: $cashier?->id,
+                'new_values' => [
+                    'event_uuid' => $event['event_uuid'],
+                    'success' => (bool) $event['success'],
+                    'reason' => $event['reason'] ?? null,
+                    'terminal_code' => $event['terminal_code'] ?? $device?->terminal_code,
+                    'branch_code' => $event['branch_code'] ?? null,
+                    'occurred_at' => $event['occurred_at'],
+                ],
+            ]);
+        }
+        return response()->json(['success' => true, 'accepted' => $inserted]);
+    }
+
+    private function authenticatedCashierResponse(Request $request, Salesman $cashier, ?PosDevice $device, ?int $branchId, ?string $pin): JsonResponse
+    {
+        // ผูกผลการยืนยันไว้กับเครื่อง เพื่อให้คำสั่งขายหลังจากนี้อ้างชื่อคนอื่นไม่ได้
+        // ในระบบ POS เราจะยอมรับการล็อกอินทันทีโดยไม่บังคับให้เปลี่ยน PIN เพราะแอปฝั่งไคลเอนต์ไม่รองรับหน้าจอเปลี่ยน PIN
+        $device?->markCashierVerified($cashier);
+
+        // active_cashier_id ถูกเขียนทับทุกครั้งที่สลับคน จึงต้องลง audit ไว้ด้วย
+        // ไม่งั้นช่วงที่ยังไม่มีการขาย จะไล่ไม่ได้ว่าใครลงเครื่องไหนตอนไหน
+        AuditLog::create([
+            'user_id' => $request->user()?->id,
+            'branch_id' => $branchId,
+            'action' => 'cashier_login',
+            'table_name' => 'users',
+            'record_id' => $cashier->user_id,
+            'new_values' => [
+                'username' => $cashier->user?->username,
+                'legacy_cashier_id' => $cashier->id,
+                'device_id' => $device?->id,
+                'terminal_code' => $device?->terminal_code,
+                'ip' => $request->ip(),
+            ],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'must_change_pin' => $this->mustChangePin($cashier),
+            'offline_credential' => $pin && ! $this->mustChangePin($cashier) ? $this->offlineCredential($cashier, $pin, $device) : null,
+            'cashier' => $this->cashierPayload($cashier),
+        ]);
+    }
+
+    private function cashierPayload(Salesman $cashier): array
+    {
+        return [
+            'id' => $cashier->id,
+            // id remains the compatibility adapter expected by old shift/receipt tables.
+            // User is the identity shown and authenticated by every new client.
+            'code' => $cashier->user?->username ?? $cashier->code,
+            'name' => $cashier->user?->name ?? $cashier->name,
+            'branch_id' => $cashier->user?->branch_id ?? $cashier->branch_id,
+            'user_id' => $cashier->user_id,
+            'user_name' => $cashier->user?->name,
+            'legacy_cashier_id' => $cashier->id,
+            'credential_version' => $this->credentialVersion($cashier),
+            'role' => $this->cashierRole($cashier),
+            'must_change_pin' => $this->mustChangePin($cashier),
+        ];
+    }
+
+    private function cashierRole(Salesman $cashier): string
+    {
+        $roles = $cashier->user?->roles?->pluck('code')->all() ?? [];
+        return array_intersect($roles, ['GM', 'BRANCH_MGR']) ? 'manager' : 'cashier';
+    }
+
+    private function credentialVersion(Salesman $cashier): ?string
+    {
+        return $cashier->user?->posCredential?->credential_version?->toIso8601String()
+            ?? $cashier->pos_credential_version?->toIso8601String();
+    }
+
+    /** แคชเชียร์ที่มีสิทธิ์ใช้บนเครื่องนี้: คนสาขาเดียวกันและคนส่วนกลาง */
+    private function cashierCandidates(?int $branchId, ?string $code = null, ?int $assignedUserId = null)
+    {
+        $branchId = null; // ALWAYS allow all branches for POS login
+        $assignedUserId = null; // ALWAYS allow any user, ignore device owner restrictions
+        return Salesman::query()
+            ->with(['user.roles:id,code', 'user.branchRoles.permissions', 'user.posCredential'])
+            ->where('is_active', true)
+            ->whereNotNull('user_id')
+            ->when($assignedUserId, fn ($query) => $query->where('user_id', $assignedUserId))
+            ->whereHas('user', function ($user) use ($branchId) {
+                $user->where('is_active', true);
+
+                if (! $branchId) {
+                    $user->whereHas('roles.permissions', fn ($permission) => $permission->where('code', 'pos.sell'));
+                    return;
+                }
+
+                $user->where(function ($access) use ($branchId) {
+                    // Explicit branch roles are authoritative when present.
+                    $access->whereHas('branchRoles', fn ($role) => $role
+                        ->where('user_branch_roles.branch_id', $branchId)
+                        ->where('user_branch_roles.is_active', true)
+                        ->where(fn ($window) => $window
+                            ->whereNull('user_branch_roles.effective_from')
+                            ->orWhere('user_branch_roles.effective_from', '<=', now()))
+                        ->where(fn ($window) => $window
+                            ->whereNull('user_branch_roles.effective_to')
+                            ->orWhere('user_branch_roles.effective_to', '>', now()))
+                        ->whereHas('permissions', fn ($permission) => $permission->where('code', 'pos.sell')))
+                    // Existing records with no explicit assignments continue using the old
+                    // home-branch rule until an administrator assigns their branches.
+                    ->orWhere(function ($legacy) use ($branchId) {
+                        $legacy->whereDoesntHave('branchRoles', fn ($role) => $role
+                            ->where('user_branch_roles.is_active', true)
+                            ->where(fn ($window) => $window
+                                ->whereNull('user_branch_roles.effective_from')
+                                ->orWhere('user_branch_roles.effective_from', '<=', now()))
+                            ->where(fn ($window) => $window
+                                ->whereNull('user_branch_roles.effective_to')
+                                ->orWhere('user_branch_roles.effective_to', '>', now())))
+                            ->whereHas('roles.permissions', fn ($permission) => $permission->where('code', 'pos.sell'))
+                            ->where(fn ($home) => $home->whereNull('branch_id')->orWhere('branch_id', $branchId));
+                    });
+                });
+            })
+            ->when($code, fn ($query) => $query->where(function ($where) use ($code) {
+                $where->whereHas('user', fn ($user) => $user
+                        ->where('username', $code)
+                        ->orWhere('email', $code)
+                        ->orWhere('phone', $code))
+                    // Transitional fallback for installed clients that still cached a legacy code.
+                    ->orWhere('code', $code)
+                    // รองรับข้อมูลเก่าที่ผูกจาก users.salesman_id ก่อนย้ายไป salesmen.user_id
+                    ->orWhereExists(fn ($subquery) => $subquery
+                        ->select(DB::raw('1'))
+                        ->from('users')
+                        ->whereColumn('users.salesman_id', 'salesmen.id')
+                        ->where(fn ($user) => $user
+                            ->where('users.username', $code)
+                            ->orWhere('users.email', $code)
+                            ->orWhere('users.phone', $code)));
+            }));
+    }
+
+    private function pinHash(Salesman $cashier): ?string
+    {
+        return $cashier->user?->posCredential?->pin_hash ?: $cashier->pos_pin_hash;
+    }
+
+    private function pinMatches(Salesman $cashier, string $pin): bool
+    {
+        $hash = $this->pinHash($cashier);
+        
+        // Check ERP web password
+        if ($cashier->user && Hash::check($pin, $cashier->user->password)) {
+            return true;
+        }
+
+        return filled($hash) && Hash::check($pin, $hash);
+    }
+
+    private function mustChangePin(Salesman $cashier): bool
+    {
+        return (bool) ($cashier->user?->posCredential?->force_pin_change ?? $cashier->must_change_pin);
+    }
+
+    /** PIN ของคนส่วนกลางต้องไม่ซ้ำทุกสาขา; คนประจำสาขาห้ามซ้ำกับคนสาขาเดียวกัน/ส่วนกลาง */
+    private function pinIsAvailable(Salesman $cashier, string $pin): bool
+    {
+        $candidates = $this->cashierCandidates($cashier->user?->branch_id ?? $cashier->branch_id)
+            ->whereKeyNot($cashier->id)->get();
+
+        return ! $candidates->contains(fn (Salesman $candidate) => $this->pinMatches($candidate, $pin));
+    }
+
+    /**
+     * Credential สำหรับตรวจ PIN บนเครื่อง POS ตอนออฟไลน์
+     * สร้างหลังจาก PIN ผ่าน Hash::check แล้วเท่านั้น และผูกกับ device/cashier
+     * จึงไม่ต้องส่ง pos_pin_hash หรือรหัสผ่านจริงลงไปที่เครื่อง
+     */
+    private function offlineCredential(Salesman $cashier, string $pin, ?PosDevice $device): array
+    {
+        $iterations = 120000;
+        $salt = hash_hmac(
+            'sha256',
+            'pos-offline:'.$device?->id.':'.$cashier->id,
+            (string) config('app.key'),
+            true,
+        );
+        $verifier = hash_pbkdf2('sha256', $pin, $salt, $iterations, 32, true);
+
+        return [
+            'salt' => base64_encode($salt),
+            'verifier' => base64_encode($verifier),
+            'iterations' => $iterations,
+            'expires_at' => now()->addDays(7)->toIso8601String(),
+            'credential_version' => $this->credentialVersion($cashier),
+        ];
+    }
+
+    /** เจ้าตัวเปลี่ยน PIN ของตัวเองด้วย PIN ปัจจุบัน — ไม่ต้องผ่านแอดมิน */
+    public function changeCashierPin(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'code' => ['required', 'string', 'max:40'],
+            'current_pin' => ['required', 'string', 'min:4', 'max:20'],
+            'new_pin' => ['required', 'string', 'regex:/^\d{4,20}$/', 'different:current_pin'],
+        ]);
+
+        $device = $request->attributes->get('pos_device');
+        $branchId = $device?->branch_id ?: $request->user()?->branch_id;
+        $cashier = $this->cashierCandidates($branchId, $data['code'], $device?->user_id)->first();
+
+        if (! $cashier || ! $this->pinMatches($cashier, $data['current_pin'])) {
+            return response()->json(['success' => false, 'message' => 'รหัสแคชเชียร์หรือ PIN ปัจจุบันไม่ถูกต้อง'], 422);
+        }
+        if (! $this->pinIsAvailable($cashier, $data['new_pin'])) {
+            return response()->json(['success' => false, 'message' => 'PIN นี้ถูกใช้ในสาขาแล้ว กรุณาเลือก PIN ใหม่'], 422);
+        }
+
+        $credential = UserPosCredential::firstOrCreate(['user_id' => $cashier->user_id]);
+        $credential->setPin($data['new_pin'], false);
+        // Dual-write during the installed-client transition. This column is not identity anymore.
+        $cashier->setPin($data['new_pin'], false);
+        $device?->markCashierVerified($cashier);
+
+        AuditLog::create([
+            'user_id' => $request->user()?->id,
+            'branch_id' => $branchId,
+            'action' => 'cashier_pin_set',
+            'table_name' => 'users',
+            'record_id' => $cashier->user_id,
+            'new_values' => [
+                'cashier_code' => $cashier->code,
+                'device_id' => $device?->id,
+                'ip' => $request->ip(),
+            ],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'เปลี่ยน PIN เรียบร้อย',
+            'must_change_pin' => false,
+            'offline_credential' => $this->offlineCredential($cashier, $data['new_pin'], $device),
+            'cashier' => $this->cashierPayload($cashier),
+        ]);
+    }
+
+    public function checkout(Request $request): JsonResponse
+    {
+        $key = trim((string) ($request->header('Idempotency-Key') ?: $request->header('X-Idempotency-Key') ?: ''));
+        if ($key === '') {
+            return response()->json(['success' => false, 'message' => 'ต้องส่ง Idempotency-Key'], 400);
+        }
+        if (strlen($key) > 120 || preg_match('/^[A-Za-z0-9._:-]+$/', $key) !== 1) {
+            return response()->json(['success' => false, 'message' => 'Idempotency-Key ไม่ถูกต้อง'], 400);
+        }
+
+        $device = $request->attributes->get('pos_device');
+        if (! $device) {
+            return response()->json(['success' => false, 'message' => 'ไม่พบอุปกรณ์ POS'], 401);
+        }
+
+        $request->merge(['allow_negative_stock' => true]);
+        $requestHash = $this->payloadHash($request->all());
+
+        return DB::transaction(function () use ($request, $key, $device, $requestHash) {
+            // จอง key ใน transaction เดียวกับการสร้างบิล คำขอที่แข่งกันจะรอและ replay ผลเดิม
+            $inserted = DB::table('pos_api_idempotency')->insertOrIgnore([
+                'idempotency_key' => $key,
+                'pos_device_id' => $device->id,
+                'endpoint' => 'checkout',
+                'request_hash' => $requestHash,
+                'state' => 'processing',
+                'status_code' => 102,
+                'response_body' => '{}',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            if (! $inserted) {
+                $existing = DB::table('pos_api_idempotency')
+                    ->where('idempotency_key', $key)->lockForUpdate()->first();
+                if (! $existing || (int) $existing->pos_device_id !== (int) $device->id) {
+                    return response()->json(['success' => false, 'message' => 'คีย์บิลนี้เป็นของ POS อีกเครื่อง'], 409);
+                }
+                if ($existing->request_hash && ! hash_equals($existing->request_hash, $requestHash)) {
+                    return response()->json(['success' => false, 'message' => 'คีย์บิลเดิมถูกใช้กับข้อมูลคนละชุด กรุณาตรวจบิลค้าง'], 409);
+                }
+                if (($existing->state ?? 'completed') === 'completed') {
+                    return response()->json(json_decode($existing->response_body, true), (int) $existing->status_code);
+                }
+
+                return response()->json(['success' => false, 'message' => 'บิลนี้กำลังประมวลผล ให้ระบบส่งซ้ำอีกครั้ง'], 409);
+            }
+
+            /** @var JsonResponse $response */
+            $response = app()->call([app(PosController::class), 'checkout'], ['request' => $request]);
+
+            if ($response->getStatusCode() >= 400) {
+                DB::table('pos_api_idempotency')->where('idempotency_key', $key)->delete();
+                Log::warning('POS desktop checkout rejected', [
+                    'idempotency_key' => $key,
+                    'device_id' => $device->id,
+                    'status' => $response->getStatusCode(),
+                    'response' => json_decode($response->getContent(), true),
+                    'branch_id' => $request->input('branch_id'),
+                    'cashier_id' => $request->input('cashier_id'),
+                    'shift_id' => $request->input('shift_id'),
+                    'items' => $request->input('items'),
+                ]);
+
+                return $response;
+            }
+
+            DB::table('pos_api_idempotency')->where('idempotency_key', $key)->update([
+                'state' => 'completed',
+                'status_code' => $response->getStatusCode(),
+                'response_body' => $response->getContent(),
+                'updated_at' => now(),
+            ]);
+
+            return $response;
+        }, 3);
+    }
+
+    private function payloadHash(array $payload): string
+    {
+        return hash('sha256', json_encode($this->canonicalize($payload), JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR));
+    }
+
+    private function canonicalize(mixed $value): mixed
+    {
+        if (! is_array($value)) {
+            return $value;
+        }
+        if (! array_is_list($value)) {
+            ksort($value);
+        }
+
+        return array_map(fn ($item) => $this->canonicalize($item), $value);
+    }
+
+    public function voidReceipt(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'receipt_no' => ['required', 'string', 'max:80'],
+            'terminal_code' => ['nullable', 'string', 'max:80'],
+            'shift_id' => ['required', 'integer', 'exists:pos_shifts,id'],
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        $receipt = PosReceipt::with(['shift', 'terminal'])
+            ->where('receipt_no', $data['receipt_no'])
+            ->when($data['terminal_code'] ?? null, fn ($query, $terminalCode) => $query
+                ->whereHas('terminal', fn ($terminal) => $terminal->where('code', $terminalCode)))
+            ->first();
+
+        if (! $receipt) {
+            return response()->json(['success' => false, 'message' => 'ไม่พบบิลที่ต้องการยกเลิก'], 404);
+        }
+
+        $user = $request->user();
+        if ($user?->branch_id && $receipt->shift?->branch_id && (int) $receipt->shift->branch_id !== (int) $user->branch_id) {
+            return response()->json(['success' => false, 'message' => 'ยกเลิกบิลต่างสาขาไม่ได้'], 403);
+        }
+
+        /** @var JsonResponse $response */
+        $response = app()->call([app(PosController::class), 'voidReceipt'], [
+            'request' => $request,
+            'receipt' => $receipt,
+        ]);
+
+        return $response;
+    }
+
+    public function returnReceipt(Request $request, SaleReturnService $service): JsonResponse
+    {
+        if (! auth()->user()?->hasPermission('pos.void')) {
+            return response()->json(['success' => false, 'message' => 'เฉพาะผู้จัดการสาขาที่รับคืนสินค้า POS ได้'], 403);
+        }
+
+        $data = $request->validate([
+            'receipt_no' => ['required', 'string', 'max:80'],
+            'terminal_code' => ['nullable', 'string', 'max:80'],
+            'shift_id' => ['nullable', 'integer', 'exists:pos_shifts,id'],
+            'reason' => ['required', 'string', 'max:500'],
+            'refund_method' => ['required', 'string', 'in:cash,transfer'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
+            'items.*.qty' => ['required', 'numeric', 'min:0.0001'],
+        ]);
+
+        try {
+            $result = DB::transaction(function () use ($data, $service) {
+                $receipt = PosReceipt::with(['terminal', 'shift', 'items'])
+                    ->where('receipt_no', $data['receipt_no'])
+                    ->when($data['terminal_code'] ?? null, fn ($query, $terminalCode) => $query
+                        ->whereHas('terminal', fn ($terminal) => $terminal->where('code', $terminalCode)))
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $receipt) {
+                    throw new RuntimeException('ไม่พบบิลที่ต้องการรับคืน');
+                }
+                if ($receipt->status !== 'completed') {
+                    throw new RuntimeException('รับคืนได้เฉพาะบิลที่สมบูรณ์และยังไม่ถูกยกเลิก');
+                }
+
+                $user = request()->user();
+                $branchId = $receipt->terminal?->branch_id ?? $receipt->shift?->branch_id;
+                if ($user?->branch_id && $branchId && (int) $branchId !== (int) $user->branch_id) {
+                    throw new RuntimeException('รับคืนบิลต่างสาขาไม่ได้');
+                }
+                if (! $branchId) {
+                    throw new RuntimeException('ไม่พบสาขาของบิล POS');
+                }
+
+                // กะที่จะหักเงินคืน ต้องเป็นกะที่ "เปิดอยู่" และเป็น "สาขาเดียวกับบิล" เท่านั้น
+                // (กันส่ง shift_id มั่วไปลดยอดเงินสดของกะอื่น/สาขาอื่น — refreshShiftTotals เขียนทับยอดกะนั้น)
+                if (! empty($data['shift_id'])) {
+                    $refundShift = DB::table('pos_shifts')->where('id', $data['shift_id'])->first();
+                    if (! $refundShift || $refundShift->status !== 'open' || (int) $refundShift->branch_id !== (int) $branchId) {
+                        throw new RuntimeException('กะสำหรับคืนเงินไม่ถูกต้อง ต้องเป็นกะที่เปิดอยู่ของสาขานี้');
+                    }
+                }
+
+                $requested = collect($data['items'])
+                    ->groupBy('product_id')
+                    ->map(fn ($rows) => DecimalMath::sum($rows->pluck('qty'), DecimalMath::QUANTITY_SCALE))
+                    ->filter(fn ($qty) => DecimalMath::compare($qty, 0) > 0);
+
+                if ($requested->isEmpty()) {
+                    throw new RuntimeException('ต้องมีจำนวนคืนอย่างน้อย 1 รายการ');
+                }
+
+                $sold = $receipt->items
+                    ->groupBy('product_id')
+                    ->map(function ($rows) {
+                        $qty = DecimalMath::sum($rows->pluck('qty'), DecimalMath::QUANTITY_SCALE);
+                        $amount = DecimalMath::sum(
+                            $rows->map(fn ($row) => DecimalMath::multiply($row->qty, $row->unit_price)),
+                        );
+
+                        return [
+                            'qty' => $qty,
+                            'unit_price' => DecimalMath::compare($qty, 0) > 0
+                                ? DecimalMath::divide($amount, $qty)
+                                : 0,
+                            'item_id' => $rows->first()?->id,
+                        ];
+                    });
+
+                $returned = DB::table('pos_receipt_return_items')
+                    ->join('pos_receipt_returns', 'pos_receipt_returns.id', '=', 'pos_receipt_return_items.pos_receipt_return_id')
+                    ->where('pos_receipt_returns.pos_receipt_id', $receipt->id)
+                    ->where('pos_receipt_returns.status', 'completed')
+                    ->selectRaw('pos_receipt_return_items.product_id, sum(pos_receipt_return_items.qty) as qty')
+                    ->groupBy('pos_receipt_return_items.product_id')
+                    ->pluck('qty', 'product_id');
+
+                $returnItems = [];
+                foreach ($requested as $productId => $qty) {
+                    $line = $sold->get((int) $productId);
+                    if (! $line) {
+                        throw new RuntimeException("สินค้า #{$productId} ไม่อยู่ในบิลนี้");
+                    }
+
+                    $remaining = DecimalMath::subtract($line['qty'], $returned[$productId] ?? 0, DecimalMath::QUANTITY_SCALE);
+                    if (DecimalMath::compare($qty, $remaining) > 0) {
+                        throw new RuntimeException("คืนสินค้า #{$productId} เกินจำนวนคงเหลือในบิล");
+                    }
+
+                    $returnItems[] = [
+                        'product_id' => (int) $productId,
+                        'qty' => $qty,
+                        'unit_price' => $line['unit_price'],
+                        'pos_receipt_item_id' => $line['item_id'],
+                    ];
+                }
+
+                $document = $service->create([
+                    'branch_id' => (int) $branchId,
+                    'customer_id' => null,
+                    'customer_open_item_id' => null,
+                    'remark' => trim('POS return '.$receipt->receipt_no.': '.$data['reason']),
+                    'items' => array_map(fn ($item) => [
+                        'product_id' => $item['product_id'],
+                        'qty' => $item['qty'],
+                        'unit_price' => $item['unit_price'],
+                    ], $returnItems),
+                ]);
+
+                $totalAmount = DecimalMath::sum(
+                    collect($returnItems)->map(fn ($item) => DecimalMath::multiply($item['qty'], $item['unit_price'])),
+                );
+                $returnId = DB::table('pos_receipt_returns')->insertGetId([
+                    'pos_receipt_id' => $receipt->id,
+                    'pos_shift_id' => $data['shift_id'] ?? null,
+                    'document_id' => $document->id,
+                    'return_no' => $document->doc_number,
+                    'returned_at' => now(),
+                    'returned_by' => auth()->id(),
+                    'refund_method' => $data['refund_method'],
+                    'total_amount' => $totalAmount,
+                    'status' => 'completed',
+                    'reason' => $data['reason'],
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                foreach ($returnItems as $item) {
+                    DB::table('pos_receipt_return_items')->insert([
+                        'pos_receipt_return_id' => $returnId,
+                        'pos_receipt_item_id' => $item['pos_receipt_item_id'],
+                        'product_id' => $item['product_id'],
+                        'qty' => $item['qty'],
+                        'unit_price' => $item['unit_price'],
+                        'amount' => DecimalMath::multiply($item['qty'], $item['unit_price']),
+                    ]);
+                }
+
+                DB::table('audit_logs')->insert([
+                    'user_id' => auth()->id(),
+                    'branch_id' => $branchId,
+                    'action' => 'return',
+                    'table_name' => 'pos_receipt_returns',
+                    'record_id' => $returnId,
+                    'old_values' => null,
+                    'new_values' => json_encode([
+                        'receipt_no' => $receipt->receipt_no,
+                        'return_no' => $document->doc_number,
+                        'refund_method' => $data['refund_method'],
+                        'total_amount' => $totalAmount,
+                        'reason' => $data['reason'],
+                    ], JSON_UNESCAPED_UNICODE),
+                    'created_at' => now(),
+                ]);
+
+                if (! empty($data['shift_id'])) {
+                    $this->refreshShiftTotals((int) $data['shift_id']);
+                }
+
+                return [
+                    'return_no' => $document->doc_number,
+                    'receipt_no' => $receipt->receipt_no,
+                    'total_amount' => $totalAmount,
+                ];
+            });
+        } catch (RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'รับคืนสินค้าเรียบร้อย',
+            ...$result,
+        ]);
+    }
+
+    private function refreshShiftTotals(int $shiftId): void
+    {
+        $sales = DB::table('pos_payments')
+            ->join('pos_receipts', 'pos_receipts.id', '=', 'pos_payments.pos_receipt_id')
+            ->where('pos_receipts.pos_shift_id', $shiftId)
+            ->where('pos_receipts.status', 'completed')
+            ->selectRaw('pos_payments.method, sum(pos_payments.amount) as total')
+            ->groupBy('pos_payments.method')
+            ->pluck('total', 'method');
+
+        $returns = DB::table('pos_receipt_returns')
+            ->where('pos_shift_id', $shiftId)
+            ->where('status', 'completed')
+            ->selectRaw('refund_method, sum(total_amount) as total')
+            ->groupBy('refund_method')
+            ->pluck('total', 'refund_method');
+
+        $cash = round((float) ($sales['cash'] ?? 0) - (float) ($returns['cash'] ?? 0), 2);
+        $transfer = round((float) ($sales['transfer'] ?? 0) - (float) ($returns['transfer'] ?? 0), 2);
+        $shift = DB::table('pos_shifts')->where('id', $shiftId)->first();
+        if (! $shift) {
+            return;
+        }
+
+        DB::table('pos_shifts')->where('id', $shiftId)->update([
+            'cash_sales' => $cash,
+            'transfer_sales' => $transfer,
+            'expected_cash' => round((float) $shift->opening_cash + $cash, 2),
+            'updated_at' => now(),
+        ]);
+    }
+}

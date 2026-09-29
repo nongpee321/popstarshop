@@ -1,0 +1,230 @@
+<?php
+
+namespace App\Models;
+
+// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+
+#[Fillable(['branch_id', 'salesman_id', 'sales_area_id', 'username', 'name', 'email', 'phone', 'position', 'password', 'is_active', 'must_change_password', 'mfa_secret', 'mfa_enabled_at', 'password_changed_at'])]
+#[Hidden(['password', 'remember_token', 'mfa_secret'])]
+class User extends Authenticatable
+{
+    /** @use HasFactory<UserFactory> */
+    use HasFactory, Notifiable;
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
+    /**
+     * Branch this user is restricted to for data visibility (ยอดขาย/รายงาน).
+     * Non-null = เห็นเฉพาะสาขาตัวเอง (แคชเชียร์/พนักงานสาขา).
+     * Null = ส่วนกลาง/ผู้บริหาร เห็นทุกสาขา.
+     */
+    public function branchScopeId(): ?int
+    {
+        return $this->branch_id;
+    }
+
+    public function salesman(): BelongsTo
+    {
+        return $this->belongsTo(Salesman::class);
+    }
+
+    /** POS profile kept for legacy/offline compatibility; identity remains this user. */
+    public function posCashierProfile(): HasOne
+    {
+        return $this->hasOne(Salesman::class, 'user_id');
+    }
+
+    public function salesArea(): BelongsTo
+    {
+        return $this->belongsTo(SalesArea::class);
+    }
+
+    public function employee(): HasOne
+    {
+        return $this->hasOne(Employee::class);
+    }
+
+    public function managedCustomers(): HasMany
+    {
+        return $this->hasMany(Customer::class, 'sales_user_id');
+    }
+
+    public function roles(): BelongsToMany
+    {
+        return $this->belongsToMany(Role::class);
+    }
+
+    public function branchRoles(): BelongsToMany
+    {
+        return $this->belongsToMany(Role::class, 'user_branch_roles')
+            ->withPivot(['branch_id', 'is_active', 'effective_from', 'effective_to'])
+            ->withTimestamps();
+    }
+
+    public function posCredential(): HasOne
+    {
+        return $this->hasOne(UserPosCredential::class);
+    }
+
+    /** Device branch is authoritative. Explicit assignments win; branch_id is migration fallback. */
+    public function canAccessBranch(int $branchId, ?string $permission = null): bool
+    {
+        $activeAssignments = $this->branchRoles()
+            ->wherePivot('is_active', true)
+            ->where(fn ($roles) => $roles
+                ->whereNull('user_branch_roles.effective_from')
+                ->orWhere('user_branch_roles.effective_from', '<=', now()))
+            ->where(fn ($roles) => $roles
+                ->whereNull('user_branch_roles.effective_to')
+                ->orWhere('user_branch_roles.effective_to', '>', now()));
+
+        // Once an administrator has assigned branches explicitly, that list is the
+        // boundary. Do not fall back to a global role and accidentally open every branch.
+        if (! $activeAssignments->exists()) {
+            return ($this->branch_id === null || (int) $this->branch_id === $branchId)
+                && ($permission === null || $this->hasPermission($permission));
+        }
+
+        $query = $this->branchRoles()
+            ->wherePivot('branch_id', $branchId)
+            ->wherePivot('is_active', true)
+            ->where(fn ($roles) => $roles
+                ->whereNull('user_branch_roles.effective_from')
+                ->orWhere('user_branch_roles.effective_from', '<=', now()))
+            ->where(fn ($roles) => $roles
+                ->whereNull('user_branch_roles.effective_to')
+                ->orWhere('user_branch_roles.effective_to', '>', now()));
+
+        if ($permission !== null) {
+            $query->whereHas('permissions', fn ($permissions) => $permissions->where('code', $permission));
+        }
+
+        return $query->exists();
+    }
+
+    /**
+     * POS device branch is authoritative. A global POS seller can use any
+     * active device; a branch-only seller must be assigned to that branch.
+     */
+    public function canUsePosDevice(?int $branchId): bool
+    {
+        if ($this->hasGlobalPermission('pos.sell')) {
+            return true;
+        }
+
+        return $branchId !== null && $this->canAccessBranch($branchId, 'pos.sell');
+    }
+
+    /** @var array<int, string>|null per-request cache of permission codes */
+    private ?array $permissionCodes = null;
+
+    /**
+     * Return permissions from the user's global roles plus active branch roles.
+     * Branch roles grant access to the assigned branch; controllers and POS
+     * device checks still call canAccessBranch() when a branch is authoritative.
+     *
+     * @return array<int, string>
+     */
+    public function permissionCodes(): array
+    {
+        return $this->permissionCodes ??= $this->roles()->with('permissions')->get()
+            ->merge($this->activeBranchRoles())
+            ->flatMap(fn ($role) => $role->permissions->pluck('code'))
+            ->unique()->values()->all();
+    }
+
+    public function hasGlobalPermission(string $code): bool
+    {
+        return $this->roles()->whereHas('permissions', fn ($permissions) => $permissions->where('code', $code))->exists();
+    }
+
+    /** @return \Illuminate\Support\Collection<int, Role> */
+    private function activeBranchRoles()
+    {
+        return $this->branchRoles()
+            ->wherePivot('is_active', true)
+            ->where(fn ($roles) => $roles
+                ->whereNull('user_branch_roles.effective_from')
+                ->orWhere('user_branch_roles.effective_from', '<=', now()))
+            ->where(fn ($roles) => $roles
+                ->whereNull('user_branch_roles.effective_to')
+                ->orWhere('user_branch_roles.effective_to', '>', now()))
+            ->with('permissions')
+            ->get();
+    }
+
+    // สิทธิ์ที่ superadmin bypass ห้ามแตะ - ต้องถือจริงเท่านั้น (ควบคุมภายใน POS):
+    // ขาย/ยกเลิกบิลหน้าร้าน ต้องเป็นแคชเชียร์/ผู้อนุมัติตัวจริง แม้แต่ GM ก็ทำแทนไม่ได้
+    private const NON_BYPASS_PERMISSIONS = [
+        'pos.sell', 'pos.void', 'pos.discount.override', 'pos.sell_below_cost', 'purchasing.approve',
+        'stock.adjust.approve', 'inventory.quality.manage', 'inventory.cost.close',
+        'stock.damage.approve', 'finance.note.approve',
+        'management.view', 'budget.manage', 'payroll.manage', 'ecommerce.sync', 'monitoring.manage',
+    ];
+
+    public function hasPermission(string $code): bool
+    {
+        $codes = $this->permissionCodes();
+
+        if (in_array($code, $codes, true)) {
+            return true;
+        }
+
+        // การขาย POS เป็นสิทธิ์ที่สูงกว่าการเปิดดูหน้า POS อยู่แล้ว
+        // ผู้ใช้ที่ถูกกำหนด pos.sell จึงต้องเห็นและเข้า /pos ได้ด้วย
+        // โดยไม่ทำให้สิทธิ์ pos.use เปิดทางให้เปิดกะหรือคิดเงินได้
+        if ($code === 'pos.use' && in_array('pos.sell', $codes, true)) {
+            return true;
+        }
+
+        if (in_array($code, self::NON_BYPASS_PERMISSIONS, true)) {
+            return false;
+        }
+
+        // System admins เข้าดู/ทดสอบทุกโมดูลได้ ยกเว้นสิทธิ์ควบคุมภายในข้างบน
+        return in_array('users.manage', $codes, true)
+            && in_array('settings.manage', $codes, true);
+    }
+
+    public function documentsCreated(): HasMany
+    {
+        return $this->hasMany(Document::class, 'created_by');
+    }
+
+    public function posReceipts(): HasMany
+    {
+        return $this->hasMany(PosReceipt::class, 'cashier_id');
+    }
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'last_login_at' => 'datetime',
+            'password' => 'hashed',
+            'is_active' => 'boolean',
+            'must_change_password' => 'boolean',
+            'mfa_secret' => 'encrypted',
+            'mfa_enabled_at' => 'datetime',
+            'password_changed_at' => 'datetime',
+        ];
+    }
+}

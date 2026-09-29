@@ -1,0 +1,125 @@
+@extends('layout')
+@section('title', 'ปิดบัญชีรายเดือน - PopCentral')
+@section('page-title', 'ศูนย์ปิดบัญชีรายเดือน')
+@section('page-subtitle', 'ตรวจ Statement สลิป ค่าใช้จ่าย VAT/WHT และส่งข้อมูลให้สำนักงานบัญชี')
+
+@push('head')
+<style>
+    [x-cloak]{display:none!important}.ma-shell{display:grid;gap:14px}.ma-panel{background:#fff;border:1px solid var(--erp-border);border-radius:8px}.ma-filter{display:flex;gap:10px;align-items:end;padding:13px;flex-wrap:wrap}.ma-field label{display:block;margin-bottom:4px;color:var(--erp-muted);font-size:11px;font-weight:800}.ma-field input,.ma-field select,.ma-field textarea{border:1px solid var(--erp-border);border-radius:6px;color:var(--erp-primary-dark);font-size:12px}.ma-field input,.ma-field select{height:38px;padding:0 9px}.ma-field textarea{width:100%;min-height:70px;padding:9px}.ma-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}.ma-stat{padding:14px 16px;border-right:1px solid var(--erp-success-soft)}.ma-stat:last-child{border:0}.ma-stat span{display:block;color:var(--erp-muted);font-size:10px;font-weight:900}.ma-stat strong{color:var(--erp-text);font-size:20px}.ma-tabs{display:flex;gap:5px;padding:8px;border-bottom:1px solid var(--erp-border);overflow-x:auto}.ma-tab{height:35px;padding:0 13px;border:0;border-radius:6px;background:transparent;color:var(--erp-muted);font-size:12px;font-weight:900;white-space:nowrap}.ma-tab.active{color:#fff;background:var(--erp-primary-dark)}.ma-section{padding:15px}.ma-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.ma-head h2{margin:0;color:var(--erp-primary-dark);font-size:16px;font-weight:900}.expense-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.span-2{grid-column:span 2}.span-4{grid-column:span 4}.ma-table-wrap{overflow-x:auto}.ma-table{width:100%;min-width:980px;border-collapse:collapse}.ma-table th{padding:9px 10px;background:var(--erp-surface-2);color:var(--erp-muted);border-bottom:1px solid var(--erp-border);font-size:10px;font-weight:900}.ma-table td{padding:9px 10px;color:var(--erp-muted);border-bottom:1px solid var(--erp-surface-2);font-size:11px;vertical-align:middle}.ma-table tr:last-child td{border:0}.status-pill{display:inline-flex;padding:4px 7px;border-radius:5px;font-size:10px;font-weight:900}.status-matched{color:var(--erp-success-ink);background:var(--erp-success-soft)}.status-mismatch{color:var(--erp-danger);background:var(--erp-danger-soft)}.status-pending{color:var(--erp-warning-ink);background:var(--erp-warning-soft)}.reconcile-form{display:grid;grid-template-columns:130px 130px 130px 1fr auto;gap:7px;align-items:end;padding:10px;background:var(--erp-surface-2);border-radius:6px}.export-band{display:grid;grid-template-columns:1fr auto;gap:15px;align-items:center;padding:16px;border-left:4px solid var(--erp-primary)}.export-band h3{margin:0 0 4px;color:var(--erp-primary-dark);font-size:15px;font-weight:900}.export-band p{margin:0;color:var(--erp-muted);font-size:11px}.ma-note{padding:11px 13px;color:var(--erp-muted);background:var(--erp-surface-2);border:1px solid var(--erp-border);border-radius:6px;font-size:11px;line-height:1.5}@media(max-width:900px){.ma-stats{grid-template-columns:repeat(2,1fr)}.ma-stat:nth-child(2){border-right:0}.expense-form{grid-template-columns:repeat(2,1fr)}.span-4{grid-column:span 2}.reconcile-form{grid-template-columns:1fr 1fr}.reconcile-form .wide{grid-column:span 2}}@media(max-width:560px){.ma-stats,.expense-form{grid-template-columns:1fr}.ma-stat{border-right:0;border-bottom:1px solid var(--erp-success-soft)}.span-2,.span-4{grid-column:span 1}.export-band{grid-template-columns:1fr}.reconcile-form{grid-template-columns:1fr}.reconcile-form .wide{grid-column:span 1}}
+</style>
+@endpush
+
+@section('content')
+<div class="ma-shell" x-data="{ tab: 'expenses', reconcileId: null, accountModalOpen: false, accountEditingId: null, accountCode: '', accountNameTh: '', accountNameEn: '', accountFormAction: '{{ route('chart-of-accounts.store') }}', openAccountCreate() { this.accountEditingId = null; this.accountCode = ''; this.accountNameTh = ''; this.accountNameEn = ''; this.accountFormAction = '{{ route('chart-of-accounts.store') }}'; this.accountModalOpen = true; }, openAccountEdit(id, code, nameTh, nameEn) { this.accountEditingId = id; this.accountCode = code; this.accountNameTh = nameTh; this.accountNameEn = nameEn || ''; this.accountFormAction = '{{ url('/chart-of-accounts') }}/' + id; this.accountModalOpen = true; } }" x-cloak>
+    @if($errors->any())<div class="alert alert-danger mb-0"><i class="bi bi-exclamation-triangle me-2"></i>{{ $errors->first() }}</div>@endif
+    @if(session('success'))<div class="alert alert-success mb-0"><i class="bi bi-check-circle me-2"></i>{{ session('success') }}</div>@endif
+
+    <form class="ma-panel ma-filter" method="get">
+        <div class="ma-field"><label>เดือนบัญชี</label><input type="month" name="period" value="{{ $period }}"></div>
+        <div class="ma-field"><label>สาขา</label><select name="branch_id"><option value="">ทุกสาขา</option>@foreach($branches as $branch)<option value="{{ $branch->id }}" @selected($branchId==$branch->id)>{{ $branch->code }} · {{ $branch->name_th }}</option>@endforeach</select></div>
+        <button class="btn btn-outline-primary"><i class="bi bi-funnel me-1"></i>แสดงข้อมูล</button>
+    </form>
+
+    <section class="ma-panel ma-stats">
+        <div class="ma-stat"><span>ค่าใช้จ่าย</span><strong>฿{{ number_format($stats['expense_total'],2) }}</strong></div>
+        <div class="ma-stat"><span>ภาษีหัก ณ ที่จ่าย</span><strong>฿{{ number_format($stats['withholding_total'],2) }}</strong></div>
+        <div class="ma-stat"><span>Statement</span><strong>{{ number_format($stats['statement_count']) }} รายการ</strong></div>
+        <div class="ma-stat"><span>ยังไม่ตรง/ยังไม่ตรวจ</span><strong style="color:{{ $stats['unreconciled_count'] ? 'var(--erp-danger)':'var(--erp-success-ink)' }}">{{ number_format($stats['unreconciled_count']) }} รายการ</strong></div>
+    </section>
+
+    <section class="ma-panel ma-section">
+        <div class="ma-head"><h2><i class="bi bi-shield-check me-1"></i>กระทบยอด POS กับ Statement</h2><span class="text-muted small">เฉพาะใบเสร็จที่ชำระสำเร็จและยังไม่ถูกยกเลิก</span></div>
+        <div class="ma-note mb-3">ฝ่ายการเงินตรวจตามลำดับ: ใบเสร็จ POS → ช่องทางชำระเงิน → เลขอ้างอิงโอน/QR → Statement → แนบสลิปเมื่อพบรายการจริง หากยอดไม่ตรง ระบบจะไม่ถือว่าผ่านและไม่ให้สร้างชุดส่งสำนักงานบัญชี</div>
+        <div class="row g-2 mb-3">
+            <div class="col-md-3"><div class="ma-note"><strong>ใบเสร็จ POS</strong><br>{{ number_format($posControl['receipt_count']) }} ใบ · ฿{{ number_format($posControl['net_sales'],2) }}<br><span class="text-muted">VAT ขาย ฿{{ number_format($posControl['vat_sales'],2) }}</span></div></div>
+            <div class="col-md-3"><div class="ma-note"><strong>โอน / QR</strong><br>฿{{ number_format((float)($posControl['methods']['transfer']['amount'] ?? 0) + (float)($posControl['methods']['qr']['amount'] ?? 0) + (float)($posControl['methods']['bank']['amount'] ?? 0),2) }}<br><span class="text-muted">ยังไม่จับคู่ {{ number_format($posControl['transfer_unmatched_count']) }} รายการ</span></div></div>
+            <div class="col-md-3"><div class="ma-note"><strong>เงินเข้า Statement</strong><br>{{ number_format($posControl['statement_income_count']) }} รายการ · ฿{{ number_format($posControl['statement_income_amount'],2) }}<br><span class="text-muted">จับคู่แล้ว ฿{{ number_format($posControl['matched_statement_income_amount'],2) }}</span></div></div>
+            <div class="col-md-3"><div class="ma-note" style="border-left:4px solid {{ $posControl['transfer_unmatched_count'] ? 'var(--erp-danger)':'var(--erp-success-ink)' }}"><strong>รายการต้องตรวจ</strong><br><span style="color:{{ $posControl['transfer_unmatched_count'] ? 'var(--erp-danger)':'var(--erp-success-ink)' }}">{{ number_format($posControl['transfer_unmatched_count']) }} ใบ · ฿{{ number_format($posControl['transfer_unmatched_amount'],2) }}</span><br><span class="text-muted">เปิดแท็บ Statement เพื่อตรวจ/แนบสลิป</span></div></div>
+        </div>
+        <div class="ma-table-wrap"><table class="ma-table"><thead><tr><th>วันที่/เวลา</th><th>ใบเสร็จ POS</th><th>ช่องทาง</th><th>เลขอ้างอิงจาก POS</th><th class="text-end">ยอดโอน</th><th>ผลตรวจ</th></tr></thead><tbody>@forelse($posControl['unmatched_transfers'] as $row)<tr><td>{{ \Carbon\Carbon::parse($row->receipt_date)->format('d/m/Y H:i') }}</td><td>{{ $row->receipt_no }}</td><td>{{ ['transfer'=>'โอน','qr'=>'QR','bank'=>'ธนาคาร'][$row->method] ?? $row->method }}</td><td>{{ $row->payment_reference ?: '-' }}</td><td class="text-end fw-bold">{{ number_format((float)$row->amount,2) }}</td><td><span class="status-pill status-pending">รอจับคู่ Statement/สลิป</span></td></tr>@empty<tr><td colspan="6" class="text-center text-success py-3"><i class="bi bi-check-circle me-1"></i>ไม่พบรายการโอน POS ที่ค้างตรวจ</td></tr>@endforelse</tbody></table></div>
+    </section>
+
+    <section class="ma-panel">
+        <div class="ma-tabs">
+            <button class="ma-tab" :class="tab==='expenses'&&'active'" @click="tab='expenses'" type="button"><i class="bi bi-receipt me-1"></i>ค่าใช้จ่ายสาขา</button>
+            <button class="ma-tab" :class="tab==='bank'&&'active'" @click="tab='bank'" type="button"><i class="bi bi-bank me-1"></i>Statement / สลิป</button>
+            <button class="ma-tab" :class="tab==='export'&&'active'" @click="tab='export'" type="button"><i class="bi bi-file-earmark-zip me-1"></i>ส่งสำนักงานบัญชี</button>
+        </div>
+
+        <div class="ma-section" x-show="tab==='expenses'">
+            <div class="ma-head"><h2>บันทึกค่าใช้จ่ายและภาษี</h2><span class="text-muted small">บันทึกแล้วลง GL อัตโนมัติ</span></div>
+            <form method="post" action="{{ route('monthly-accounting.expenses.store') }}" enctype="multipart/form-data" class="expense-form">@csrf
+                <div class="ma-field"><label>วันที่ค่าใช้จ่าย</label><input type="date" name="expense_date" value="{{ old('expense_date', now()->toDateString()) }}" required></div>
+                <div class="ma-field"><label>สาขา</label><select name="branch_id" required><option value="">เลือกสาขา</option>@foreach($branches as $branch)<option value="{{ $branch->id }}" @selected(old('branch_id',$branchId)==$branch->id)>{{ $branch->code }} · {{ $branch->name_th }}</option>@endforeach</select></div>
+                <div class="ma-field span-2"><label>บัญชีค่าใช้จ่าย</label><div class="d-flex gap-2"><select name="expense_account_id" required style="flex:1"><option value="">เลือกบัญชี</option>@foreach($expenseAccounts as $account)<option value="{{ $account->id }}">{{ $account->code }} · {{ $account->name_th }}</option>@endforeach</select><button type="button" class="btn btn-outline-primary btn-sm text-nowrap" @click="openAccountCreate()" title="เพิ่มบัญชีค่าใช้จ่าย"><i class="bi bi-plus-lg me-1"></i>เพิ่ม/แก้ไข</button></div></div>
+                <div class="ma-field span-2"><label>Cost Center</label><select name="cost_center_id"><option value="">ไม่ระบุ</option>@foreach($costCenters as $center)<option value="{{ $center->id }}">{{ $center->code }} · {{ $center->name }}</option>@endforeach</select></div>
+                <div class="ma-field span-2"><label>ผู้ขาย/ผู้รับเงิน</label><input name="supplier_name" list="supplier-list" value="{{ old('supplier_name') }}" required style="width:100%"><datalist id="supplier-list">@foreach($suppliers as $supplier)<option value="{{ $supplier->name_th }}">{{ $supplier->tax_id }}</option>@endforeach</datalist></div>
+                <div class="ma-field"><label>เลขผู้เสียภาษี 13 หลัก</label><input name="supplier_tax_id" value="{{ old('supplier_tax_id') }}"></div>
+                <div class="ma-field"><label>สาขาภาษี</label><input name="tax_branch" value="{{ old('tax_branch','00000') }}"></div>
+                <div class="ma-field"><label>เลขใบกำกับ/ใบเสร็จ</label><input name="tax_invoice_no" value="{{ old('tax_invoice_no') }}"></div>
+                <div class="ma-field"><label>วันที่ใบกำกับ</label><input type="date" name="tax_invoice_date" value="{{ old('tax_invoice_date') }}"></div>
+                <div class="ma-field"><label>มูลค่าก่อน VAT</label><input type="number" step="0.01" min="0.01" name="base_amount" value="{{ old('base_amount') }}" required></div>
+                <div class="ma-field"><label>VAT</label><input type="number" step="0.01" min="0" name="vat_amount" value="{{ old('vat_amount',0) }}"></div>
+                <div class="ma-field"><label>อัตราหัก ณ ที่จ่าย %</label><input type="number" step="0.01" min="0" max="100" name="withholding_rate" value="{{ old('withholding_rate',0) }}"></div>
+                <div class="ma-field"><label>แบบ WHT</label><select name="withholding_form"><option value="">ไม่มี</option><option value="PND3">ภ.ง.ด.3 บุคคลธรรมดา</option><option value="PND53">ภ.ง.ด.53 นิติบุคคล</option></select></div>
+                <div class="ma-field"><label>วิธีชำระ</label><select name="payment_method" required><option value="cash">เงินสด</option><option value="transfer">โอนธนาคาร</option></select></div>
+                <div class="ma-field"><label>บัญชีธนาคาร</label><select name="bank_account_id"><option value="">-</option>@foreach($bankAccounts as $account)<option value="{{ $account->id }}">{{ $account->bank_name }} · {{ $account->account_no }}</option>@endforeach</select></div>
+                <div class="ma-field"><label>เลขอ้างอิงการจ่าย</label><input name="payment_reference" value="{{ old('payment_reference') }}"></div>
+                <div class="ma-field"><label>หลักฐาน PDF/JPG/PNG</label><input type="file" name="evidence" accept=".pdf,.jpg,.jpeg,.png"></div>
+                <div class="ma-field span-4"><label>รายละเอียดค่าใช้จ่าย</label><textarea name="description" required>{{ old('description') }}</textarea></div>
+                <div class="span-4 text-end"><button class="btn btn-primary px-4"><i class="bi bi-check2-circle me-1"></i>บันทึกและลงบัญชี</button></div>
+            </form>
+            <div class="ma-table-wrap mt-4"><table class="ma-table"><thead><tr><th>วันที่/เลขที่</th><th>สาขา</th><th>ผู้ขาย</th><th>รายการ</th><th>ใบกำกับ</th><th class="text-end">ก่อน VAT</th><th class="text-end">VAT</th><th class="text-end">WHT</th><th class="text-end">รวม</th></tr></thead><tbody>@forelse($expenses as $e)<tr><td>{{ $e->expense_date->thaiDate() }}<div class="text-muted">{{ $e->document->doc_number }}</div></td><td>{{ $e->branch->code }}</td><td>{{ $e->supplier_name }}<div class="text-muted">{{ $e->supplier_tax_id }}</div></td><td>{{ $e->description }}</td><td>{{ $e->tax_invoice_no ?: '-' }}</td><td class="text-end">{{ number_format((float)$e->base_amount,2) }}</td><td class="text-end">{{ number_format((float)$e->vat_amount,2) }}</td><td class="text-end">{{ number_format((float)$e->withholding_amount,2) }}</td><td class="text-end fw-bold">{{ number_format((float)$e->total_amount,2) }}</td></tr>@empty<tr><td colspan="9" class="text-center text-muted py-4">ยังไม่มีค่าใช้จ่ายเดือนนี้</td></tr>@endforelse</tbody></table></div>{{ $expenses->links() }}
+        </div>
+
+        <div class="ma-section" x-show="tab==='bank'">
+            <div class="ma-head"><h2>นำเข้าและตรวจ Statement</h2></div>
+            <div class="ma-note mb-3">ไฟล์ CSV ต้องมีหัวคอลัมน์ <strong>date, description, amount, balance</strong> หรือชื่อไทย <strong>วันที่, รายละเอียด, จำนวนเงิน, คงเหลือ</strong> โดยยอดเงินเข้าเป็นบวกและเงินออกเป็นลบ</div>
+            <form method="post" action="{{ route('monthly-accounting.statements.import') }}" enctype="multipart/form-data" class="d-flex gap-2 flex-wrap align-items-end mb-4">@csrf
+                <div class="ma-field"><label>บัญชีธนาคาร</label><select name="bank_account_id" required><option value="">เลือกบัญชี</option>@foreach($bankAccounts as $account)<option value="{{ $account->id }}">{{ $account->bank_name }} · {{ $account->account_no }}</option>@endforeach</select></div>
+                <div class="ma-field"><label>Statement CSV</label><input type="file" name="statement_file" accept=".csv,.txt" required></div><button class="btn btn-primary"><i class="bi bi-upload me-1"></i>นำเข้า</button>
+            </form>
+            <form method="post" action="{{ route('monthly-accounting.statements.auto-reconcile') }}" class="mb-3">@csrf<input type="hidden" name="period" value="{{ $period }}">@if($branchId)<input type="hidden" name="branch_id" value="{{ $branchId }}">@endif<button class="btn btn-outline-primary"><i class="bi bi-magic me-1"></i>จับคู่อัตโนมัติ</button></form>
+            <div class="ma-table-wrap"><table class="ma-table"><thead><tr><th>วันที่</th><th>บัญชี</th><th>รายละเอียด</th><th class="text-end">Statement</th><th>สถานะ</th><th>ตรวจเทียบหลักฐาน</th></tr></thead><tbody>@forelse($statements as $s)@php($status=$s->reconciliation?->status??'pending')<tr><td>{{ $s->statement_date->thaiDate() }}</td><td>{{ $s->bankAccount->bank_name }}<div class="text-muted">{{ $s->bankAccount->account_no }}</div></td><td>{{ $s->description }}</td><td class="text-end fw-bold">{{ number_format((float)$s->amount,2) }}</td><td><span class="status-pill status-{{ $status }}">{{ ['matched'=>'ตรงแล้ว','mismatch'=>'ยอดต่าง','pending'=>'รอตรวจ'][$status]??$status }}</span></td><td><button type="button" class="btn btn-sm btn-light border" @click="reconcileId=reconcileId==={{ $s->id }}?null:{{ $s->id }}"><i class="bi bi-search me-1"></i>ตรวจ</button></td></tr><tr x-show="reconcileId==={{ $s->id }}"><td colspan="6"><form method="post" action="{{ route('monthly-accounting.statements.reconcile',$s) }}" enctype="multipart/form-data" class="reconcile-form">@csrf<div class="ma-field"><label>ประเภท</label><select name="match_type"><option value="pos_transfer">ยอดโอนจาก POS</option><option value="expense">ค่าใช้จ่าย</option><option value="payment">รับ/จ่ายชำระ</option><option value="other">อื่น ๆ</option></select></div><div class="ma-field"><label>ยอดตามหลักฐาน</label><input type="number" step="0.01" min="0" name="expected_amount" value="{{ abs((float)$s->reconciliation?->expected_amount ?: (float)$s->amount) }}" required></div><div class="ma-field"><label>เลขอ้างอิง</label><input name="reference" value="{{ $s->reconciliation?->reference }}"></div><div class="ma-field wide"><label>สลิป/หลักฐาน</label><input type="file" name="slip" accept=".pdf,.jpg,.jpeg,.png"></div><input type="hidden" name="branch_id" value="{{ $s->bankAccount->branch_id }}"><button class="btn btn-primary">บันทึกผล</button></form></td></tr>@empty<tr><td colspan="6" class="text-center text-muted py-4">ยังไม่มี Statement เดือนนี้</td></tr>@endforelse</tbody></table></div>
+        </div>
+
+        <div class="ma-section" x-show="tab==='export'">
+            <div class="export-band ma-panel">
+                <div><h3>สร้างชุดส่งสำนักงานบัญชี</h3><p>ZIP ประกอบด้วย Summary, Bank Reconciliation, ภาษีขาย, ภาษีซื้อ, ค่าใช้จ่าย, WHT, GL, manifest และไฟล์หลักฐาน</p></div>
+                <form method="post" action="{{ route('monthly-accounting.export') }}">@csrf<input type="hidden" name="period" value="{{ $period }}">@if($branchId)<input type="hidden" name="branch_id" value="{{ $branchId }}">@endif<button class="btn btn-primary" @disabled($stats['unreconciled_count']>0)><i class="bi bi-file-earmark-zip me-1"></i>สร้างและดาวน์โหลด</button></form>
+            </div>
+            @if($stats['unreconciled_count']>0)<div class="alert alert-warning mt-3 mb-3"><i class="bi bi-exclamation-triangle me-2"></i>ต้องตรวจ Statement ให้ตรงครบก่อนสร้างชุดส่งออก</div>@endif
+            <div class="ma-note mt-3">ชุด ZIP นี้เป็นข้อมูลส่งมอบให้สำนักงานบัญชี ไม่ใช่ไฟล์ยื่นกรมสรรพากรโดยตรง สำนักงานบัญชีต้องตรวจและนำข้อมูลไปจัดทำ ภ.พ.30, ภ.ง.ด.3/53 หรือระบบ e-Tax ตามสถานะการจดทะเบียนของบริษัท</div>
+            <div class="ma-table-wrap mt-3"><table class="ma-table"><thead><tr><th>เวลาส่งออก</th><th>เดือน</th><th>ไฟล์</th><th>SHA-256</th><th>ขนาด</th><th></th></tr></thead><tbody>@forelse($exportRuns as $run)<tr><td>{{ $run->exported_at->thaiDate(true) }}</td><td>{{ $run->period }}</td><td>{{ basename($run->file_name) }}</td><td><code>{{ substr($run->file_hash,0,16) }}…</code></td><td>{{ number_format($run->file_size/1024,1) }} KB</td><td><a class="btn btn-sm btn-light border" href="{{ route('monthly-accounting.exports.download',$run) }}"><i class="bi bi-download"></i></a></td></tr>@empty<tr><td colspan="6" class="text-center text-muted py-4">ยังไม่เคยส่งออกเดือนนี้</td></tr>@endforelse</tbody></table></div>
+        </div>
+    </section>
+
+    <div class="account-modal-backdrop" x-show="accountModalOpen" x-transition.opacity @keydown.escape.window="accountModalOpen = false">
+        <div class="account-modal" @click.outside="accountModalOpen = false" x-transition>
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div><h2 class="h5 fw-bold mb-1" x-text="accountEditingId ? 'แก้ไขบัญชีค่าใช้จ่าย' : 'เพิ่มบัญชีค่าใช้จ่าย'"></h2><p class="text-muted small mb-0">เพิ่มหรือแก้ไขแล้วกลับมาบันทึกค่าใช้จ่ายต่อได้ทันที</p></div>
+                <button type="button" class="btn btn-light rounded-circle" @click="accountModalOpen = false"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <form method="post" :action="accountFormAction">
+                @csrf
+                <template x-if="accountEditingId"><input type="hidden" name="_method" value="PUT"></template>
+                <input type="hidden" name="account_type" value="expense">
+                <input type="hidden" name="return_to" value="{{ request()->getRequestUri() }}">
+                <div class="row g-3">
+                    <div class="col-5"><label class="form-label small text-muted">รหัสบัญชี</label><input name="code" x-model="accountCode" class="form-control" required placeholder="เช่น 510101"></div>
+                    <div class="col-7"><label class="form-label small text-muted">ชื่อบัญชีภาษาไทย</label><input name="name_th" x-model="accountNameTh" class="form-control" required placeholder="เช่น ค่าไฟฟ้า"></div>
+                    <div class="col-12"><label class="form-label small text-muted">ชื่อบัญชีภาษาอังกฤษ (ถ้ามี)</label><input name="name_en" x-model="accountNameEn" class="form-control" placeholder="Electricity expense"></div>
+                </div>
+                <div class="account-list mt-4"><div class="small fw-bold text-muted mb-2">บัญชีค่าใช้จ่ายที่มีอยู่</div>@forelse($expenseAccounts as $account)<div class="account-list-row"><span><strong>{{ $account->code }}</strong> · {{ $account->name_th }}</span><button type="button" class="btn btn-sm btn-light border" @click="openAccountEdit(@js($account->id), @js($account->code), @js($account->name_th), @js($account->name_en ?? ''))">แก้ไข</button></div>@empty<div class="small text-muted">ยังไม่มีบัญชีค่าใช้จ่าย</div>@endforelse</div>
+                <div class="d-flex justify-content-end gap-2 mt-4"><button type="button" class="btn btn-light border" @click="accountModalOpen = false">ยกเลิก</button><button type="submit" class="btn btn-primary"><i class="bi bi-check2 me-1"></i>บันทึกบัญชี</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+@endsection
+
+@push('head')
+<style>
+    .account-modal-backdrop{position:fixed;inset:0;z-index:2050;background:rgba(15,23,42,.42);display:flex;align-items:center;justify-content:center;padding:18px}.account-modal{width:min(700px,100%);max-height:calc(100vh - 36px);overflow:auto;background:#fff;border-radius:10px;padding:22px;box-shadow:0 24px 80px rgba(15,23,42,.24)}.account-list{border-top:1px solid var(--erp-success-soft);padding-top:12px}.account-list-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--erp-surface-2);color:var(--erp-muted);font-size:12px}.account-list-row:last-child{border-bottom:0}
+</style>
+@endpush

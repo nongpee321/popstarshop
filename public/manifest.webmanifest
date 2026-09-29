@@ -1,0 +1,36 @@
+{
+  "name": "PopCentral POS",
+  "short_name": "PopCentral POS",
+  "id": "/pos",
+  "description": "PopCentral Point-of-Sale — ระบบขายหน้าร้าน",
+  "start_url": "/pos",
+  "scope": "/pos",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "fullscreen"],
+  "background_color": "#f3f7fb",
+  "theme_color": "#1585c0",
+  "orientation": "landscape",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "./pos-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "เปิด POS",
+      "short_name": "POS",
+      "url": "./pos",
+      "icons": [
+        {
+          "src": "./pos-icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}
