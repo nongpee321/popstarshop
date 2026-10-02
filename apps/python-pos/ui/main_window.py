@@ -94,19 +94,23 @@ class MainWindow(QMainWindow):
             
     def check_config_and_start(self):
         if not self.config.get('pos_token'):
-            url, ok1 = QInputDialog.getText(self, "ตั้งค่าเชื่อมต่อระบบ", "กรุณาใส่ API URL (เช่น http://localhost:8000):", text=self.config.get('api_url'))
+            url, ok1 = QInputDialog.getText(self, "ตั้งค่าเชื่อมต่อเซิร์ฟเวอร์", "กรุณาใส่ API URL (เช่น http://localhost:8000):", text=self.config.get('api_url', 'http://localhost:8000'))
             if not ok1: return
+            url = url.strip()
+            if url.startswith('http://') and not ('localhost' in url or '127.0.0.1' in url):
+                QMessageBox.critical(self, "Security Error", "Production API ต้องใช้ https:// เท่านั้นเพื่อความปลอดภัยของระบบ!")
+                return
+                
             token, ok2 = QInputDialog.getText(self, "ตั้งค่า Token", "กรุณาใส่ POS Device Token:")
             if not ok2: return
             
-            self.config['api_url'] = url.strip()
+            self.config['api_url'] = url
             self.config['pos_token'] = token.strip()
             self.save_config()
             
         self.start_sync()
-        self.load_products_from_db()
         self.check_active_shift()
-        
+
     def start_sync(self):
         self.sync_worker = SyncWorker(self.db_path, self.config['api_url'], self.config['pos_token'])
         self.sync_worker.sync_started.connect(self.on_sync_started)
@@ -407,7 +411,7 @@ class MainWindow(QMainWindow):
             logo.setText("PopCentral POS")
             logo.setStyleSheet("font-size: 20px; font-weight: bold; color: #b91c1c;")
         
-        version_label = QLabel("v1.10.86")
+        version_label = QLabel("v1.10.99")
         version_label.setStyleSheet("font-size: 14px; color: #64748b; font-weight: bold; background: #e2e8f0; padding: 2px 8px; border-radius: 10px;")
         
         self.network_status = QLabel("🟡 Offline")
@@ -455,7 +459,7 @@ class MainWindow(QMainWindow):
         self.logout_btn.clicked.connect(self.logout_cashier)
         
         # Shift Button
-        self.shift_btn = QPushButton("💰 เปิดกะ")
+        self.shift_btn = QPushButton("🔒 เปิดกะ (Shift Open)")
         self.shift_btn.setToolTip('จัดการกะ (Shift)')
         from PySide6.QtWidgets import QSizePolicy
         self.shift_btn.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
@@ -621,7 +625,7 @@ class MainWindow(QMainWindow):
                     res = requests.post(
                         f"{self.config['api_url']}/api/pos/shift/open",
                         headers=headers,
-                        json={'opening_cash': dialog.opening_cash, 'cashier': self.config.get('cashier_name', 'Unknown'), 'branch': 'สาขา 6'},
+                        json={'opening_cash': dialog.opening_cash, 'cashier': self.config.get('cashier_name', 'Unknown'), },
                         timeout=15
                     )
                     if res.status_code == 200:
@@ -651,7 +655,7 @@ class MainWindow(QMainWindow):
                 shift.sync_status = 'synced' if synced else 'pending'
                 session.commit()
             self.current_shift = None
-            self.shift_btn.setText("🔒 เปิดกะการขาย")
+            self.shift_btn.setText("🔒 เปิดกะ (Shift Open)")
             self.shift_btn.setStyleSheet("QPushButton { background-color: #f59e0b; border: none; color: white; padding: 5px 10px; border-radius: 6px; font-weight: bold;} QPushButton:hover { background-color: #d97706; }")
             if hasattr(self, 'start_sync'):
                 self.start_sync()
@@ -676,7 +680,7 @@ class MainWindow(QMainWindow):
                 'local_id': new_shift.id,
                 'expected_cash': opening_cash
             }
-            self.shift_btn.setText("🔓 ปิดกะ (สาขา: 6)")
+            self.shift_btn.setText("🔓 ปิดกะ (Shift Close)")
             self.shift_btn.setStyleSheet("QPushButton { background-color: #3b82f6; border: none; color: white; padding: 5px 10px; border-radius: 6px; font-weight: bold;} QPushButton:hover { background-color: #2563eb; }")
             if hasattr(self, 'start_sync'):
                 self.start_sync()
@@ -702,7 +706,7 @@ class MainWindow(QMainWindow):
                 shift = res.json().get('shift')
                 if shift:
                     self.current_shift = shift
-                    self.shift_btn.setText("🔓 เปิดกะ (Shift Open)")
+                    self.shift_btn.setText("🔓 ปิดกะ (Shift Close)")
                     self.shift_btn.setStyleSheet("QPushButton { background-color: #3b82f6; border: none; color: white; padding: 5px 10px; border-radius: 6px; font-weight: bold;} QPushButton:hover { background-color: #2563eb; }")
         except:
             pass
@@ -747,17 +751,18 @@ class MainWindow(QMainWindow):
         printer_name = self.config.get('receipt_printer', '')
         if not printer_name:
             from PySide6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "แจ้งเตือน", "ยังไม่ได้ตั้งค่าเครื่องพิมพ์ในหน้าตั้งค่า")
+            QMessageBox.warning(self, "แจ้งเตือน", "ไม่ได้ตั้งค่าเครื่องพิมพ์ใบเสร็จ ไม่สามารถเปิดลิ้นชักได้")
             return
             
         expected_pin = self.config.get('cashier_pin', '')
-        if not expected_pin:
+        cashier_name = self.config.get('cashier_name', '')
+        if not expected_pin or cashier_name == 'Unknown' or not cashier_name:
             from PySide6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "แจ้งเตือน", "กรุณาออกจากระบบและเข้าสู่ระบบใหม่อีกครั้งเพื่ออัปเดตรหัสผ่านลิ้นชัก")
+            QMessageBox.warning(self, "แจ้งเตือน", "กรุณาเข้าสู่ระบบแคชเชียร์ก่อนทำการเปิดลิ้นชัก (Login Required)")
             return
             
         from PySide6.QtWidgets import QInputDialog, QLineEdit, QMessageBox
-        pwd, ok = QInputDialog.getText(self, "ยืนยันตัวตน", "กรุณาใส่รหัสผ่าน Cashier:", QLineEdit.Password)
+        pwd, ok = QInputDialog.getText(self, "ยืนยันตัวตน", f"เปิดลิ้นชักสำหรับ {cashier_name}\nกรุณาใส่รหัสพนักงาน Cashier PIN:", QLineEdit.Password)
         if not ok:
             return
         if pwd != expected_pin:
@@ -768,15 +773,21 @@ class MainWindow(QMainWindow):
             from ui.receipt_dialog import open_cash_drawer
             open_cash_drawer(printer_name)
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"ไม่สามารถเปิดลิ้นชักได้:\n{str(e)}")
+            error_msg = str(e).replace(self.config.get('pos_token', ''), '***TOKEN_HIDDEN***')
+            QMessageBox.critical(self, "Error", f"ไม่สามารถเชื่อมต่อเครื่องพิมพ์ได้:\n{error_msg}")
 
     def open_settings(self):
-        url, ok1 = QInputDialog.getText(self, "ตั้งค่าเชื่อมต่อระบบ", "กรุณาใส่ API URL:", text=self.config.get('api_url', 'http://localhost:8000'))
+        url, ok1 = QInputDialog.getText(self, "ตั้งค่าเชื่อมต่อเซิร์ฟเวอร์", "กรุณาใส่ API URL:", text=self.config.get('api_url', 'http://localhost:8000'))
         if not ok1: return
+        url = url.strip()
+        if url.startswith('http://') and not ('localhost' in url or '127.0.0.1' in url):
+            QMessageBox.critical(self, "Security Error", "Production API ต้องใช้ https:// เท่านั้นเพื่อความปลอดภัยของระบบ!")
+            return
+            
         token, ok2 = QInputDialog.getText(self, "ตั้งค่า Token", "กรุณาใส่ POS Device Token:", text=self.config.get('pos_token', ''))
         if not ok2: return
         
-        self.config['api_url'] = url.strip()
+        self.config['api_url'] = url
         self.config['pos_token'] = token.strip()
         self.save_config()
         
@@ -786,7 +797,7 @@ class MainWindow(QMainWindow):
             
         # Restart sync
         self.start_sync()
-        QMessageBox.information(self, "สำเร็จ", "บันทึกการตั้งค่าแล้ว ระบบกำลังซิงค์ข้อมูลใหม่")
+        QMessageBox.information(self, "สำเร็จ", "บันทึกการตั้งค่าเรียบร้อย ระบบกำลังซิงค์ข้อมูลใหม่")
 
     def create_products_panel(self):
         frame = QFrame()

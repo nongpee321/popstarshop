@@ -86,21 +86,32 @@ class CashierLoginDialog(QDialog):
                 timeout=5
             )
             res.encoding = 'utf-8'
-            data = res.json()
-            if res.status_code == 200 and data.get('success'):
-                self.selected_cashier = data.get('cashier', {})
-                self.entered_pin = pin
-                self.accept()
+            if res.status_code == 403:
+                QMessageBox.warning(self, "Access Denied", "ผู้ใช้งานนี้ไม่มีสิทธิ์เข้าใช้ระบบ POS (POS Rights Required)")
+            elif res.status_code in (200, 422, 401, 404):
+                try:
+                    data = res.json()
+                except:
+                    data = {}
+                if res.status_code == 200 and data.get('success'):
+                    self.selected_cashier = data.get('cashier', {})
+                    if 'code' not in self.selected_cashier:
+                        self.selected_cashier['code'] = code
+                    self.entered_pin = pin
+                    self.accept()
+                else:
+                    QMessageBox.warning(self, "Login Failed", data.get('message', 'เข้าสู่ระบบล้มเหลว (ตรวจสอบรหัสผ่าน)'))
             else:
-                msg = data.get('message', 'รหัสพนักงานหรือรหัสผ่านไม่ถูกต้อง')
-                QMessageBox.warning(self, "เข้าสู่ระบบล้มเหลว", msg)
+                QMessageBox.warning(self, "Error", f"เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (รหัส {res.status_code})")
+
         except Exception as e:
-            # Fallback to Offline Login
-            reply = QMessageBox.question(self, "โหมดออฟไลน์", f"ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ ต้องการเข้าสู่ระบบแบบออฟไลน์ด้วยรหัส {code} หรือไม่?", QMessageBox.Yes | QMessageBox.No)
+            error_msg = str(e).replace(self.pos_token, '***TOKEN_HIDDEN***')
+            reply = QMessageBox.question(self, "Offline Mode", f"ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้:\n{error_msg}\n\nต้องการเข้าสู่ระบบแบบออฟไลน์ด้วยรหัส {code} หรือไม่?", QMessageBox.Yes | QMessageBox.No)
             if reply == QMessageBox.Yes:
                 self.entered_pin = pin
                 self.selected_cashier = {'code': code, 'name': f"พนักงาน (ออฟไลน์: {code})"}
                 self.accept()
+
         finally:
             self.login_btn.setText("เข้าสู่ระบบ")
             self.login_btn.setEnabled(True)

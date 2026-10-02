@@ -1,9 +1,10 @@
 ﻿import sys
 import os
 import io
+import time
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                               QLabel, QTableWidget, QTableWidgetItem, QHeaderView, QFrame)
-from PySide6.QtCore import Qt
+                               QLabel, QTableWidget, QTableWidgetItem, QHeaderView, QFrame, QAbstractItemView)
+from PySide6.QtCore import Qt, QTimer, QDateTime
 from PySide6.QtGui import QPixmap, QFont, QColor, QImage
 import qrcode
 
@@ -28,237 +29,299 @@ def generate_promptpay(promptpay_id: str, amount: float = 0) -> str:
     elif len(promptpay_id) == 10:
         target = f"01130066{promptpay_id[1:]}"
     else:
-        target = f"01130066{promptpay_id[1:]}"
-    merchant_info = f"0016A000000677010111{target}"
-    payload = [
-        "000201",
-        "010212", 
-        f"29{len(merchant_info):02d}{merchant_info}",
-        "5802TH",
-        "5303764",
-    ]
-    if amount > 0:
-        amt_str = f"{amount:.2f}"
-        payload.append(f"54{len(amt_str):02d}{amt_str}")
-    payload.append("6304")
-    data_to_crc = "".join(payload)
-    return data_to_crc + crc16(data_to_crc)
-
+        target = "01130066000000000"
+    
+    amount_str = f"{amount:.2f}"
+    payload = f"00020101021129370016A000000677010111{target}5802TH5303764540{len(amount_str):02d}{amount_str}6304"
+    return payload + crc16(payload)
 
 class CustomerDisplayWindow(QMainWindow):
-    def __init__(self, parent=None, config=None):
-        super().__init__(parent)
-        self.config = config or {}
-        self.setWindowTitle("Customer Display")
-        self.setMinimumSize(1024, 768)
-        
-        # Clean Modern UI (Convenience Store Style)
-        self.setStyleSheet("""
-            QMainWindow { background-color: #f0f2f5; }
-            QLabel { font-family: 'Tahoma', sans-serif; }
-            
-            /* Table Styles */
-            QTableWidget { 
-                background-color: white; 
-                color: #1f2937;
-                border: 1px solid #d1d5db; 
-                border-radius: 8px;
-                font-size: 20px;
-                selection-background-color: transparent;
-            }
-            QTableWidget::item { padding: 15px; border-bottom: 1px solid #f3f4f6; }
-            QHeaderView::section {
-                background-color: #007934; /* 7-Eleven Green */
-                color: white;
-                font-size: 22px;
-                font-weight: bold;
-                border: none;
-                padding: 12px;
-            }
-            
-            /* Total Box */
-            #totalBox {
-                background-color: white;
-                border-radius: 12px;
-                border: 2px solid #007934;
-            }
-            #totalLabelTitle {
-                font-size: 24px;
-                font-weight: bold;
-                color: #374151;
-                padding: 10px;
-            }
-            #totalLabelAmount {
-                font-size: 64px;
-                font-weight: 900;
-                color: #E21B22; /* 7-Eleven Red */
-                padding: 10px;
-            }
-            
-            #statusLabel {
-                font-size: 24px;
-                font-weight: bold;
-                color: #007934;
-                padding: 10px;
-            }
-        """)
+    def __init__(self, main_window=None):
+        super().__init__()
+        self.main_window = main_window
+        self.config = main_window.config if main_window else {}
+        self.setWindowTitle("Customer Display - PopCentral POS")
+        self.resize(1024, 768)
+        self.setStyleSheet("QMainWindow { background-color: #f1f5f9; }")
 
         central = QWidget()
         self.setCentralWidget(central)
         
-        main_layout = QHBoxLayout(central)
-        main_layout.setContentsMargins(30, 30, 30, 30)
-        main_layout.setSpacing(30)
-        
-        # LEFT PANEL (Cart)
-        left_panel = QVBoxLayout()
+        main_layout = QVBoxLayout(central)
+        main_layout.setContentsMargins(15, 15, 15, 10)
+        main_layout.setSpacing(10)
+
+        # ---------------- HEADER ----------------
+        header_layout = QHBoxLayout()
+        header_layout.setAlignment(Qt.AlignTop)
         
         welcome_lbl = QLabel("ยินดีต้อนรับ (Welcome)")
-        welcome_lbl.setFont(QFont("Tahoma", 32, QFont.Bold))
-        welcome_lbl.setStyleSheet("color: #007934; margin-bottom: 10px;")
-        left_panel.addWidget(welcome_lbl)
+        welcome_lbl.setStyleSheet("font-size: 30px; font-weight: 900; color: #059669; margin: 0px; padding: 0px;")
+        header_layout.addWidget(welcome_lbl, 0, Qt.AlignTop)
         
+        header_layout.addStretch()
+        
+        self.clock_lbl = QLabel()
+        self.clock_lbl.setStyleSheet("background-color: white; border: 1px solid #e2e8f0; border-radius: 15px; padding: 5px 15px; font-size: 14px; font-weight: bold; color: #334155;")
+        header_layout.addWidget(self.clock_lbl, 0, Qt.AlignTop)
+        
+        main_layout.addLayout(header_layout)
+
+        # ---------------- CONTENT AREA ----------------
+        content_layout = QHBoxLayout()
+        content_layout.setSpacing(15)
+
+        # LEFT PANEL (Cart)
+        left_panel = QFrame()
+        left_panel.setStyleSheet("QFrame { background-color: white; border-radius: 10px; border: 1px solid #e2e8f0; }")
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(0)
+
+        tbl_header_frame = QFrame()
+        tbl_header_frame.setStyleSheet("QFrame { background-color: #059669; border-top-left-radius: 10px; border-top-right-radius: 10px; border-bottom-left-radius: 0px; border-bottom-right-radius: 0px; }")
+        tbl_header_layout = QHBoxLayout(tbl_header_frame)
+        tbl_header_layout.setContentsMargins(15, 10, 15, 10)
+        
+        lbl_h1 = QLabel("รายการสินค้า")
+        lbl_h2 = QLabel("จำนวน")
+        lbl_h3 = QLabel("ราคา")
+        lbl_h4 = QLabel("รวม")
+        for lbl in [lbl_h1, lbl_h2, lbl_h3, lbl_h4]:
+            lbl.setStyleSheet("color: white; font-weight: bold; font-size: 15px; border: none; background: transparent;")
+        
+        lbl_h2.setFixedWidth(60)
+        lbl_h3.setFixedWidth(80)
+        lbl_h4.setFixedWidth(90)
+        lbl_h2.setAlignment(Qt.AlignCenter)
+        lbl_h3.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        lbl_h4.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        tbl_header_layout.addWidget(lbl_h1)
+        tbl_header_layout.addWidget(lbl_h2)
+        tbl_header_layout.addWidget(lbl_h3)
+        tbl_header_layout.addWidget(lbl_h4)
+        left_layout.addWidget(tbl_header_frame)
+
         self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["รายการสินค้า", "จำนวน", "ราคา", "รวม"])
-        h = self.table.horizontalHeader()
-        h.setSectionResizeMode(0, QHeaderView.Stretch)
-        h.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        h.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        h.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.table.setFocusPolicy(Qt.NoFocus)
+        self.table.horizontalHeader().hide()
         self.table.verticalHeader().hide()
         self.table.setShowGrid(False)
-        left_panel.addWidget(self.table)
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.setSelectionMode(QAbstractItemView.NoSelection)
+        self.table.setFocusPolicy(Qt.NoFocus)
+        # Rounded bottom corners for table area since footer is removed
+        self.table.setStyleSheet("QTableWidget { border: none; background-color: white; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; } QTableWidget::item { border-bottom: 1px solid #f1f5f9; padding: 5px; }")
         
-        # RIGHT PANEL (Totals & QR)
+        h = self.table.horizontalHeader()
+        h.setSectionResizeMode(0, QHeaderView.Stretch)
+        h.setSectionResizeMode(1, QHeaderView.Fixed)
+        h.setSectionResizeMode(2, QHeaderView.Fixed)
+        h.setSectionResizeMode(3, QHeaderView.Fixed)
+        self.table.setColumnWidth(1, 60)
+        self.table.setColumnWidth(2, 80)
+        self.table.setColumnWidth(3, 90)
+        
+        left_layout.addWidget(self.table)
+        content_layout.addWidget(left_panel, 6)
+
+        # RIGHT PANEL
         right_panel = QVBoxLayout()
+        right_panel.setSpacing(10)
         right_panel.setAlignment(Qt.AlignTop)
-        
-        # Total Box
+
         total_box = QFrame()
-        total_box.setObjectName("totalBox")
-        total_box_layout = QVBoxLayout(total_box)
-        total_box_layout.setAlignment(Qt.AlignCenter)
+        total_box.setStyleSheet("QFrame { background-color: white; border-radius: 12px; border: 2px solid #10b981; }")
+        total_layout = QVBoxLayout(total_box)
+        total_layout.setContentsMargins(15, 15, 15, 15)
         
-        self.status_lbl = QLabel("ยอดชำระสุทธิ (Total)")
-        self.status_lbl.setObjectName("totalLabelTitle")
-        self.status_lbl.setAlignment(Qt.AlignCenter)
-        total_box_layout.addWidget(self.status_lbl)
+        total_title = QLabel("ยอดชำระสุทธิ (Total)")
+        total_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #1e293b; border: none;")
+        total_title.setAlignment(Qt.AlignCenter)
+        total_layout.addWidget(total_title)
         
         self.total_lbl = QLabel("0.00")
-        self.total_lbl.setObjectName("totalLabelAmount")
+        self.total_lbl.setStyleSheet("font-size: 60px; font-weight: 900; color: #dc2626; border: none; font-family: Arial;")
         self.total_lbl.setAlignment(Qt.AlignCenter)
-        total_box_layout.addWidget(self.total_lbl)
+        total_layout.addWidget(self.total_lbl)
         
+        total_currency = QLabel("● สกุลเงิน: บาท (THB)")
+        total_currency.setStyleSheet("font-size: 13px; font-weight: bold; color: #64748b; border: none;")
+        total_currency.setAlignment(Qt.AlignCenter)
+        total_layout.addWidget(total_currency)
+        
+        subtotal_frame = QFrame()
+        subtotal_frame.setStyleSheet("QFrame { background-color: #f0fdf4; border-radius: 10px; border: none; margin-top: 10px; }")
+        subtotal_layout = QHBoxLayout(subtotal_frame)
+        
+        sub1 = QVBoxLayout()
+        lbl_s1 = QLabel("ราคาก่อนภาษี")
+        lbl_s1.setStyleSheet("color: #475569; font-size: 13px; font-weight: bold;")
+        self.subtotal_lbl = QLabel("0.00 ฿")
+        self.subtotal_lbl.setStyleSheet("color: #1e293b; font-size: 15px; font-weight: bold;")
+        sub1.addWidget(lbl_s1)
+        sub1.addWidget(self.subtotal_lbl)
+        
+        sub2 = QVBoxLayout()
+        lbl_s2 = QLabel("VAT 7%")
+        lbl_s2.setStyleSheet("color: #475569; font-size: 13px; font-weight: bold;")
+        self.vat_lbl = QLabel("0.00 ฿")
+        self.vat_lbl.setStyleSheet("color: #1e293b; font-size: 15px; font-weight: bold;")
+        sub2.addWidget(lbl_s2)
+        sub2.addWidget(self.vat_lbl)
+        
+        sub3 = QVBoxLayout()
+        lbl_s3 = QLabel("ส่วนลด")
+        lbl_s3.setStyleSheet("color: #059669; font-size: 13px; font-weight: bold;")
+        self.disc_lbl = QLabel("0.00 ฿")
+        self.disc_lbl.setStyleSheet("color: #10b981; font-size: 15px; font-weight: bold;")
+        sub3.addWidget(lbl_s3)
+        sub3.addWidget(self.disc_lbl)
+        
+        subtotal_layout.addLayout(sub1)
+        subtotal_layout.addLayout(sub2)
+        subtotal_layout.addLayout(sub3)
+        
+        total_layout.addWidget(subtotal_frame)
         right_panel.addWidget(total_box)
+
+        # QR BOX
+        self.qr_box = QFrame()
+        self.qr_box.setStyleSheet("QFrame { background-color: white; border-radius: 12px; border: 1px solid #e2e8f0; }")
+        qr_layout = QVBoxLayout(self.qr_box)
+        qr_layout.setContentsMargins(15, 10, 15, 10)
         
-        # Spacing
-        right_panel.addSpacing(10)
+        qr_h = QHBoxLayout()
+        qr_badge = QLabel("THAI QR")
+        qr_badge.setStyleSheet("background-color: #1e3a8a; color: white; border-radius: 6px; padding: 4px 8px; font-weight: bold; font-size: 12px;")
+        qr_title = QLabel("พร้อมเพย์ (PromptPay)")
+        qr_title.setStyleSheet("font-weight: bold; font-size: 15px; color: #1e293b; border: none;")
+        qr_status = QLabel("รอสแกน")
+        qr_status.setStyleSheet("background-color: #d1fae5; color: #059669; border-radius: 10px; padding: 4px 10px; font-weight: bold; font-size: 12px;")
         
-        # QR Code Area
-        self.qr_container = QWidget()
-        qr_layout = QVBoxLayout(self.qr_container)
-        qr_layout.setAlignment(Qt.AlignCenter)
+        qr_h.addWidget(qr_badge)
+        qr_h.addWidget(qr_title)
+        qr_h.addStretch()
+        qr_h.addWidget(qr_status)
+        qr_layout.addLayout(qr_h)
         
-        self.qr_title = QLabel("กรุณาสแกนจ่ายเงิน")
-        self.qr_title.setObjectName("statusLabel")
-        self.qr_title.setAlignment(Qt.AlignCenter)
-        qr_layout.addWidget(self.qr_title)
+        qr_body = QVBoxLayout()
+        qr_body.setAlignment(Qt.AlignCenter)
         
         self.qr_image = QLabel()
-        self.qr_image.setFixedSize(280, 280) # Fixed size to prevent cutting
-        self.qr_image.setScaledContents(True) # Ensure it fits exactly
-        self.qr_image.setStyleSheet("background-color: white; padding: 15px; border-radius: 12px; border: 3px solid #007934;")
-        qr_layout.addWidget(self.qr_image)
+        self.qr_image.setFixedSize(220, 220)
+        self.qr_image.setStyleSheet("border: 2px solid #e2e8f0; border-radius: 8px; padding: 5px;")
+        self.qr_image.setScaledContents(True)
         
         self.qr_timer_lbl = QLabel("")
-        self.qr_timer_lbl.setObjectName("statusLabel")
+        self.qr_timer_lbl.setStyleSheet("color: #dc2626; font-size: 16px; font-weight: bold; border: none; margin-top: 10px;")
         self.qr_timer_lbl.setAlignment(Qt.AlignCenter)
-        self.qr_timer_lbl.setStyleSheet("color: #E21B22; font-size: 24px; font-weight: bold;")
-        qr_layout.addWidget(self.qr_timer_lbl)
         
-        right_panel.addWidget(self.qr_container)
-        self.qr_container.hide()
+        qr_body.addWidget(self.qr_image, 0, Qt.AlignCenter)
+        qr_body.addWidget(self.qr_timer_lbl, 0, Qt.AlignCenter)
         
-        # Thank you message
-        self.thank_lbl = QLabel("ขอบคุณที่ใช้บริการ\\nโอกาสหน้าเชิญใหม่ครับ/ค่ะ")
-        self.thank_lbl.setFont(QFont("Tahoma", 36, QFont.Bold))
-        self.thank_lbl.setStyleSheet("color: #007934; margin-top: 50px;")
-        self.thank_lbl.setAlignment(Qt.AlignCenter)
-        self.thank_lbl.hide()
-        right_panel.addWidget(self.thank_lbl)
+        qr_layout.addLayout(qr_body)
         
-        # Add layouts
-        main_layout.addLayout(left_panel, 6)
-        main_layout.addLayout(right_panel, 4)
+        right_panel.addWidget(self.qr_box)
+        right_panel.addStretch()
+        content_layout.addLayout(right_panel, 5)
+
+        main_layout.addLayout(content_layout)
         
+        footer_frame = QFrame()
+        footer_frame.setFixedHeight(30)
+        footer_layout = QHBoxLayout(footer_frame)
+        footer_layout.setContentsMargins(0, 0, 0, 0)
+        
+        lbl_online = QLabel("● Online Connected")
+        lbl_online.setStyleSheet("color: #059669; font-weight: bold; font-size: 12px;")
+        
+        self.cashier_lbl = QLabel("แคชเชียร์: STAFF")
+        self.cashier_lbl.setStyleSheet("color: #64748b; font-size: 12px;")
+        
+        lbl_version = QLabel("PopCentral POS • PySide6 GUI Runtime")
+        lbl_version.setStyleSheet("color: #94a3b8; font-size: 12px;")
+        
+        footer_layout.addWidget(lbl_online)
+        footer_layout.addSpacing(10)
+        footer_layout.addWidget(self.cashier_lbl)
+        footer_layout.addStretch()
+        footer_layout.addWidget(lbl_version)
+        
+        main_layout.addWidget(footer_frame)
+
         self.current_total = 0.0
+        self.qr_box.hide()
+        
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_time)
+        self.timer.start(1000)
+        self.update_time()
+
+    def update_time(self):
+        dt = QDateTime.currentDateTime()
+        self.clock_lbl.setText(f"●  {dt.toString('dd/MM/yyyy • HH:mm:ss')}")
+
+    def update_timer(self, seconds):
+        if seconds > 0:
+            self.qr_timer_lbl.setText(f"หมดเวลาใน: {seconds} วินาที")
+        else:
+            self.qr_timer_lbl.setText("หมดเวลาชำระเงิน")
 
     def update_cart(self, table_widget, total_amount):
         self.current_total = total_amount
-        self.qr_container.hide()
-        self.thank_lbl.hide()
+        self.qr_box.hide()
         
-        self.status_lbl.setText("ยอดชำระสุทธิ (Total)")
         self.total_lbl.setText(f"{total_amount:,.2f}")
-        self.total_lbl.setStyleSheet("color: #E21B22;")
+        self.total_lbl.setStyleSheet("font-size: 60px; font-weight: 900; color: #dc2626; border: none; font-family: Arial;")
+        
+        sub = total_amount / 1.07
+        vat = total_amount - sub
+        self.subtotal_lbl.setText(f"{sub:,.2f} ฿")
+        self.vat_lbl.setText(f"{vat:,.2f} ฿")
         
         self.table.setRowCount(0)
         rows = table_widget.rowCount()
         for i in range(rows):
             self.table.insertRow(i)
-            self.table.setRowHeight(i, 60)
+            self.table.setRowHeight(i, 40)
             
-            # Fetch data
             name = table_widget.item(i, 0).text() if table_widget.item(i, 0) else ""
-            qty = table_widget.item(i, 1).text() if table_widget.item(i, 1) else ""
+            qty_str = table_widget.item(i, 1).text() if table_widget.item(i, 1) else "0"
             price = table_widget.item(i, 2).text() if table_widget.item(i, 2) else ""
             total = table_widget.item(i, 3).text() if table_widget.item(i, 3) else ""
             
-            # Name
             ni = QTableWidgetItem(name)
-            font = QFont()
-            font.setBold(True)
-            ni.setFont(font)
+            ni.setFont(QFont("Arial", 12, QFont.Bold))
+            ni.setForeground(QColor("#1e293b"))
             self.table.setItem(i, 0, ni)
             
-            # Qty
-            qi = QTableWidgetItem(qty)
+            qi = QTableWidgetItem(qty_str)
+            qi.setFont(QFont("Arial", 12, QFont.Bold))
             qi.setTextAlignment(Qt.AlignCenter)
             self.table.setItem(i, 1, qi)
             
-            # Price
             pi = QTableWidgetItem(price)
+            pi.setFont(QFont("Arial", 11))
+            pi.setForeground(QColor("#64748b"))
             pi.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.table.setItem(i, 2, pi)
             
-            # Total
             ti = QTableWidgetItem(total)
+            ti.setFont(QFont("Arial", 12, QFont.Bold))
+            ti.setForeground(QColor("#1e293b"))
             ti.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            ti.setForeground(QColor("#E21B22"))
-            font_total = QFont()
-            font_total.setBold(True)
-            ti.setFont(font_total)
             self.table.setItem(i, 3, ti)
 
     def generate_qr_image(self, amount):
         promptpay_id = self.config.get('promptpay_id', '0999999999')
         payload = generate_promptpay(promptpay_id, amount)
         qr_img = qrcode.make(payload)
-        
         buf = io.BytesIO()
         qr_img.save(buf, format="PNG")
-        
         pixmap = QPixmap()
         pixmap.loadFromData(buf.getvalue())
         return pixmap
-
-    def update_timer(self, seconds):
-        if seconds >= 0:
-            self.qr_timer_lbl.setText(f"เวลาเหลือ: {seconds} วินาที")
-        else:
-            self.qr_timer_lbl.setText("")
 
     def show_payment(self, method="QR", override_amount=None):
         if method == "QR":
@@ -266,19 +329,15 @@ class CustomerDisplayWindow(QMainWindow):
                 amt = override_amount if override_amount is not None else self.current_total
                 pixmap = self.generate_qr_image(amt)
                 self.qr_image.setPixmap(pixmap)
+                self.qr_timer_lbl.setText("กำลังสร้าง QR Code...")
             except Exception as e:
                 print(e)
-            self.qr_container.show()
-            self.thank_lbl.hide()
+            self.qr_box.show()
         else:
-            self.qr_container.hide()
-            self.thank_lbl.hide()
+            self.qr_box.hide()
 
     def show_success(self, change=0):
         self.table.setRowCount(0)
-        self.qr_container.hide()
-        
-        self.status_lbl.setText("เงินทอน (Change)")
-        self.total_lbl.setStyleSheet("color: #007934;") # Green change
+        self.qr_box.hide()
+        self.total_lbl.setStyleSheet("font-size: 60px; font-weight: 900; color: #10b981; border: none; font-family: Arial;")
         self.total_lbl.setText(f"{change:,.2f}")
-        self.thank_lbl.show()

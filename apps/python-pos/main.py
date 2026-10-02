@@ -1,4 +1,4 @@
-import sys
+﻿import sys
 import os
 import traceback
 
@@ -17,6 +17,9 @@ def main():
         
         # 2. Start Application
         app = QApplication(sys.argv)
+        from PySide6.QtCore import QLocale
+        QLocale.setDefault(QLocale(QLocale.English, QLocale.UnitedStates))
+        
         window = MainWindow(db_path=db_path)
         window.show()
         sys.exit(app.exec())
@@ -36,8 +39,6 @@ def main():
             QMessageBox.critical(None, "Fatal Error", f"Application failed to start:\n{error_msg}")
         except:
             pass
-        input("\n[ERROR] Program crashed! Press ENTER to exit...")
-        sys.exit(1)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
