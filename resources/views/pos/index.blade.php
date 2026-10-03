@@ -1729,12 +1729,7 @@
             <i class="bi bi-arrow-clockwise"></i>
         </button>
 
-        <a href="{{ route('dashboard') }}" target="_blank" class="topbar-btn">
-            <i class="bi bi-grid"></i> ERP
-        </a>
-        <a href="{{ route('pos.compare') }}" target="_blank" class="topbar-btn" title="เปิด Web POS และ Vue POS คู่กัน">
-            <i class="bi bi-layout-split"></i> เทียบ UI
-        </a>
+        
         @if($canSell)
         <button class="topbar-btn" @click="openReceiptSettings()">
             <i class="bi bi-receipt"></i> ใบเสร็จ
