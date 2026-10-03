@@ -1725,7 +1725,7 @@
             <span x-text="isFullscreen ? 'ออกเต็มจอ' : 'เต็มจอ'"></span>
         </button>
 
-        <button class="topbar-btn" type="button" onclick="window.location.reload()" title="รีเฟรชหน้าจอ">
+        <button class="topbar-btn" type="button" @click="fastRefresh($event)" title="ซิงค์ข้อมูลล่าสุด">
             <i class="bi bi-arrow-clockwise"></i>
         </button>
 
@@ -3225,6 +3225,25 @@ function posApp() {
         },
 
 
+                async fastRefresh(e) {
+            const btn = e.currentTarget;
+            const icon = btn.querySelector('i');
+            icon.style.animation = 'spin 0.5s linear infinite';
+            btn.disabled = true;
+            
+            try {
+                await Promise.all([
+                    this.loadProducts(),
+                    this.loadPromotions(),
+                    this.loadActiveShift(),
+                    this.loadReceiptSettings()
+                ]);
+                erpToast('success', 'อัปเดตข้อมูลเสร็จสิ้น', { timer: 1500 });
+            } finally {
+                icon.style.animation = '';
+                btn.disabled = false;
+            }
+        },
         async loadProducts() {
             this.loading = true;
             try {
