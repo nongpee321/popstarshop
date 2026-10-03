@@ -218,12 +218,16 @@ class PosApiController extends Controller
             return response()->json(['success' => false, 'message' => 'PIN ไม่ถูกต้อง'], 422);
         }
         if ($matches->count() > 1 && ! isset($data['cashier_id'])) {
-            // โหมดเริ่มต้นที่ใช้ PIN กลาง เช่น 1234: ยังต้องเลือกชื่อเพื่อเก็บ audit/ยอดขายรายคน
-            return response()->json([
-                'success' => true,
-                'selection_required' => true,
-                'cashiers' => $matches->map(fn (Salesman $candidate) => $this->cashierPayload($candidate))->values(),
-            ]);
+            $assignedMatch = $device?->user_id ? $matches->firstWhere('user_id', $device->user_id) : null;
+            if ($assignedMatch) {
+                $cashier = $assignedMatch;
+            } else {
+                return response()->json([
+                    'success' => true,
+                    'selection_required' => true,
+                    'cashiers' => $matches->map(fn (Salesman $candidate) => $this->cashierPayload($candidate))->values(),
+                ]);
+            }
         }
         $cashier = $matches->firstWhere('id', (int) ($data['cashier_id'] ?? 0));
         if (isset($data['cashier_id']) && ! $cashier) {
@@ -295,7 +299,10 @@ class PosApiController extends Controller
     {
         // ผูกผลการยืนยันไว้กับเครื่อง เพื่อให้คำสั่งขายหลังจากนี้อ้างชื่อคนอื่นไม่ได้
         // ในระบบ POS เราจะยอมรับการล็อกอินทันทีโดยไม่บังคับให้เปลี่ยน PIN เพราะแอปฝั่งไคลเอนต์ไม่รองรับหน้าจอเปลี่ยน PIN
-        $device?->markCashierVerified($cashier);
+        $mustChange = $this->mustChangePin($cashier);
+        if (!$mustChange) {
+            $device?->markCashierVerified($cashier);
+        }
 
         // active_cashier_id ถูกเขียนทับทุกครั้งที่สลับคน จึงต้องลง audit ไว้ด้วย
         // ไม่งั้นช่วงที่ยังไม่มีการขาย จะไล่ไม่ได้ว่าใครลงเครื่องไหนตอนไหน

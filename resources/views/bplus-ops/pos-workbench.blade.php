@@ -19,7 +19,7 @@
         <div class="pos-install-icon" style="color: var(--bs-primary);"><i class="bi bi-windows"></i></div>
         <div class="pos-install-copy">
             @if($pythonPosInstaller)
-                <strong>ดาวน์โหลดแอป POS สำหรับติดตั้งเครื่องอื่น · เวอร์ชัน {{ $pythonPosInstaller['version'] }}</strong>
+                <strong>PopCentral Python POS: ดาวน์โหลดแอป POS สำหรับติดตั้งเครื่องอื่น · เวอร์ชัน {{ $pythonPosInstaller['version'] }}</strong>
                 <span>แอปนี้เปิดหน้า Web POS เดียวกับระบบหลัก หน้าตา ข้อมูล ราคา และการขายเชื่อมกับ ERP เดียวกันทุกเครื่อง · ขนาด {{ number_format($pythonPosInstaller['size_bytes'] / 1048576, 0) }} MB</span>
             @else
                 <strong>ดาวน์โหลดแอป POS สำหรับติดตั้งเครื่องอื่น</strong>

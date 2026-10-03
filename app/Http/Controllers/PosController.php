@@ -191,21 +191,23 @@ class PosController extends Controller
     // à¸ªà¸²à¸‚à¸²+à¸„à¸™à¸‚à¸²à¸¢à¸—à¸µà¹ˆà¸šà¸±à¸‡à¸„à¸±à¸šà¹ƒà¸Šà¹‰à¸ªà¸³à¸«à¸£à¸±à¸š user à¸—à¸µà¹ˆ login (à¸–à¹‰à¸²à¸à¸³à¸«à¸™à¸”à¹„à¸§à¹‰) à¹ƒà¸Šà¹‰ override à¸„à¹ˆà¸²à¸—à¸µà¹ˆ client à¸ªà¹ˆà¸‡à¸¡à¸²
     private function enforcedBranchId(?int $requested): int
     {
+        $device = request()->attributes->get('pos_device');
+        $authBranch = (int) ($device?->branch_id ?: auth()->user()?->branch_id);
+        
+        if ($requested && $requested !== $authBranch) {
+            if (! auth()->user()?->isSuperAdmin()) {
+                $requested = null;
+            }
+        }
+        
         if ($requested) {
             return $requested;
         }
-        
-        $device = request()->attributes->get('pos_device');
-        if ($device) {
-            $branchId = (int) ($device->branch_id ?: auth()->user()?->branch_id);
-        } else {
-            $branchId = (int) (auth()->user()?->branch_id);
+
+        if (! $authBranch) {
+            $authBranch = (int) \App\Models\Branch::where('is_active', true)->value('id') ?: 1;
         }
-        
-        if (! $branchId) {
-            $branchId = (int) \App\Models\Branch::where('is_active', true)->value('id') ?: 1;
-        }
-        return $branchId;
+        return $authBranch;
     }
 
     private function enforcedCashierId($requested): ?int
