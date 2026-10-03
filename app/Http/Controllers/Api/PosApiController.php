@@ -228,14 +228,16 @@ class PosApiController extends Controller
                     'cashiers' => $matches->map(fn (Salesman $candidate) => $this->cashierPayload($candidate))->values(),
                 ]);
             }
+        } else {
+            $cashier = $matches->firstWhere('id', (int) ($data['cashier_id'] ?? 0));
         }
-        $cashier = $matches->firstWhere('id', (int) ($data['cashier_id'] ?? 0));
+
         if (isset($data['cashier_id']) && ! $cashier) {
-            return response()->json(['success' => false, 'message' => 'ไม่พบพนักงานที่อนุญาตบนเครื่องนี้'], 422);
+            return response()->json(['success' => false, 'message' => 'พนักงานที่คุณเลือกไม่มีสิทธิ์ในสาขานี้ หรือรหัส PIN ไม่ถูกต้อง'], 422);
         }
-        $cashier ??= $matches->count() === 1 ? $matches->first() : null;
+
         if (! $cashier) {
-            return response()->json(['success' => false, 'message' => 'กรุณาเลือกชื่อพนักงานใหม่'], 422);
+            $cashier = $matches->first();
         }
 
         return $this->authenticatedCashierResponse($request, $cashier, $device, $branchId, $data['pin']);
@@ -362,8 +364,6 @@ class PosApiController extends Controller
     /** แคชเชียร์ที่มีสิทธิ์ใช้บนเครื่องนี้: คนสาขาเดียวกันและคนส่วนกลาง */
     private function cashierCandidates(?int $branchId, ?string $code = null, ?int $assignedUserId = null)
     {
-        $branchId = null; // ALWAYS allow all branches for POS login
-        $assignedUserId = null; // ALWAYS allow any user, ignore device owner restrictions
         return Salesman::query()
             ->with(['user.roles:id,code', 'user.branchRoles.permissions', 'user.posCredential'])
             ->where('is_active', true)

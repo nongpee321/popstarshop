@@ -195,7 +195,7 @@ class PosController extends Controller
         $authBranch = (int) ($device?->branch_id ?: auth()->user()?->branch_id);
         
         if ($requested && $requested !== $authBranch) {
-            if (! auth()->user()?->isSuperAdmin()) {
+            if (true) {
                 $requested = null;
             }
         }
@@ -234,7 +234,7 @@ class PosController extends Controller
         }
 
         // POS à¸šà¸™à¹€à¸§à¹‡à¸š: à¹ƒà¸Šà¹‰ User à¸—à¸µà¹ˆà¸¥à¹‡à¸­à¸à¸­à¸´à¸™à¹€à¸›à¹‡à¸™à¸„à¸™à¸‚à¸²à¸¢à¹€à¸ªà¸¡à¸­
-        $resolvedId = $this->validatedCashierId(auth()->user()?->posCashierProfile?->id ?: $requested);
+        $resolvedId = $this->validatedCashierId(auth()->user()?->salesman_id ?: auth()->user()?->posCashierProfile?->id ?: $requested);
         if (! $resolvedId) {
             return null;
         }
