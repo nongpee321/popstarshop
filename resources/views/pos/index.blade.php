@@ -1742,6 +1742,12 @@
         <button class="topbar-btn" @click="cancelBill()" :disabled="cart.length === 0">
             <i class="bi bi-trash"></i> ยกเลิก
         </button>
+        <button class="topbar-btn" @click="openDrawer()" title="เปิดลิ้นชัก (สั่งปริ้นต์เพื่อเด้งลิ้นชัก)">
+            <i class="bi bi-box"></i> เปิดลิ้นชัก
+        </button>
+        <button class="topbar-btn" @click="openCfd()" title="เปิดหน้าจอลูกค้า (Customer Display)">
+            <i class="bi bi-display"></i> หน้าจอลูกค้า
+        </button>
         @endif
         <form method="post" action="{{ route('logout') }}" x-ref="logoutForm" style="display:contents">
             @csrf
@@ -1765,62 +1771,11 @@
                 <button type="button" x-show="cart.length" @click="clearCart()"><i class="bi bi-x-circle"></i> ล้างรายการ</button>
             </div>
             @endunless
-            <div class="pos-cart-header">
-                <div class="pos-customer-field">
-                    <i class="bi bi-person" style="color:#94a3b8;font-size:15px"></i>
-                    <input type="text" placeholder="ค้นหาลูกค้า (ไม่บังคับ)" x-model="customerQuery"
-                        @input.debounce.400ms="searchCustomers()" autocomplete="off">
-                    <span x-show="customerName" @click="clearCustomer()" style="color:#94a3b8;cursor:pointer;font-size:12px" x-text="'✕ ' + customerName"></span>
-                    <div x-show="customerResults.length" style="position:absolute;left:0;right:0;top:100%;margin-top:4px;background:#1e293b;border:1px solid rgba(255,255,255,.1);border-radius:10px;z-index:100;overflow:hidden">
-                        <template x-for="c in customerResults" :key="c.id">
-                            <div @click="selectCustomer(c)" style="padding:9px 14px;cursor:pointer;font-size:13px;display:flex;gap:10px" :style="'border-bottom:1px solid rgba(255,255,255,.06)'" @mouseenter="$el.style.background='rgba(255,255,255,.05)'" @mouseleave="$el.style.background='transparent'">
-                                <span x-text="c.code" style="color:#94a3b8;font-size:11px;min-width:60px"></span>
-                                <span x-text="c.name_th"></span>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-
-                {{-- Member (สะสม/แลกแต้ม) --}}
-                <div class="pos-customer-field" style="margin-top:6px">
-                    <i class="bi bi-person-vcard" style="color:#fbbf24;font-size:15px"></i>
-                    <template x-if="!member">
-                        <input type="text" placeholder="สมาชิกสะสมแต้ม รหัส/ชื่อ/เบอร์ (ไม่บังคับ)" x-model="memberQuery"
-                            @input.debounce.400ms="searchMembers()" autocomplete="off">
-                    </template>
-                    <template x-if="member">
-                        <div style="display:flex;align-items:center;gap:8px;flex:1;font-size:13px">
-                            <span style="font-weight:800;color:#0f172a" x-text="member.name"></span>
-                            <span style="color:#d97706;font-weight:800" x-text="money(member.points) + ' แต้ม'"></span>
-                            <template x-if="pointValueBaht > 0">
-                                <span style="display:flex;align-items:center;gap:5px;margin-left:auto">
-                                    <span style="color:#64748b;font-size:11px;font-weight:900">ใช้แต้ม</span>
-                                    <input class="discount-input" type="number" min="0" step="1" x-model.number="redeemPoints"
-                                        style="width:64px;height:26px" @focus="$el.select()">
-                                    <span style="color:#059669;font-weight:800" x-text="'-฿' + money(pointsDiscountAmount)"></span>
-                                </span>
-                            </template>
-                            <span @click="clearMember()" style="color:#94a3b8;cursor:pointer;font-size:12px" :style="pointValueBaht > 0 ? '' : 'margin-left:auto'">✕</span>
-                        </div>
-                    </template>
-                    <div x-show="memberResults.length" style="position:absolute;left:0;right:0;top:100%;margin-top:4px;background:#1e293b;border:1px solid rgba(255,255,255,.1);border-radius:10px;z-index:100;overflow:hidden">
-                        <template x-for="m in memberResults" :key="m.id">
-                            <div @click="selectMember(m)" style="padding:9px 14px;cursor:pointer;font-size:13px;display:flex;gap:10px;border-bottom:1px solid rgba(255,255,255,.06)" @mouseenter="$el.style.background='rgba(255,255,255,.05)'" @mouseleave="$el.style.background='transparent'">
-                                <span x-text="m.member_code" style="color:#94a3b8;font-size:11px;min-width:60px"></span>
-                                <span x-text="m.name"></span>
-                                <span x-text="money(m.points) + ' แต้ม'" style="margin-left:auto;color:#fbbf24;font-size:11px;font-weight:800"></span>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Legacy Alpine cart is restored --}}
-            <div class="pos-cart-items" x-ref="cartItems">
+            <div class="pos-cart-items" x-ref="cartScroll">
                 <template x-if="cart.length === 0">
                     <div class="cart-empty">
-                        <i class="bi bi-bag"></i>
-                        <span>{{ $canSell ? 'ยังไม่มีสินค้า' : 'เลือกสินค้าจากด้านขวาเพื่อตรวจสอบ' }}</span>
+                        <i class="bi bi-cart-x"></i>
+                        <div>ไม่มีสินค้าในตะกร้า</div>
                     </div>
                 </template>
                 <template x-if="cart.length > 0">
@@ -1861,7 +1816,7 @@
                                 <button class="qty-btn" @click.stop="changeQty(idx, -1)"><i class="bi bi-dash"></i></button>
                             </template>
                             <template x-if="!item.is_free_gift">
-                                <input class="qty-input" type="number" step="0.001" min="0.001" x-model.number="item.qty" @change="item.qty = Math.max(0.001, item.qty); applyQtyPromotions()">
+                                <input class="qty-input" type="number" step="0.001" min="0.001" x-model.number="item.qty" @change="validateManualQty(idx)">
                             </template>
                             <template x-if="!item.is_free_gift">
                                 <button class="qty-btn" @click.stop="changeQty(idx, 1)"><i class="bi bi-plus"></i></button>
@@ -2279,6 +2234,17 @@
                     </div>
                 </template>
 
+                <div style="margin: 12px 0 16px 0; border-top: 1px dashed rgba(255,255,255,0.15); padding-top: 14px;">
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:700; color:#f8fafc; font-size:13px;">
+                        <input type="checkbox" x-model="isFullTax" style="width:16px;height:16px;">
+                        ออกใบกำกับภาษีเต็มรูป (Full Tax Invoice)
+                    </label>
+                    <div x-show="isFullTax" style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
+                        <input class="ref-input" type="text" x-model="taxCustomerName" placeholder="ชื่อลูกค้า / นิติบุคคล">
+                        <input class="ref-input" type="text" x-model="taxCustomerId" placeholder="เลขประจำตัวผู้เสียภาษี (13 หลัก)">
+                        <input class="ref-input" type="text" x-model="taxCustomerAddress" placeholder="ที่อยู่ครบถ้วน">
+                    </div>
+                </div>
                 <div class="modal-actions">
                     <button class="btn-cancel" @click="payModalOpen = false">ยกเลิก</button>
                     <button class="btn-confirm" :disabled="processing || !canConfirm" @click="processPayment()">
@@ -2813,6 +2779,7 @@ function posApp() {
 
         // Payment
         payModalOpen: false, method: 'cash', received: 0, receivedInput: '', processing: false,
+        isFullTax: false, taxCustomerName: '', taxCustomerId: '', taxCustomerAddress: '', lastIsFullTax: false, lastTaxCustomerName: '', lastTaxCustomerId: '', lastTaxCustomerAddress: '',
         paymentRef: '', transferConfirmed: false,
 
         // Receipt
@@ -2825,6 +2792,11 @@ function posApp() {
         clock: '', isFullscreen: false, canInstall: false, installPrompt: null,
 
         init() {
+            this.$watch('cart', () => this.broadcastCfd());
+            this.$watch('payModalOpen', () => this.broadcastCfd());
+            this.$watch('method', () => this.broadcastCfd());
+            this.$watch('receiptOpen', () => this.broadcastCfd());
+            
             let scannerBuffer = '';
             let scannerTimeout = null;
             document.addEventListener('keydown', (e) => {
@@ -3134,6 +3106,50 @@ function posApp() {
             erpToast('success', 'บันทึกการตั้งค่าใบเสร็จแล้ว', { timer: 1400 });
         },
 
+        cfdChannel: null,
+        openCfd() {
+            window.open('/pos/customer-display', 'CustomerDisplay', 'width=1024,height=768');
+            setTimeout(() => this.broadcastCfd(), 1500);
+        },
+        broadcastCfd() {
+            if (!this.cfdChannel) {
+                this.cfdChannel = new BroadcastChannel('pos_cfd');
+            }
+            this.cfdChannel.postMessage({
+                cart: this.cart.map(i => ({ 
+                    name: i.name_th, 
+                    qty: i.qty, 
+                    price: i.unit_price, 
+                    lineNet: this.lineNet(i), 
+                    unit_name: i.unit_name, 
+                    is_free_gift: i.is_free_gift 
+                })),
+                totalAmount: this.totalAmount,
+                totalQty: this.totalQty,
+                method: this.method,
+                payModalOpen: this.payModalOpen,
+                receiptOpen: this.receiptOpen,
+                lastTotal: this.lastTotal,
+                lastMethod: this.lastMethod,
+                qrPayload: typeof lastQrPayload !== 'undefined' ? lastQrPayload : null,
+            });
+        },
+        openDrawer() {
+            const printWindow = window.open('', '_blank', 'width=480,height=720');
+            if (!printWindow) {
+                erpPopup('warning', 'เบราว์เซอร์บล็อกหน้าต่างพิมพ์ กรุณาอนุญาต Pop-ups');
+                return;
+            }
+            printWindow.document.write(`<html><head><title>Open Drawer</title></head><body>.</body></html>`);
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.addEventListener('afterprint', () => printWindow.close(), { once: true });
+            window.setTimeout(() => {
+                printWindow.print();
+                window.setTimeout(() => printWindow.close(), 1000); // Fallback auto-close
+            }, 100);
+        },
+
         printReceipt() {
             if (!this.receiptOpen || !this.lastDocNumber) {
                 erpPopup('warning', 'ยังไม่มีใบเสร็จให้พิมพ์');
@@ -3423,6 +3439,22 @@ function posApp() {
         addToCart(product, qty = 1, meta = {}) {
             const addQty = Math.max(0.001, Number(qty) || 1);
             const existing = this.cart.find(i => i.id === product.id && !i.is_free_gift);
+            const currentQty = existing ? Number(existing.qty) : 0;
+            
+            if (product.stock_qty !== null && product.stock_qty !== undefined) {
+                if (product.stock_qty <= 0) {
+                    erpPopup('warning', `สินค้าหมดสต็อก (เหลือ ${product.stock_qty} ชิ้น)`);
+                    return;
+                }
+                if (currentQty + addQty > product.stock_qty) {
+                    erpPopup('warning', `สต็อกไม่พอ (เหลือ ${product.stock_qty} ชิ้น)`);
+                    return;
+                }
+                if (currentQty === 0 && product.stock_qty < 20) {
+                    erpToast('warning', `สินค้าเหลือน้อย (เหลือ ${product.stock_qty} ชิ้น)`);
+                }
+            }
+
             if (existing) {
                 existing.qty = Math.round((Number(existing.qty) + addQty) * 1000) / 1000;
                 existing.last_scale_barcode = meta.scaleBarcode?.barcode || existing.last_scale_barcode || null;
@@ -3454,10 +3486,38 @@ function posApp() {
             });
         },
 
+                validateManualQty(idx) {
+            const item = this.cart[idx];
+            if (item.is_free_gift) return;
+            let newQty = Math.max(0.001, item.qty || 0.001);
+            
+            const product = this.products.find(p => p.id === item.id);
+            if (product && product.stock_qty !== null && product.stock_qty !== undefined) {
+                if (newQty > product.stock_qty) {
+                    erpPopup('warning', `สต็อกไม่พอ (เหลือ ${product.stock_qty} ชิ้น)`);
+                    newQty = product.stock_qty; // Revert to max allowed
+                }
+            }
+            item.qty = newQty;
+                this.broadcastCfd();
+            this.applyQtyPromotions();
+        },
+
         changeQty(idx, delta) {
             const item = this.cart[idx];
             if (item.is_free_gift) return;
-            item.qty = Math.max(0.001, (item.qty || 0) + delta);
+            const newQty = Math.max(0.001, (item.qty || 0) + delta);
+            
+            const product = this.products.find(p => p.id === item.id);
+            if (product && product.stock_qty !== null && product.stock_qty !== undefined) {
+                if (newQty > product.stock_qty) {
+                    erpPopup('warning', `สต็อกไม่พอ (เหลือ ${product.stock_qty} ชิ้น)`);
+                    return;
+                }
+            }
+            
+            item.qty = newQty;
+                this.broadcastCfd();
             this.applyQtyPromotions();
         },
 
@@ -3570,6 +3630,10 @@ function posApp() {
             this.customerQuery = '';
             this.customerId = null;
             this.customerName = '';
+            this.isFullTax = false;
+            this.taxCustomerName = '';
+            this.taxCustomerId = '';
+            this.taxCustomerAddress = '';
             this.billDiscountValue = 0;
             this.billDiscountType = 'baht';
             this.removeDiscountCard();
@@ -4135,6 +4199,10 @@ function posApp() {
         clearCustomer() {
             this.customerId = null;
             this.customerName = '';
+            this.isFullTax = false;
+            this.taxCustomerName = '';
+            this.taxCustomerId = '';
+            this.taxCustomerAddress = '';
             this.customerQuery = '';
         },
 
@@ -4171,6 +4239,10 @@ function posApp() {
                 discount_card_code: this.appliedCard?.card_code || null,
                 vat_amount: this.vatAmount,
                 vat_mode: this.vatMode,
+                is_full_tax: this.isFullTax,
+                customer_name: this.isFullTax ? this.taxCustomerName : null,
+                customer_tax_id: this.isFullTax ? this.taxCustomerId : null,
+                customer_address: this.isFullTax ? this.taxCustomerAddress : null,
                 items: this.checkoutItems(),
                 _token: document.querySelector('meta[name=csrf-token]').content,
             };
@@ -4195,6 +4267,10 @@ function posApp() {
                     window.lastEarnedPoints = this.lastEarnedPoints;
                     window.canVoidBill = this.canVoidBill;
                     const cashierSel = this.$refs.cashierSelect;
+                    this.lastIsFullTax = this.isFullTax;
+                    this.lastTaxCustomerName = this.taxCustomerName;
+                    this.lastTaxCustomerId = this.taxCustomerId;
+                    this.lastTaxCustomerAddress = this.taxCustomerAddress;
                     this.lastCashierName = this.lockedCashierName
                         || (cashierSel && cashierSel.selectedIndex > 0 ? cashierSel.options[cashierSel.selectedIndex].text : '');
                     this.lastDateTime = new Date().toLocaleString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });

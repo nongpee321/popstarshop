@@ -3,7 +3,7 @@ import os
 import io
 import time
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                               QLabel, QTableWidget, QTableWidgetItem, QHeaderView, QFrame, QAbstractItemView)
+                               QLabel, QTableWidget, QTableWidgetItem, QHeaderView, QFrame, QAbstractItemView, QSizePolicy)
 from PySide6.QtCore import Qt, QTimer, QDateTime
 from PySide6.QtGui import QPixmap, QFont, QColor, QImage
 import qrcode
@@ -32,7 +32,23 @@ def generate_promptpay(promptpay_id: str, amount: float = 0) -> str:
         target = "01130066000000000"
     
     amount_str = f"{amount:.2f}"
-    payload = f"00020101021129370016A000000677010111{target}5802TH5303764540{len(amount_str):02d}{amount_str}6304"
+    
+    def tlv(tag, val):
+        return f"{tag}{len(val):02d}{val}"
+        
+    merchant_acct = tlv('00', 'A000000677010111') + target
+    
+    payload = (
+        tlv('00', '01') +
+        tlv('01', '12') +
+        tlv('29', merchant_acct) +
+        tlv('53', '764') +
+        tlv('54', amount_str) +
+        tlv('58', 'TH') +
+        tlv('59', 'PopCentral') +
+        tlv('60', 'BANGKOK') +
+        "6304"
+    )
     return payload + crc16(payload)
 
 class CustomerDisplayWindow(QMainWindow):
@@ -128,10 +144,11 @@ class CustomerDisplayWindow(QMainWindow):
         # RIGHT PANEL
         right_panel = QVBoxLayout()
         right_panel.setSpacing(10)
-        right_panel.setAlignment(Qt.AlignTop)
+        # REMOVED right_panel.setAlignment(Qt.AlignTop)
 
         total_box = QFrame()
         total_box.setStyleSheet("QFrame { background-color: white; border-radius: 12px; border: 2px solid #10b981; }")
+        total_box.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         total_layout = QVBoxLayout(total_box)
         total_layout.setContentsMargins(15, 15, 15, 15)
         
@@ -203,27 +220,30 @@ class CustomerDisplayWindow(QMainWindow):
         qr_h.addWidget(qr_title)
         qr_h.addStretch()
         qr_h.addWidget(qr_status)
-        qr_layout.addLayout(qr_h)
+        qr_layout.addLayout(qr_h, 0)
         
         qr_body = QVBoxLayout()
         qr_body.setAlignment(Qt.AlignCenter)
         
         self.qr_image = QLabel()
-        self.qr_image.setFixedSize(220, 220)
+        self.qr_image.setFixedSize(350, 350)
         self.qr_image.setStyleSheet("border: 2px solid #e2e8f0; border-radius: 8px; padding: 5px;")
         self.qr_image.setScaledContents(True)
         
         self.qr_timer_lbl = QLabel("")
-        self.qr_timer_lbl.setStyleSheet("color: #dc2626; font-size: 16px; font-weight: bold; border: none; margin-top: 10px;")
+        self.qr_timer_lbl.setStyleSheet("color: #dc2626; font-size: 22px; font-weight: bold; border: none; margin-top: 10px;")
         self.qr_timer_lbl.setAlignment(Qt.AlignCenter)
         
         qr_body.addWidget(self.qr_image, 0, Qt.AlignCenter)
         qr_body.addWidget(self.qr_timer_lbl, 0, Qt.AlignCenter)
         
-        qr_layout.addLayout(qr_body)
+        qr_layout.addLayout(qr_body, 1)
         
-        right_panel.addWidget(self.qr_box)
-        right_panel.addStretch()
+        right_panel.addWidget(self.qr_box, 1) # ADDED STRETCH 1 TO QR BOX
+        
+        self.spacer_widget = QWidget()
+        self.spacer_widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        right_panel.addWidget(self.spacer_widget, 1)
         content_layout.addLayout(right_panel, 5)
 
         main_layout.addLayout(content_layout)
@@ -252,6 +272,7 @@ class CustomerDisplayWindow(QMainWindow):
 
         self.current_total = 0.0
         self.qr_box.hide()
+        self.spacer_widget.show()
         
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_time)
@@ -271,6 +292,7 @@ class CustomerDisplayWindow(QMainWindow):
     def update_cart(self, table_widget, total_amount):
         self.current_total = total_amount
         self.qr_box.hide()
+        self.spacer_widget.show()
         
         self.total_lbl.setText(f"{total_amount:,.2f}")
         self.total_lbl.setStyleSheet("font-size: 60px; font-weight: 900; color: #dc2626; border: none; font-family: Arial;")
@@ -332,12 +354,15 @@ class CustomerDisplayWindow(QMainWindow):
                 self.qr_timer_lbl.setText("กำลังสร้าง QR Code...")
             except Exception as e:
                 print(e)
+            self.spacer_widget.hide()
             self.qr_box.show()
         else:
             self.qr_box.hide()
+            self.spacer_widget.show()
 
     def show_success(self, change=0):
         self.table.setRowCount(0)
         self.qr_box.hide()
+        self.spacer_widget.show()
         self.total_lbl.setStyleSheet("font-size: 60px; font-weight: 900; color: #10b981; border: none; font-family: Arial;")
         self.total_lbl.setText(f"{change:,.2f}")

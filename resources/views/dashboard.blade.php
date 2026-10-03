@@ -224,17 +224,17 @@
 @push('head')
 <script src="{{ asset('vendor/chartjs/chart.umd.js') }}"></script>
 <style>
-    .executive-hero { min-height:108px; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:18px; padding:16px 18px; background:#fff; border:1px solid var(--erp-border); border-top:3px solid var(--erp-text); border-radius:8px; box-shadow:0 6px 20px rgba(15,23,42,.06); }
-    .executive-mark { width:46px; height:46px; display:grid; place-items:center; color:#fff; background:var(--erp-text); border-radius:7px; font-size:20px; overflow:hidden; }
-    .executive-mark img { width:100%; height:100%; padding:7px; object-fit:contain; background:#fff; }
-    .executive-kicker { display:flex; align-items:center; gap:7px; color:#475569; font-size:10px; font-weight:800; letter-spacing:.12em; }
+    .executive-hero { min-height:108px; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:18px; padding:16px 18px; background:var(--erp-surface); border:1px solid var(--erp-border); border-top:3px solid var(--erp-text); border-radius:8px; box-shadow:0 6px 20px rgba(15,23,42,.06); }
+    .executive-mark { width:46px; height:46px; display:grid; place-items:center; color:var(--erp-surface); background:var(--erp-text); border-radius:7px; font-size:20px; overflow:hidden; }
+    .executive-mark img { width:100%; height:100%; padding:7px; object-fit:contain; background:var(--erp-surface); }
+    .executive-kicker { display:flex; align-items:center; gap:7px; color:var(--erp-muted); font-size:10px; font-weight:800; letter-spacing:.12em; }
     .executive-kicker span { width:7px; height:7px; border-radius:50%; background:var(--erp-success-ink); }
-    .executive-copy h2 { margin:3px 0 3px; color:#0f2231; font-size:19px; font-weight:850; }
-    .executive-copy p { margin:0; max-width:720px; color:#475569; font-size:12px; }
+    .executive-copy h2 { margin:3px 0 3px; color:var(--erp-text); font-size:19px; font-weight:850; }
+    .executive-copy p { margin:0; max-width:720px; color:var(--erp-muted); font-size:12px; }
     .executive-signal-grid { display:grid; grid-template-columns:repeat(3,minmax(102px,1fr)); gap:8px; }
     .executive-signal-grid div { min-width:104px; padding:8px 10px; border-left:1px solid var(--erp-border); }
-    .executive-signal-grid span { display:block; color:#475569; font-size:10px; margin-bottom:2px; }
-    .executive-signal-grid strong { display:block; color:#0f2231; font-size:13px; white-space:nowrap; font-variant-numeric:tabular-nums; }
+    .executive-signal-grid span { display:block; color:var(--erp-muted); font-size:10px; margin-bottom:2px; }
+    .executive-signal-grid strong { display:block; color:var(--erp-text); font-size:13px; white-space:nowrap; font-variant-numeric:tabular-nums; }
 
     .dashboard-filter {
         display: flex;
@@ -242,7 +242,7 @@
         align-items: center;
         justify-content: space-between;
         gap: 12px;
-        background: #fff;
+        background: var(--erp-surface);
         border: 1px solid var(--erp-border);
         border-radius: 9px;
         padding: 10px 14px;
@@ -319,7 +319,7 @@
         overflow: hidden;
     }
 
-    .metric-card { background:#fff; box-shadow:0 4px 16px rgba(15,23,42,.045); }
+    .metric-card { background:var(--erp-surface); box-shadow:0 4px 16px rgba(15,23,42,.045); }
     .metric-card-sales { border-top:3px solid var(--erp-success-ink); }
     .metric-card-profit { border-top:3px solid var(--erp-primary-ink); }
     .metric-card-ar { border-top:3px solid #ca8a04; }
@@ -352,34 +352,34 @@
     .metric-icon-ar { background:var(--erp-warning-soft); color:var(--erp-warning-ink); }
     .metric-icon-pos { background:var(--erp-danger-soft); color:var(--erp-danger); }
 
-    .metric-label { color: #475569; font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+    .metric-label { color: var(--erp-muted); font-weight: 600; font-size: 13px; margin-bottom: 6px; }
 
-    .metric-value { color:#0f2231;font-size:22px;line-height:1;font-weight:850;font-variant-numeric:tabular-nums; }
+    .metric-value { color:var(--erp-text);font-size:22px;line-height:1;font-weight:850;font-variant-numeric:tabular-nums; }
 
-    .metric-unit { color: #475569; font-size: 12px; margin-top: 4px; }
+    .metric-unit { color: var(--erp-muted); font-size: 12px; margin-top: 4px; }
 
     .metric-mini-list {
         margin-top: 10px;
         padding-top: 8px;
-        border-top: 1px solid rgba(0,0,0,.06);
+        border-top: 1px solid var(--erp-border);
         display: grid; gap: 6px;
     }
 
     .metric-mini-row {
         display: flex; align-items: center;
         justify-content: space-between; gap: 8px;
-        color: #475569; font-size: 12px; line-height: 1.3;
+        color: var(--erp-muted); font-size: 12px; line-height: 1.3;
     }
 
     .metric-mini-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    .metric-mini-row strong { flex: 0 0 auto; color: #1a3347; font-weight: 700; white-space: nowrap; }
+    .metric-mini-row strong { flex: 0 0 auto; color: var(--erp-text); font-weight: 700; white-space: nowrap; }
 
     .metric-mini-row.muted strong { color: var(--erp-border); }
 
     /* ── Panel cards ──────────────────────────── */
     .panel-card {
-        background: #fff;
+        background: var(--erp-surface);
         border: 1px solid var(--erp-border);
         border-radius: 11px;
         padding: 14px;
@@ -392,12 +392,12 @@
     .panel-title {
         display: flex; align-items: center; gap: 10px;
         font-size:13px;font-weight:800;margin-bottom:10px;
-        color: #0f2231;
+        color: var(--erp-text);
     }
 
     .table td { border-bottom-color: var(--erp-surface-2); }
-    .product-name { color:#0f2231; font-weight:750; min-width:230px; }
-    .product-sku { color:#475569; font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .product-name { color:var(--erp-text); font-weight:750; min-width:230px; }
+    .product-sku { color:var(--erp-muted); font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; }
 
     @media (max-width: 991.98px) {
         .executive-hero{grid-template-columns:auto minmax(0,1fr)}

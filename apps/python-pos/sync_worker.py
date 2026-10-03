@@ -16,27 +16,62 @@ class SyncWorker(QThread):
         self.api_url = api_url.rstrip('/')
         self.pos_token = pos_token
         self.is_running = True
+        self.force_sync_flag = False
+
+    def force_sync(self):
+        self.force_sync_flag = True
+
+    def _check_internet(self):
+        import socket
+        try:
+            # Try to connect to a reliable public server to check real internet access
+            socket.create_connection(("1.1.1.1", 53), timeout=1)
+            return True
+        except OSError:
+            # If that fails, try google dns just in case
+            try:
+                socket.create_connection(("8.8.8.8", 53), timeout=1)
+                return True
+            except OSError:
+                return False
 
     def run(self):
+        loop_count = 0
         while self.is_running:
             try:
+                # Force network check to satisfy offline testing
+                if not self._check_internet():
+                    raise Exception("No Internet Connection (ระบบถูกตัดขาดจากอินเทอร์เน็ต)")
+
                 self.sync_started.emit()
                 if self.is_running:
-                    changed = self._sync_products()
+                    changed = False
+                    # Sync products every 60 seconds (loop_count % 6 == 0)
+                    if loop_count % 6 == 0:
+                        changed = self._sync_products()
+                    
+                    # Sync receipts every 10 seconds
                     self._sync_receipts()
+                    
                     if changed:
                         self.products_updated.emit()
                     self.sync_finished.emit(True, "Sync successful")
             except Exception as e:
                 import traceback
-                with open("sync_error.log", "a", encoding="utf-8") as f:
+                with open(os.path.join(os.path.dirname(self.db_path), "sync_error.log"), "a", encoding="utf-8") as f:
                     f.write(traceback.format_exc() + "\n")
                 if self.is_running:
                     self.sync_finished.emit(False, str(e))
             
-            # Sync every 10 seconds
+            loop_count += 1
+            
+            # Sleep 10 seconds before next receipt sync
             for _ in range(10):
                 if not self.is_running:
+                    break
+                if getattr(self, 'force_sync_flag', False):
+                    self.force_sync_flag = False
+                    loop_count = -1  # Next loop count will be 0 -> force products sync
                     break
                 time.sleep(1)
 

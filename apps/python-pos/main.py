@@ -17,6 +17,19 @@ def main():
         
         # 2. Start Application
         app = QApplication(sys.argv)
+        
+        # Global stylesheet to fix tooltip readability
+        app.setStyleSheet('''
+            QToolTip {
+                color: #ffffff;
+                background-color: #334155;
+                border: 1px solid #1e293b;
+                padding: 5px;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+        ''')
+        
         from PySide6.QtCore import QLocale
         QLocale.setDefault(QLocale(QLocale.English, QLocale.UnitedStates))
         

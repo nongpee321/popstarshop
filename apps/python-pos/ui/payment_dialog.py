@@ -207,12 +207,22 @@ class PaymentDialog(QDialog):
         
         
         
-        # Submit Button
+        # Action Buttons
+        action_layout = QHBoxLayout()
+        
+        self.cancel_bill_btn = QPushButton("ยกเลิกบิล")
+        self.cancel_bill_btn.setFixedHeight(60)
+        self.cancel_bill_btn.setStyleSheet("background-color: #ef4444; color: white; font-size: 22px; font-weight: bold; border-radius: 8px; border: none;")
+        self.cancel_bill_btn.clicked.connect(self.request_cancel_bill)
+        
         self.submit_btn = QPushButton("ยืนยันชำระเงิน (Enter)")
         self.submit_btn.setFixedHeight(60)
         self.submit_btn.setStyleSheet("background-color: #3b82f6; color: white; font-size: 22px; font-weight: bold; border-radius: 8px; border: none;")
         self.submit_btn.clicked.connect(self.accept_payment)
-        right_layout.addWidget(self.submit_btn)
+        
+        action_layout.addWidget(self.cancel_bill_btn, 1)
+        action_layout.addWidget(self.submit_btn, 2)
+        right_layout.addLayout(action_layout)
         
         main_layout.addWidget(right_panel)
         
@@ -266,6 +276,8 @@ class PaymentDialog(QDialog):
             self.qr_label.show()
             try:
                 parent_window = self.parent()
+                ppid = parent_window.config.get('promptpay_id', '0999999999') if parent_window else '0999999999'
+                self.title_lbl.setText(f"PromptPay: {ppid}")
                 promptpay_id = parent_window.config.get('promptpay_id', '0999999999') if parent_window else '0999999999'
                 payload = generate_promptpay(promptpay_id, self.total_amount)
                 import io
@@ -327,6 +339,10 @@ class PaymentDialog(QDialog):
         
         self.cash_amount = self.received_amount if self.selected_method == "เงินสด" else 0.0
         self.transfer_amount = self.total_amount if self.selected_method == "QR" else 0.0
+
+    def request_cancel_bill(self):
+        self.explicit_cancel_bill = True
+        self.reject()
 
     def accept_payment(self):
         if self.received_amount < self.total_amount:

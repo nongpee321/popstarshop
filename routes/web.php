@@ -172,6 +172,7 @@ Route::prefix('ocr/documents')->name('ocr.documents.')->group(function () {
 Route::prefix('pos')->name('pos.')->group(function () {
     Route::get('/', [PosController::class, 'index'])->name('index');
     Route::get('/preview', [PosController::class, 'preview'])->name('preview');
+    Route::get('/customer-display', [PosController::class, 'customerDisplay'])->name('customer-display');
     Route::view('/compare', 'pos.compare')->name('compare');
     Route::get('/control', [PosController::class, 'control'])->name('control');
     Route::get('/products', [PosController::class, 'products'])->name('products');

@@ -69,6 +69,14 @@ class PosController extends Controller
         ]);
     }
 
+    public function customerDisplay()
+    {
+        return view('pos.customer-display', [
+            'company' => ['name' => \App\Models\AppSetting::company('name')],
+            'logo' => \App\Models\AppSetting::logoUrl(),
+        ]);
+    }
+
     public function index(MemberPointService $points): View
     {
         $webMode = AppSetting::get('pos_web_mode', 'sell');
@@ -591,17 +599,14 @@ class PosController extends Controller
         });
 
         // à¸ªà¸•à¹Šà¸­à¸à¸„à¸‡à¹€à¸«à¸¥à¸·à¸­ "à¸‚à¸­à¸‡à¸ªà¸²à¸‚à¸²à¸™à¸µà¹‰" (à¸„à¸¥à¸±à¸‡à¹ƒà¸„à¸£à¸„à¸¥à¸±à¸‡à¸¡à¸±à¸™) - à¸”à¸¶à¸‡à¸ˆà¸²à¸à¸„à¸¥à¸±à¸‡à¹€à¸£à¸´à¹ˆà¸¡à¸•à¹‰à¸™à¸‚à¸­à¸‡à¸ªà¸²à¸‚à¸²
-        $locationId = $branchId ? Branch::whereKey($branchId)->value('default_warehouse_location_id') : null;
-        if ($locationId) {
-            $stockByProduct = StockBalance::where('warehouse_location_id', $locationId)
-                ->whereIn('product_id', $products->pluck('id'))
-                ->pluck('on_hand_qty', 'product_id');
-            $products->each(function ($p) use ($stockByProduct) {
-                $p->stock_qty = (float) ($stockByProduct[$p->id] ?? 0);
-            });
-        } else {
-            $products->each(fn ($p) => $p->stock_qty = null);
-        }
+        // Fetch TOTAL stock across all warehouse locations
+        $stockByProduct = StockBalance::whereIn('product_id', $products->pluck('id'))
+            ->selectRaw('product_id, SUM(on_hand_qty) as total')
+            ->groupBy('product_id')
+            ->pluck('total', 'product_id');
+        $products->each(function ($p) use ($stockByProduct) {
+            $p->stock_qty = (float) ($stockByProduct[$p->id] ?? 0);
+        });
 
         return response()->json($products);
     }

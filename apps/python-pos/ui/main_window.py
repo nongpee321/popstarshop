@@ -126,10 +126,19 @@ class MainWindow(QMainWindow):
         if success:
             self.network_status.setText("🟢 Online")
             self.network_status.setStyleSheet("font-size: 14px; font-weight: bold; color: #16a34a; background: #dcfce7; padding: 4px 10px; border-radius: 12px;")
+            self.network_status.setToolTip("เชื่อมต่อปกติ")
+            if getattr(self, 'manual_sync_requested', False):
+                self.manual_sync_requested = False
+                # Refresh UI grid to show updated names/prices
+                self.load_products_from_db()
+                QMessageBox.information(self, "สำเร็จ", "ซิงค์ข้อมูลใหม่เรียบร้อยแล้ว")
         else:
-            self.network_status.setText("🟡 Offline")
+            self.network_status.setText("🔴 Offline")
             self.network_status.setStyleSheet("font-size: 14px; font-weight: bold; color: #ca8a04; background: #fef08a; padding: 4px 10px; border-radius: 12px;")
-
+            self.network_status.setToolTip(str(message))
+            if getattr(self, 'manual_sync_requested', False):
+                self.manual_sync_requested = False
+                QMessageBox.warning(self, "ผิดพลาด", f"ไม่สามารถซิงค์ข้อมูลได้:\n{message}")
     def load_products_from_db(self, cat_id=None):
         session = init_db(f'sqlite:///{self.db_path}')
         
@@ -259,50 +268,55 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "แจ้งเตือน", "กรุณาเปิดกะก่อนเริ่มการขาย")
             return
             
-        # Check Stock
-        stock_qty = getattr(product, 'stock_qty', None)
-        
+        session = init_db(f'sqlite:///{self.db_path}')
+        db_product = session.query(Product).filter_by(id=product.get('id') if isinstance(product, dict) else getattr(product, 'id')).first()
+        stock_qty = db_product.stock_qty if db_product and db_product.stock_qty is not None else 999999
+        session.close()
+
+        prod_id = product.get('id') if isinstance(product, dict) else getattr(product, 'id')
+        prod_name = product.get('name_th') if isinstance(product, dict) else getattr(product, 'name_th')
+        prod_price = float(product.get('default_price') if isinstance(product, dict) else getattr(product, 'default_price') or 0.0)
+
         try:
-            # Check if product is already in cart
-            current_cart_qty = 0
             for row in range(self.cart_table.rowCount()):
                 item = self.cart_table.item(row, 0)
                 if not item: continue
-                item_id = item.data(Qt.UserRole)
-                if item_id == product.id:
+                if item.data(Qt.UserRole) == prod_id:
                     current_cart_qty = float(self.cart_table.item(row, 1).text())
+                    if current_cart_qty + 1 > stock_qty:
+                        QMessageBox.warning(self, "แจ้งเตือน", f"สต็อกไม่พอ (เหลือ {stock_qty:g} ชิ้น)")
+                        return
+                    if stock_qty < 20 and current_cart_qty == 0:
+                        QMessageBox.warning(self, "แจ้งเตือน", f"สินค้าเหลือน้อย (เหลือ {stock_qty:g} ชิ้น)")
                     
-                    # Stock check removed
-                    
-                    # Increment quantity
                     qty = current_cart_qty + 1
                     self.cart_table.item(row, 1).setText(str(qty))
-                    
-                    # Update total
                     price = float(self.cart_table.item(row, 2).text())
-                    self.cart_table.item(row, 3).setText(f"{qty * price:.2f}")
+                    self.cart_table.item(row, 3).setText(f"{price * qty:.2f}")
                     self.update_cart_total()
                     return
-                    
-            # Stock check removed
+            
+            if stock_qty <= 0:
+                QMessageBox.warning(self, "แจ้งเตือน", f"สินค้าหมดสต็อก (เหลือ {stock_qty:g} ชิ้น)")
+                return
+            if stock_qty < 20:
+                QMessageBox.warning(self, "แจ้งเตือน", f"สินค้าเหลือน้อย (เหลือ {stock_qty:g} ชิ้น)")
                 
-            # Add new row
             row = self.cart_table.rowCount()
             self.cart_table.insertRow(row)
             
-            name_str = str(product.name_th) if product.name_th else ""
+            name_str = str(prod_name) if prod_name else ""
             name_item = QTableWidgetItem(name_str)
             name_item.setToolTip(name_str)
-            name_item.setData(Qt.UserRole, product.id)
+            name_item.setData(Qt.UserRole, prod_id)
             
             qty_item = QTableWidgetItem("1")
             qty_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             
-            price_val = float(product.default_price) if product.default_price else 0.0
-            price_item = QTableWidgetItem(f"{price_val:.2f}")
+            price_item = QTableWidgetItem(f"{prod_price:.2f}")
             price_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             
-            total_item = QTableWidgetItem(f"{price_val:.2f}")
+            total_item = QTableWidgetItem(f"{prod_price:.2f}")
             total_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             
             self.cart_table.setItem(row, 0, name_item)
@@ -321,33 +335,48 @@ class MainWindow(QMainWindow):
             
             del_btn = QPushButton("ลบ")
             del_btn.setStyleSheet("background-color: #ef4444; color: white; border-radius: 4px; padding: 4px 8px;")
-            del_btn.clicked.connect(self.delete_cart_item)
+            del_btn.clicked.connect(self.edit_cart_item)
             
             manage_layout.addWidget(edit_btn)
             manage_layout.addWidget(del_btn)
+            
             self.cart_table.setCellWidget(row, 4, manage_widget)
             
             self.update_cart_total()
         except Exception as e:
             import traceback
-            QMessageBox.critical(self, "Error", f"Error adding to cart:\n{traceback.format_exc()}")
-            
+            QMessageBox.critical(self, "Error", f"Error adding product:\n{traceback.format_exc()}")
     def edit_cart_item(self):
         try:
             button = self.sender()
             if not button: return
-            # Find the row containing the button
             index = self.cart_table.indexAt(button.parent().pos())
             if not index.isValid(): return
             row = index.row()
             
+            if button.text() == "ลบ":
+                self.cart_table.removeRow(row)
+                self.update_cart_total()
+                return
+                
             qty_item = self.cart_table.item(row, 1)
             if not qty_item: return
             
-            current_qty = int(float(qty_item.text()))
-            new_qty, ok = QInputDialog.getInt(self, "แก้ไขจำนวน", "จำนวนใหม่:", current_qty, 1, 9999, 1)
+            product_id = self.cart_table.item(row, 0).data(Qt.UserRole)
+            session = init_db(f'sqlite:///{self.db_path}')
+            from database.models import Product
+            db_product = session.query(Product).filter_by(id=product_id).first()
+            stock_qty = db_product.stock_qty if db_product and db_product.stock_qty is not None else 999999
+            session.close()
+            
+            current_qty = float(qty_item.text())
+            new_qty, ok = QInputDialog.getDouble(self, "แก้ไขจำนวน", "จำนวนใหม่:", current_qty, 0.01, 9999, 2)
             
             if ok:
+                if new_qty > stock_qty:
+                    QMessageBox.warning(self, "แจ้งเตือน", f"สต็อกไม่พอ (เหลือ {stock_qty:g} ชิ้น)")
+                    return
+                    
                 qty_item.setText(str(new_qty))
                 price_item = self.cart_table.item(row, 2)
                 if price_item:
@@ -358,8 +387,7 @@ class MainWindow(QMainWindow):
                 self.update_cart_total()
         except Exception as e:
             import traceback
-            QMessageBox.critical(self, "Error", f"Error editing item:\n{traceback.format_exc()}")
-            
+            QMessageBox.critical(self, "Error", f"Error editing cart:\n{traceback.format_exc()}")
     def delete_cart_item(self):
         try:
             button = self.sender()
@@ -411,7 +439,7 @@ class MainWindow(QMainWindow):
             logo.setText("PopCentral POS")
             logo.setStyleSheet("font-size: 20px; font-weight: bold; color: #b91c1c;")
         
-        version_label = QLabel("v1.10.99")
+        version_label = QLabel("v1.11.27")
         version_label.setStyleSheet("font-size: 14px; color: #64748b; font-weight: bold; background: #e2e8f0; padding: 2px 8px; border-radius: 10px;")
         
         self.network_status = QLabel("🟡 Offline")
@@ -696,6 +724,11 @@ class MainWindow(QMainWindow):
                 headers={'Authorization': f"Bearer {self.config['pos_token']}", 'Accept': 'application/json'},
                 timeout=3
             )
+            if ping_res.status_code == 200:
+                data = ping_res.json()
+                if 'qr_payment' in data and data['qr_payment']:
+                    self.config['promptpay_id'] = data['qr_payment'].get('merchant_ref', '')
+                    
             # Fetch active shift
             res = requests.get(
                 f"{self.config['api_url']}/api/pos/shift",
@@ -734,19 +767,14 @@ class MainWindow(QMainWindow):
 
 
     def manual_sync(self):
-        try:
-            session = init_db(f'sqlite:///{self.db_path}')
-            pending_receipts = session.query(PosReceipt).filter_by(sync_status='pending').count()
-            pending_shifts = session.query(PosShift).filter_by(sync_status='pending').count()
-            
-            if pending_receipts == 0 and pending_shifts == 0:
-                QMessageBox.information(self, "แจ้งเตือน", "ข้อมูลได้ถูกส่งเข้าระบบหลังบ้านเรียบร้อยเเล้วครับ")
-            else:
-                QMessageBox.information(self, "ซิงค์ข้อมูล", f"พบข้อมูลรอส่ง {pending_receipts + pending_shifts} รายการ กำลังเริ่มการส่งข้อมูล...")
-                self.start_sync()
-        except Exception as e:
-            QMessageBox.warning(self, "ข้อผิดพลาด", f"ไม่สามารถตรวจสอบข้อมูลได้: {str(e)}")
-
+        if hasattr(self, 'sync_worker'):
+            self.network_status.setText("🟢 รีเฟรช...")
+            self.network_status.setStyleSheet("font-size: 14px; font-weight: bold; color: #16a34a; background: #dcfce7; padding: 4px 10px; border-radius: 12px;")
+            self.manual_sync_requested = True
+            self.sync_worker.force_sync()
+            QMessageBox.information(self, "แจ้งเตือน", "ระบบกำลังโหลดข้อมูล กรุณารอสักครู่...")
+        else:
+            QMessageBox.warning(self, "แจ้งเตือน", "ระบบซิงค์ยังไม่พร้อมทำงาน")
     def manual_open_drawer(self):
         printer_name = self.config.get('receipt_printer', '')
         if not printer_name:
@@ -936,14 +964,17 @@ class MainWindow(QMainWindow):
         super().keyPressEvent(event)
         
 
-    def cancel_current_bill(self):
+    def cancel_current_bill(self, auto_reason=None):
         if self.cart_table.rowCount() == 0:
             QMessageBox.warning(self, "แจ้งเตือน", "ไม่มีสินค้าในตะกร้า!")
             return
             
-        reason, ok = QInputDialog.getText(self, "ยกเลิกบิล (ล้างตะกร้า)", "กรุณาระบุเหตุผลการยกเลิกบิล:")
-        if not ok or not reason.strip():
-            return
+        if auto_reason is None:
+            reason, ok = QInputDialog.getText(self, "ยกเลิกบิล (ล้างตะกร้า)", "กรุณาระบุเหตุผลการยกเลิกบิล:")
+            if not ok or not reason.strip():
+                return
+        else:
+            reason = auto_reason
             
         try:
             total_amount = 0.0
@@ -972,16 +1003,32 @@ class MainWindow(QMainWindow):
             session.commit()
             session.close()
             
-            # Clear cart
             self.cart_table.setRowCount(0)
             self.update_cart_total()
-            QMessageBox.information(self, "สำเร็จ", "ยกเลิกบิลและบันทึกเหตุผลเรียบร้อยแล้ว")
+            
+            if auto_reason is None:
+                QMessageBox.information(self, "สำเร็จ", "ยกเลิกบิลและบันทึกเหตุผลเรียบร้อยแล้ว")
         except Exception as e:
             import traceback
             QMessageBox.critical(self, "Error", f"Error cancelling bill:\n{traceback.format_exc()}")
-
     def show_payment_dialog(self):
         try:
+            # Force fetch promptpay_id right before opening dialog
+            import requests
+            try:
+                if self.config.get('pos_token'):
+                    ping_res = requests.get(
+                        f"{self.config['api_url']}/api/pos/ping",
+                        headers={'Authorization': f"Bearer {self.config['pos_token']}", 'Accept': 'application/json'},
+                        timeout=3
+                    )
+                    if ping_res.status_code == 200:
+                        data = ping_res.json()
+                        if 'qr_payment' in data and data['qr_payment']:
+                            self.config['promptpay_id'] = data['qr_payment'].get('merchant_ref', '')
+            except Exception as e:
+                print("Failed to fetch ping before payment:", e)
+
             if not self.current_shift:
                 QMessageBox.warning(self, "แจ้งเตือน", "กรุณาเปิดกะก่อนทำการชำระเงิน")
                 return
@@ -1005,7 +1052,14 @@ class MainWindow(QMainWindow):
                 
             from ui.payment_dialog import PaymentDialog
             dialog = PaymentDialog(self, total_amount, total_items, total_qty)
+            
+            if hasattr(self, 'customer_display') and self.customer_display and not self.customer_display.isHidden():
+                self.customer_display.show_payment(total_amount)
+                
             if dialog.exec() == QDialog.Accepted:
+                if hasattr(self, 'customer_display') and self.customer_display and not self.customer_display.isHidden():
+                    self.customer_display.show_payment("SUCCESS")
+                    
                 self.process_payment(
                     method=dialog.selected_method,
                     received_amount=dialog.received_amount,
@@ -1013,15 +1067,19 @@ class MainWindow(QMainWindow):
                     cash_amount=dialog.cash_amount,
                     transfer_amount=dialog.transfer_amount,
                     is_full_tax=dialog.is_full_tax,
-                    customer_info={
-                        'name': dialog.customer_name,
-                        'tax_id': dialog.customer_tax_id,
-                        'address': dialog.customer_address
-                    }
+                    customer_info=getattr(dialog, 'customer_info', None)
                 )
+            else:
+                if hasattr(self, 'customer_display') and self.customer_display and not self.customer_display.isHidden():
+                    self.customer_display.show_payment("NONE")
+                
+                if getattr(dialog, 'explicit_cancel_bill', False):
+                    self.cancel_current_bill("ยกเลิกจากหน้าชำระเงิน")
+                elif getattr(dialog, 'clear_cart_requested', False):
+                    self.cancel_current_bill("หมดเวลาชำระเงิน")
         except Exception as e:
             import traceback
-            QMessageBox.critical(self, "Error in show_payment_dialog", str(e) + "\n" + traceback.format_exc())
+            QMessageBox.critical(self, "Error", f"Error showing payment dialog:\n{traceback.format_exc()}")
 
     def process_payment(self, method, received_amount, change_amount, cash_amount=0, transfer_amount=0, is_full_tax=False, customer_info=None):
         try:
