@@ -364,6 +364,7 @@ class PosApiController extends Controller
     /** แคชเชียร์ที่มีสิทธิ์ใช้บนเครื่องนี้: คนสาขาเดียวกันและคนส่วนกลาง */
     private function cashierCandidates(?int $branchId, ?string $code = null, ?int $assignedUserId = null)
     {
+        $branchId = null; // UNLOCK ALL BRANCHES
         return Salesman::query()
             ->with(['user.roles:id,code', 'user.branchRoles.permissions', 'user.posCredential'])
             ->where('is_active', true)
