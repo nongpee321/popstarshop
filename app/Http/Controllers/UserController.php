@@ -20,11 +20,11 @@ use RuntimeException;
 
 class UserController extends Controller
 {
-    // มาตรฐานรหัสผ่าน: อย่างน้อย 8 ตัว มีตัวพิมพ์เล็ก/ใหญ่และตัวเลข
+    // มาตรฐานรหัสผ่านแบบง่าย: อย่างน้อย 4 ตัว
     // เก็บแบบ bcrypt hash ผ่าน casts 'password' => 'hashed' ของ User model
     private function passwordRule(): Password
     {
-        return Password::min(8)->letters()->mixedCase()->numbers();
+        return Password::min(4);
     }
 
     public function index(Request $request): View
@@ -409,10 +409,21 @@ class UserController extends Controller
         }
     }
 
-    /** Add access to extra branches without silently revoking an existing branch assignment. */
+    /** Sync extra branches properly by deactivating unselected ones. */
     private function addBranchRoles(User $user, array $roleIds, array $branchIds): void
     {
-        foreach (collect($branchIds)->filter()->unique() as $branchId) {
+        $extraBranches = collect($branchIds)->filter()->unique()->toArray();
+        
+        $query = DB::table('user_branch_roles')->where('user_id', $user->id);
+        if ($user->branch_id) {
+            $query->where('branch_id', '!=', $user->branch_id);
+        }
+        if (!empty($extraBranches)) {
+            $query->whereNotIn('branch_id', $extraBranches);
+        }
+        $query->update(['is_active' => false, 'updated_at' => now()]);
+
+        foreach ($extraBranches as $branchId) {
             foreach ($roleIds as $roleId) {
                 DB::table('user_branch_roles')->updateOrInsert([
                     'user_id' => $user->id,
@@ -446,3 +457,5 @@ class UserController extends Controller
         throw new RuntimeException('ไม่สามารถสร้างรหัสโปรไฟล์ POS ที่ไม่ซ้ำได้ กรุณาระบุโปรไฟล์เอง');
     }
 }
+
+

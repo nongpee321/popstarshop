@@ -5,6 +5,19 @@
 @section('content')
 @php($resetResult = session('reset_pos_pin_result') ?? session('reset_password_result'))
 <div x-data="userPage()" x-cloak>
+    @if($errors->any() && !$errors->has('pos_pin'))
+    <div class="alert alert-danger d-flex align-items-start gap-2 mb-3" role="alert">
+        <i class="bi bi-exclamation-octagon-fill mt-1"></i>
+        <div>
+            <strong>เกิดข้อผิดพลาดในการบันทึกข้อมูล:</strong>
+            <ul class="mb-0 mt-1">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    </div>
+@endif
     @if($errors->has('pos_pin'))
         <div class="alert alert-danger d-flex align-items-start gap-2 mb-3" role="alert">
             <i class="bi bi-exclamation-octagon-fill mt-1"></i>
@@ -72,7 +85,7 @@
             <span class="uf-head-icon"><i class="bi" :class="editId ? 'bi-pencil-square' : 'bi-person-plus'"></i></span>
             <div>
                 <h2 class="h5 fw-bold mb-0" x-text="editId ? 'แก้ไขผู้ใช้: ' + editUsername : 'เพิ่มผู้ใช้ใหม่'"></h2>
-                <p class="text-muted small mb-0">รหัสผ่านต้องยาวอย่างน้อย 8 ตัว มีตัวพิมพ์เล็ก พิมพ์ใหญ่ และตัวเลข (เก็บแบบเข้ารหัส bcrypt)</p>
+                <p class="text-muted small mb-0">รหัสผ่านต้องยาวอย่างน้อย 4 ตัว (เก็บแบบเข้ารหัส bcrypt)</p>
             </div>
         </div>
 
@@ -451,3 +464,5 @@ function userPage() {
 }
 </script>
 @endpush
+
+
