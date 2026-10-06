@@ -1,4 +1,4 @@
-import sys
+﻿import sys
 import os
 import json
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
@@ -39,6 +39,7 @@ class MainWindow(QMainWindow):
         
         self.setStyleSheet("""
             QMainWindow { background-color: #f1f5f9; }
+            QToolTip { color: #000000; background-color: #ffffff; border: 1px solid #94a3b8; font-size: 14px; font-weight: bold; padding: 4px; }
             QLabel { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
             QPushButton { 
                 font-family: 'Segoe UI'; font-weight: bold; border-radius: 6px; 
@@ -200,7 +201,7 @@ class MainWindow(QMainWindow):
         if not query: return
         
         try:
-            db_path = os.path.join(self.app_data_dir, 'pos_offline.db')
+            db_path = getattr(self, 'db_path', os.path.join(self.app_data_dir, 'pos_offline.db'))
             session = init_db(f"sqlite:///{db_path}")
             
             # Find product by exact sku_code, barcode, or exact name_th match
@@ -234,7 +235,7 @@ class MainWindow(QMainWindow):
         if not ok2: return
         
         try:
-            db_path = os.path.join(self.app_data_dir, 'pos_offline.db')
+            db_path = getattr(self, 'db_path', os.path.join(self.app_data_dir, 'pos_offline.db'))
             session = init_db(f"sqlite:///{db_path}")
             
             # Create a quick local product
@@ -439,8 +440,12 @@ class MainWindow(QMainWindow):
             logo.setText("PopCentral POS")
             logo.setStyleSheet("font-size: 20px; font-weight: bold; color: #b91c1c;")
         
-        version_label = QLabel("v1.11.27")
+        version_label = QLabel("v1.11.39")
         version_label.setStyleSheet("font-size: 14px; color: #64748b; font-weight: bold; background: #e2e8f0; padding: 2px 8px; border-radius: 10px;")
+        
+        self.branch_label = QLabel(f"🏢 {self.config.get('branch_name', 'กำลังตรวจสอบ...')}")
+        self.branch_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #1e3a8a; background: #dbeafe; padding: 4px 10px; border-radius: 12px; border: 1px solid #93c5fd;")
+        self.branch_label.hide()
         
         self.network_status = QLabel("🟡 Offline")
         self.network_status.setStyleSheet("font-size: 14px; font-weight: bold; color: #ca8a04;")
@@ -539,6 +544,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(logo)
         layout.addWidget(version_label)
         layout.addStretch()
+        layout.addWidget(self.branch_label)
+        layout.addSpacing(10)
         layout.addWidget(self.network_status)
         layout.addSpacing(10)
         layout.addWidget(self.fs_btn)
@@ -647,7 +654,7 @@ class MainWindow(QMainWindow):
         else:
             # Open Shift
             from ui.shift_dialog import ShiftOpenDialog
-            dialog = ShiftOpenDialog(self, cashier_name=self.config.get('cashier_name', 'Unknown'), api_url=self.config.get('api_url', ''), pos_token=self.config.get('pos_token', ''))
+            dialog = ShiftOpenDialog(self, cashier_name=self.config.get('cashier_name', 'Unknown'), api_url=self.config.get('api_url', ''), pos_token=self.config.get('pos_token', ''), branch_name=self.config.get('branch_name', 'สำนักงานใหญ่'))
             if dialog.exec() == QDialog.Accepted:
                 try:
                     res = requests.post(
@@ -684,6 +691,7 @@ class MainWindow(QMainWindow):
                 session.commit()
             self.current_shift = None
             self.shift_btn.setText("🔒 เปิดกะ (Shift Open)")
+            if hasattr(self, "branch_label"): self.branch_label.hide()
             self.shift_btn.setStyleSheet("QPushButton { background-color: #f59e0b; border: none; color: white; padding: 5px 10px; border-radius: 6px; font-weight: bold;} QPushButton:hover { background-color: #d97706; }")
             if hasattr(self, 'start_sync'):
                 self.start_sync()
@@ -709,6 +717,7 @@ class MainWindow(QMainWindow):
                 'expected_cash': opening_cash
             }
             self.shift_btn.setText("🔓 ปิดกะ (Shift Close)")
+            if hasattr(self, "branch_label"): self.branch_label.show()
             self.shift_btn.setStyleSheet("QPushButton { background-color: #3b82f6; border: none; color: white; padding: 5px 10px; border-radius: 6px; font-weight: bold;} QPushButton:hover { background-color: #2563eb; }")
             if hasattr(self, 'start_sync'):
                 self.start_sync()
@@ -726,6 +735,10 @@ class MainWindow(QMainWindow):
             )
             if ping_res.status_code == 200:
                 data = ping_res.json()
+                if 'branch_name' in data and data['branch_name']:
+                    self.config['branch_name'] = data['branch_name']
+                    if hasattr(self, 'branch_label'):
+                        self.branch_label.setText(f"🏢 {data['branch_name']}")
                 if 'qr_payment' in data and data['qr_payment']:
                     self.config['promptpay_id'] = data['qr_payment'].get('merchant_ref', '')
                     
@@ -740,6 +753,7 @@ class MainWindow(QMainWindow):
                 if shift:
                     self.current_shift = shift
                     self.shift_btn.setText("🔓 ปิดกะ (Shift Close)")
+                    if hasattr(self, "branch_label"): self.branch_label.show()
                     self.shift_btn.setStyleSheet("QPushButton { background-color: #3b82f6; border: none; color: white; padding: 5px 10px; border-radius: 6px; font-weight: bold;} QPushButton:hover { background-color: #2563eb; }")
         except:
             pass
@@ -987,7 +1001,7 @@ class MainWindow(QMainWindow):
                 total_amount += total
                 items_list.append({"name": name, "qty": qty, "price": price, "total": total})
                 
-            db_path = os.path.join(self.app_data_dir, 'pos_offline.db')
+            db_path = getattr(self, 'db_path', os.path.join(self.app_data_dir, 'pos_offline.db'))
             session = init_db(f"sqlite:///{db_path}")
             
             from database.models import CancelledBill
@@ -1024,6 +1038,10 @@ class MainWindow(QMainWindow):
                     )
                     if ping_res.status_code == 200:
                         data = ping_res.json()
+                        if 'branch_name' in data and data['branch_name']:
+                            self.config['branch_name'] = data['branch_name']
+                            if hasattr(self, 'branch_label'):
+                                self.branch_label.setText(f"🏢 {data['branch_name']}")
                         if 'qr_payment' in data and data['qr_payment']:
                             self.config['promptpay_id'] = data['qr_payment'].get('merchant_ref', '')
             except Exception as e:
@@ -1087,7 +1105,7 @@ class MainWindow(QMainWindow):
             from datetime import datetime
             import json
             
-            db_path = os.path.join(self.app_data_dir, 'pos_offline.db')
+            db_path = getattr(self, 'db_path', os.path.join(self.app_data_dir, 'pos_offline.db'))
             session = init_db(f"sqlite:///{db_path}")
             
             receipt_id = str(uuid.uuid4())
@@ -1209,3 +1227,10 @@ if __name__ == "__main__":
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
+
+
+
+
+
+
+
