@@ -440,7 +440,7 @@ class MainWindow(QMainWindow):
             logo.setText("PopCentral POS")
             logo.setStyleSheet("font-size: 20px; font-weight: bold; color: #b91c1c;")
         
-        version_label = QLabel("v1.11.40")
+        version_label = QLabel("v1.11.41")
         version_label.setStyleSheet("font-size: 14px; color: #64748b; font-weight: bold; background: #e2e8f0; padding: 2px 8px; border-radius: 10px;")
         
         self.branch_label = QLabel(f"🏢 {self.config.get('branch_name', 'กำลังตรวจสอบ...')}")
