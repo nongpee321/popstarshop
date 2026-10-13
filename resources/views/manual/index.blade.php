@@ -897,99 +897,95 @@
         <!-- Standalone Sidebar Navigation -->
         <aside class="manual-sidebar">
             <div style="padding: 0.5rem 0.75rem 0.85rem; border-bottom: 1px solid var(--border-light); margin-bottom: 0.85rem;">
-                <span style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--brand-red);">หมวดหมู่ ERP ครบทั้ง 9 ระบบ</span>
+                <span style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--brand-red);">คู่มือมาตรฐาน 8 บทหลัก (SOP)</span>
                 <p style="font-size: 0.76rem; color: var(--text-muted); margin: 2px 0 0;">คลิกเพื่อเปิดคู่มือพร้อมภาพจริงทีละขั้นตอน</p>
             </div>
 
             <div>
-                <div class="nav-group-title">📊 หมวด 1: ภาพรวม & ควบคุม</div>
+                <div class="nav-group-title">📊 บทที่ 1: ภาพรวม & การเริ่มต้น</div>
                 <a href="#guide-overview" class="nav-link-item" onclick="openManualReader('overview'); setActiveNav(this);">
                     <i class="bi bi-speedometer2 text-primary"></i>
-                    <span>1. ภาพรวมและศูนย์ควบคุม</span>
+                    <span>1.1 ภาพรวมและศูนย์ควบคุม</span>
+                </a>
+                <a href="#guide-users" class="nav-link-item" onclick="openManualReader('users'); setActiveNav(this);">
+                    <i class="bi bi-people-fill text-success"></i>
+                    <span>1.2 ผู้ใช้และสิทธิ์การใช้งาน</span>
+                </a>
+                <a href="#guide-settings" class="nav-link-item" onclick="openManualReader('settings'); setActiveNav(this);">
+                    <i class="bi bi-gear-wide-connected text-primary"></i>
+                    <span>1.3 ตั้งค่าระบบ & เอกสาร</span>
                 </a>
             </div>
 
             <div>
-                <div class="nav-group-title">📄 หมวด 2: ขาย & เอกสาร</div>
-                <a href="#guide-sales" class="nav-link-item" onclick="openManualReader('sales'); setActiveNav(this);">
-                    <i class="bi bi-receipt-cutoff text-warning"></i>
-                    <span>2. งานขายและเอกสาร</span>
-                </a>
-            </div>
-
-            <div>
-                <div class="nav-group-title">🛒 หมวด 3: POS & หน้าร้าน</div>
+                <div class="nav-group-title">🛒 บทที่ 2: ระบบขายหน้าร้าน (POS)</div>
                 <a href="#guide-python-pos" class="nav-link-item" onclick="openManualReader('python_pos'); setActiveNav(this);">
                     <i class="bi bi-terminal-fill text-danger"></i>
-                    <span>3.1 แอปแคชเชียร์ (Python POS)</span>
+                    <span>2.1 แอปแคชเชียร์ (Python POS)</span>
                 </a>
                 <a href="#guide-pos" class="nav-link-item" onclick="openManualReader('pos'); setActiveNav(this);">
                     <i class="bi bi-cart4 text-danger"></i>
-                    <span>3.2 วิธีขายหน้าร้าน (JET POS)</span>
+                    <span>2.2 วิธีขายหน้าร้าน (JET POS)</span>
                 </a>
             </div>
 
             <div>
-                <div class="nav-group-title">📦 หมวด 4: คลัง จัดซื้อ & ผลิต</div>
+                <div class="nav-group-title">📦 บทที่ 3: สินค้า & คลังสินค้า</div>
                 <a href="#guide-products" class="nav-link-item" onclick="openManualReader('products'); setActiveNav(this);">
                     <i class="bi bi-box-seam text-danger"></i>
-                    <span>4.1 แค็ตตาล็อกสินค้า & สต็อก</span>
+                    <span>3.1 แค็ตตาล็อกสินค้า & สต็อก</span>
                 </a>
                 <a href="#guide-transfer" class="nav-link-item" onclick="openManualReader('transfer'); setActiveNav(this);">
                     <i class="bi bi-arrow-left-right text-danger"></i>
-                    <span>4.2 โอนย้ายสต็อกข้ามสาขา</span>
+                    <span>3.2 โอนย้ายสต็อกข้ามสาขา</span>
                 </a>
                 <a href="#guide-counts" class="nav-link-item" onclick="openManualReader('counts'); setActiveNav(this);">
                     <i class="bi bi-clipboard-check text-danger"></i>
-                    <span>4.3 ตรวจนับสต็อก (Stock Count)</span>
+                    <span>3.3 ตรวจนับสต็อก (Stock Count)</span>
                 </a>
+                <a href="#guide-master-data" class="nav-link-item" onclick="openManualReader('master_data'); setActiveNav(this);">
+                    <i class="bi bi-box-seam-fill text-info"></i>
+                    <span>3.4 ข้อมูลหลัก & สูตรผลิต BOM</span>
+                </a>
+            </div>
+
+            <div>
+                <div class="nav-group-title">📄 บทที่ 4: การขาย & ลูกค้า</div>
+                <a href="#guide-sales" class="nav-link-item" onclick="openManualReader('sales'); setActiveNav(this);">
+                    <i class="bi bi-receipt-cutoff text-warning"></i>
+                    <span>4.1 งานขายและเอกสารลูกค้า</span>
+                </a>
+            </div>
+
+            <div>
+                <div class="nav-group-title">🚚 บทที่ 5: จัดซื้อ & ซัพพลายเชน</div>
                 <a href="#guide-purchasing" class="nav-link-item" onclick="openManualReader('purchasing'); setActiveNav(this);">
                     <i class="bi bi-truck text-warning"></i>
-                    <span>4.4 จัดซื้อ คลังวัตถุดิบ & ผลิต</span>
+                    <span>5.1 จัดซื้อ คลังวัตถุดิบ & ผลิต</span>
                 </a>
             </div>
 
             <div>
-                <div class="nav-group-title">💰 หมวด 5: การเงิน & บัญชี</div>
+                <div class="nav-group-title">💰 บทที่ 6: การเงิน บัญชี & ภาษี</div>
                 <a href="#guide-finance" class="nav-link-item" onclick="openManualReader('finance'); setActiveNav(this);">
                     <i class="bi bi-calculator-fill text-danger"></i>
-                    <span>5. การเงินและบัญชี</span>
+                    <span>6.1 การเงินและบัญชีครบวงจร</span>
                 </a>
             </div>
 
             <div>
-                <div class="nav-group-title">🏷️ หมวด 6: ข้อมูลหลัก</div>
-                <a href="#guide-master-data" class="nav-link-item" onclick="openManualReader('master_data'); setActiveNav(this);">
-                    <i class="bi bi-people-fill text-info"></i>
-                    <span>6. ข้อมูลหลัก (Master Data)</span>
-                </a>
-            </div>
-
-            <div>
-                <div class="nav-group-title">🔌 หมวด 7: เชื่อมต่อภายนอก</div>
-                <a href="#guide-integrations" class="nav-link-item" onclick="openManualReader('integrations'); setActiveNav(this);">
-                    <i class="bi bi-chat-dots-fill text-success"></i>
-                    <span>7. เชื่อมต่อภายนอก (LINE)</span>
-                </a>
-            </div>
-
-            <div>
-                <div class="nav-group-title">📈 หมวด 8: รายงาน & วิเคราะห์</div>
+                <div class="nav-group-title">📈 บทที่ 7: รายงาน & วิเคราะห์</div>
                 <a href="#guide-reports" class="nav-link-item" onclick="openManualReader('reports'); setActiveNav(this);">
                     <i class="bi bi-bar-chart-line-fill text-info"></i>
-                    <span>8. รายงานและวิเคราะห์ข้อมูล</span>
+                    <span>7.1 รายงานและวิเคราะห์ข้อมูล</span>
                 </a>
             </div>
 
             <div>
-                <div class="nav-group-title">⚙️ หมวด 9: ตั้งค่า & ความปลอดภัย</div>
-                <a href="#guide-settings" class="nav-link-item" onclick="openManualReader('settings'); setActiveNav(this);">
-                    <i class="bi bi-gear-wide-connected text-primary"></i>
-                    <span>9.1 ตั้งค่าระบบ & เอกสาร</span>
-                </a>
-                <a href="#guide-users" class="nav-link-item" onclick="openManualReader('users'); setActiveNav(this);">
-                    <i class="bi bi-shield-lock-fill text-success"></i>
-                    <span>9.2 ผู้ใช้และสิทธิ์การใช้งาน</span>
+                <div class="nav-group-title">🔌 บทที่ 8: เชื่อมต่อ & ดูแลระบบ</div>
+                <a href="#guide-integrations" class="nav-link-item" onclick="openManualReader('integrations'); setActiveNav(this);">
+                    <i class="bi bi-chat-dots-fill text-success"></i>
+                    <span>8.1 เชื่อมต่อภายนอก (LINE Notify)</span>
                 </a>
             </div>
 
@@ -1047,219 +1043,19 @@
                 </div>
 
                 <div class="vg-grid">
-                    <!-- หมวด 1: ภาพรวมและศูนย์ควบคุม -->
+                    <!-- บทที่ 1: ภาพรวมและการเริ่มต้นใช้งาน -->
                     <div class="vg-card" onclick="openManualReader('overview')">
                         <div class="vg-thumb">
                             <img src="{{ asset('images/manual/overview_main.png') }}" alt="ภาพรวมและศูนย์ควบคุม">
-                            <span class="vg-badge-step" style="background:#2563eb;"><i class="bi bi-speedometer2 me-1"></i> หมวด 1: 9 ฟังก์ชันพร้อมรูปจริง</span>
+                            <span class="vg-badge-step" style="background:#2563eb;"><i class="bi bi-speedometer2 me-1"></i> บทที่ 1.1: 9 ฟังก์ชันพร้อมรูปจริง</span>
                         </div>
                         <div class="vg-body">
                             <div>
-                                <h4 class="vg-title"><i class="bi bi-speedometer2 text-primary"></i> 1. ภาพรวมและศูนย์ควบคุม (Overview & Controls)</h4>
+                                <h4 class="vg-title"><i class="bi bi-speedometer2 text-primary"></i> 1.1 ภาพรวมและศูนย์ควบคุม (Overview & Controls)</h4>
                                 <p class="vg-desc">คู่มือแดชบอร์ดผู้บริหาร POPSTAR EXECUTIVE BOARD วิเคราะห์ยอดขายด่วน กำไรขั้นต้น อัตรากำไร และศูนย์ควบคุมต้นทุน งบประมาณ (Budget) เวลา/Payroll และมาตรการบริหาร</p>
                             </div>
                             <button type="button" class="vg-btn-action" style="background:#dbeafe; color:#1e40af; border-color:#93c5fd;">
-                                <i class="bi bi-book-half"></i> เปิดอ่านคู่มือภาพรวม (9 ฟังก์ชัน)
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- หมวด 2: ขายและเอกสาร -->
-                    <div class="vg-card" onclick="openManualReader('sales')">
-                        <div class="vg-thumb">
-                            <img src="{{ asset('images/manual/sales_main.png') }}" alt="งานขายและเอกสาร">
-                            <span class="vg-badge-step" style="background:#d97706;"><i class="bi bi-receipt-cutoff me-1"></i> หมวด 2: 9 ฟังก์ชันพร้อมรูปจริง</span>
-                        </div>
-                        <div class="vg-body">
-                            <div>
-                                <h4 class="vg-title"><i class="bi bi-receipt-cutoff text-warning"></i> 2. งานขายและเอกสาร (Sales & Documents)</h4>
-                                <p class="vg-desc">คู่มือศูนย์เอกสารย้อนหลัง, ใบเสนอราคา, ใบจอง/ขายเชื่อ, ใบขายสด, ใบรับคืนสินค้า, ใบวางบิล, ใบเพิ่มหนี้/ใบลดหนี้, ลูกค้าสัมพันธ์ (CRM) และ Sales Pipeline Kanban</p>
-                            </div>
-                            <button type="button" class="vg-btn-action" style="background:#fef3c7; color:#92400e; border-color:#fcd34d;">
-                                <i class="bi bi-book-half"></i> เปิดอ่านคู่มืองานขาย (9 ฟังก์ชัน)
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- หมวด 3: POS และระบบหน้าร้าน -->
-                    <div class="vg-card" onclick="openManualReader('python_pos')">
-                        <div class="vg-thumb">
-                            <img src="{{ asset('images/manual/python_pos_main.png') }}" alt="แอปพลิเคชัน Python POS">
-                            <span class="vg-badge-step"><i class="bi bi-terminal-fill me-1"></i> หมวด 3.1: 6 ขั้นตอนพร้อมรูปจริง</span>
-                        </div>
-                        <div class="vg-body">
-                            <div>
-                                <h4 class="vg-title"><i class="bi bi-terminal-fill text-danger"></i> 3.1 แอปแคชเชียร์ (Python POS Desktop)</h4>
-                                <p class="vg-desc">คู่มือใช้งานโปรแกรมแคชเชียร์หน้าร้านจริง เข้าสู่ระบบ เปิดกะ ยิงบาร์โค้ด ค้นหาสินค้า ชำระเงินสด/QR Code และปิดกะทำงาน</p>
-                            </div>
-                            <button type="button" class="vg-btn-action">
-                                <i class="bi bi-book-half"></i> เปิดอ่านคู่มือ Python POS (6 ขั้นตอน)
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="vg-card" onclick="openManualReader('pos')">
-                        <div class="vg-thumb">
-                            <img src="{{ asset('images/manual/pos_main.png') }}" alt="หน้าจอ POS">
-                            <span class="vg-badge-step"><i class="bi bi-camera me-1"></i> หมวด 3.2: 5 ขั้นตอนพร้อมรูป</span>
-                        </div>
-                        <div class="vg-body">
-                            <div>
-                                <h4 class="vg-title"><i class="bi bi-cart4 text-danger"></i> 3.2 ระบบขายหน้าร้าน (JET POS Web)</h4>
-                                <p class="vg-desc">คู่มือเปิดกะแคชเชียร์ สแกนบาร์โค้ด ชั่งน้ำหนัก คิดเงิน รับเงินสด/โอน QR พักบิล และพิมพ์รายงานปิดกะ Z-Report</p>
-                            </div>
-                            <button type="button" class="vg-btn-action">
-                                <i class="bi bi-book-half"></i> เปิดอ่านคู่มือ POS (5 ขั้นตอน)
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- หมวด 4: สินค้า คลัง จัดซื้อ และการผลิต -->
-                    <div class="vg-card" onclick="openManualReader('products')">
-                        <div class="vg-thumb">
-                            <img src="{{ asset('images/manual/products_main.png') }}" alt="หน้ารายการสินค้า">
-                            <span class="vg-badge-step"><i class="bi bi-box-seam me-1"></i> หมวด 4.1: 5 ขั้นตอนพร้อมรูป</span>
-                        </div>
-                        <div class="vg-body">
-                            <div>
-                                <h4 class="vg-title"><i class="bi bi-box-seam text-danger"></i> 4.1 จัดการสินค้า & สต็อก</h4>
-                                <p class="vg-desc">การตรวจสอบสต็อกคงเหลือรายสาขา การค้นหาสินค้า การสร้างสินค้าใหม่ การตั้งราคา และรับเข้าสต็อกด่วน</p>
-                            </div>
-                            <button type="button" class="vg-btn-action">
-                                <i class="bi bi-book-half"></i> เปิดอ่านคู่มือสินค้า (5 ขั้นตอน)
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="vg-card" onclick="openManualReader('transfer')">
-                        <div class="vg-thumb">
-                            <img src="{{ asset('images/manual/stock_transfers.png') }}" alt="หน้าโอนสต็อก">
-                            <span class="vg-badge-step"><i class="bi bi-arrow-left-right me-1"></i> หมวด 4.2: 4 ขั้นตอนพร้อมรูป</span>
-                        </div>
-                        <div class="vg-body">
-                            <div>
-                                <h4 class="vg-title"><i class="bi bi-arrow-left-right text-danger"></i> 4.2 โอนย้ายสต็อกข้ามสาขา</h4>
-                                <p class="vg-desc">ขั้นตอนการเบิกวัตถุดิบและสินค้าจากคลังใหญ่ (HQ) กระจายสู่สาขาหน้าร้านเพื่อเติมสต็อกให้ขายได้</p>
-                            </div>
-                            <button type="button" class="vg-btn-action">
-                                <i class="bi bi-book-half"></i> เปิดอ่านคู่มือโอนสต็อก (4 ขั้นตอน)
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="vg-card" onclick="openManualReader('counts')">
-                        <div class="vg-thumb">
-                            <img src="{{ asset('images/manual/stock_counts.png') }}" alt="หน้าตรวจนับสต็อก">
-                            <span class="vg-badge-step"><i class="bi bi-clipboard-check me-1"></i> หมวด 4.3: 4 ขั้นตอนพร้อมรูป</span>
-                        </div>
-                        <div class="vg-body">
-                            <div>
-                                <h4 class="vg-title"><i class="bi bi-clipboard-check text-danger"></i> 4.3 ตรวจนับสต็อก (Stock Count)</h4>
-                                <p class="vg-desc">การตรวจนับของจริงเปรียบเทียบกับระบบ คำนวณผลต่าง (Variance) ของขาด/ของเกิน และปรับยอดสมุดบัญชี</p>
-                            </div>
-                            <button type="button" class="vg-btn-action">
-                                <i class="bi bi-book-half"></i> เปิดอ่านคู่มือนับสต็อก (4 ขั้นตอน)
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="vg-card" onclick="openManualReader('purchasing')">
-                        <div class="vg-thumb">
-                            <img src="{{ asset('images/manual/purchasing_main.png') }}" alt="จัดซื้อ คลังวัตถุดิบ และการผลิต">
-                            <span class="vg-badge-step" style="background:#ea580c;"><i class="bi bi-truck me-1"></i> หมวด 4.4: 6 ฟังก์ชันพร้อมรูปจริง</span>
-                        </div>
-                        <div class="vg-body">
-                            <div>
-                                <h4 class="vg-title"><i class="bi bi-truck text-warning"></i> 4.4 จัดซื้อ คลังวัตถุดิบ & การผลิต (Purchasing & Production)</h4>
-                                <p class="vg-desc">คู่มือใบขอซื้อ/สั่งซื้อ (PO), ใบเบิกสินค้า/วัตถุดิบ, ใบคืนสินค้าจากการเบิก, ใบตัดสินค้าชำรุด, สูตรผลิต (BOM)/ใบสั่งผลิต, และแจ้งเตือนสต็อกต่ำจุดสั่งซื้อซ้ำ</p>
-                            </div>
-                            <button type="button" class="vg-btn-action" style="background:#ffedd5; color:#9a3412; border-color:#fed7aa;">
-                                <i class="bi bi-book-half"></i> เปิดอ่านคู่มือจัดซื้อ & ผลิต (6 ฟังก์ชัน)
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- หมวด 5: การเงินและบัญชี -->
-                    <div class="vg-card" onclick="openManualReader('finance')">
-                        <div class="vg-thumb">
-                            <img src="{{ asset('images/manual/finance_main.png') }}" alt="ระบบการเงินและบัญชี">
-                            <span class="vg-badge-step" style="background:#dc2626;"><i class="bi bi-calculator-fill me-1"></i> หมวด 5: 8 ฟังก์ชันพร้อมรูปจริง</span>
-                        </div>
-                        <div class="vg-body">
-                            <div>
-                                <h4 class="vg-title"><i class="bi bi-calculator-fill text-danger"></i> 5. การเงินและบัญชี (Finance & Accounting)</h4>
-                                <p class="vg-desc">คู่มือสมุดเงินสดรายวัน, ทะเบียนบัญชีธนาคาร, ฝาก/ถอนเงินสด, ทะเบียนเช็ครับ-จ่าย, ผังบัญชีแยกประเภท, สมุดรายวันทั่วไป (GL), งบการเงิน/งบทดลอง และศูนย์ภาษีไทย/E-Tax</p>
-                            </div>
-                            <button type="button" class="vg-btn-action" style="background:#fee2e2; color:#991b1b; border-color:#fca5a5;">
-                                <i class="bi bi-book-half"></i> เปิดอ่านคู่มือการเงิน (8 ฟังก์ชัน)
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- หมวด 6: ข้อมูลหลัก -->
-                    <div class="vg-card" onclick="openManualReader('master_data')">
-                        <div class="vg-thumb">
-                            <img src="{{ asset('images/manual/master_data_main.png') }}" alt="ข้อมูลหลักและโครงสร้างระบบ">
-                            <span class="vg-badge-step" style="background:#0284c7;"><i class="bi bi-people-fill me-1"></i> หมวด 6: 13 ฟังก์ชันพร้อมรูปจริง</span>
-                        </div>
-                        <div class="vg-body">
-                            <div>
-                                <h4 class="vg-title"><i class="bi bi-people-fill text-info"></i> 6. ข้อมูลหลัก (Master Data)</h4>
-                                <p class="vg-desc">คู่มือศูนย์ตั้งต้นระบบ, ลูกค้า, ซัพพลายเออร์, สมาชิก, ผังคลังสินค้า, ตารางราคา, ราคาเครื่องชั่ง, โปรโมชั่น, ราคานาทีทอง, ป้ายราคา, บัตรส่วนลด, แต้มสะสม และแคมเปญซื้อครบ</p>
-                            </div>
-                            <button type="button" class="vg-btn-action" style="background:#e0f2fe; color:#0369a1; border-color:#bae6fd;">
-                                <i class="bi bi-book-half"></i> เปิดอ่านคู่มือข้อมูลหลัก (13 ฟังก์ชัน)
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- หมวด 7: เชื่อมต่อภายนอก -->
-                    <div class="vg-card" onclick="openManualReader('integrations')">
-                        <div class="vg-thumb">
-                            <img src="{{ asset('images/manual/integrations_main.png') }}" alt="เชื่อมต่อภายนอก LINE">
-                            <span class="vg-badge-step" style="background:#16a34a;"><i class="bi bi-chat-dots-fill me-1"></i> หมวด 7: 1 ฟังก์ชันพร้อมรูปจริง</span>
-                        </div>
-                        <div class="vg-body">
-                            <div>
-                                <h4 class="vg-title"><i class="bi bi-chat-dots-fill text-success"></i> 7. เชื่อมต่อภายนอก (LINE Integration)</h4>
-                                <p class="vg-desc">คู่มือตั้งค่า LINE Messaging API & LINE Notify สำหรับแจ้งเตือนยอดขายรายวัน แจ้งเตือนสินค้าใกล้หมด และแจ้งเตือนสรุปปิดรอบกะแคชเชียร์อัตโนมัติเข้ากลุ่ม LINE</p>
-                            </div>
-                            <button type="button" class="vg-btn-action" style="background:#dcfce7; color:#166534; border-color:#bbf7d0;">
-                                <i class="bi bi-book-half"></i> เปิดอ่านคู่มือเชื่อมต่อ LINE (1 ฟังก์ชัน)
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- หมวด 8: รายงานและวิเคราะห์ข้อมูล -->
-                    <div class="vg-card" onclick="openManualReader('reports')">
-                        <div class="vg-thumb">
-                            <img src="{{ asset('images/manual/reports_main.png') }}" alt="รายงานและวิเคราะห์ข้อมูล">
-                            <span class="vg-badge-step" style="background:#0891b2;"><i class="bi bi-bar-chart-line-fill me-1"></i> หมวด 8: 6 ฟังก์ชันพร้อมรูปจริง</span>
-                        </div>
-                        <div class="vg-body">
-                            <div>
-                                <h4 class="vg-title"><i class="bi bi-bar-chart-line-fill text-info"></i> 8. รายงานและวิเคราะห์ข้อมูล (Reports & Analytics)</h4>
-                                <p class="vg-desc">คู่มือรายงานครบ 6 หมวด: รายงานยอดขาย, รายงานการจัดซื้อและซัพพลายเออร์, รายงานคลังสินค้าและล็อต, รายงานการเงินและการรับชำระ, รายงานภาษีซื้อ/ขาย VAT 7%, และรายงานประวัติระบบเดิม BPlus</p>
-                            </div>
-                            <button type="button" class="vg-btn-action" style="background:#cffafe; color:#155e75; border-color:#a5f3fc;">
-                                <i class="bi bi-book-half"></i> เปิดอ่านคู่มือรายงาน (6 ฟังก์ชัน)
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- หมวด 9: ตั้งค่าระบบและความปลอดภัย -->
-                    <div class="vg-card" onclick="openManualReader('settings')">
-                        <div class="vg-thumb">
-                            <img src="{{ asset('images/manual/settings_main.png') }}" alt="ตั้งค่าระบบและเอกสาร">
-                            <span class="vg-badge-step" style="background:#2563eb;"><i class="bi bi-gear-fill me-1"></i> หมวด 9.1: 14 ฟังก์ชันพร้อมรูปจริง</span>
-                        </div>
-                        <div class="vg-body">
-                            <div>
-                                <h4 class="vg-title"><i class="bi bi-gear-wide-connected text-primary"></i> 9.1 ตั้งค่าระบบ & เอกสาร (Settings Master)</h4>
-                                <p class="vg-desc">คู่มือตั้งค่าครบ 14 ฟังก์ชัน: ฟังก์ชันเอกสาร, อัตราภาษี VAT 7%, เลขรันเอกสาร, โลโก้/ตราประทับ, หมายเหตุเอกสาร, ข้อมูลกิจการ, ศูนย์ควบคุมโมดูล, POS Designer, จัดลำดับเมนู, ปรับธีม, ข้อมูลการรับชำระ, ผูกบัญชี GL, ออกแบบใบเสร็จ, สายการอนุมัติ และ Backup/Security</p>
-                            </div>
-                            <button type="button" class="vg-btn-action" style="background:#dbeafe; color:#1e40af; border-color:#93c5fd;">
-                                <i class="bi bi-book-half"></i> เปิดอ่านคู่มือตั้งค่า (14 ฟังก์ชันครบวงจร)
+                                <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 1.1 (9 ฟังก์ชัน)
                             </button>
                         </div>
                     </div>
@@ -1267,15 +1063,214 @@
                     <div class="vg-card" onclick="openManualReader('users')">
                         <div class="vg-thumb">
                             <img src="{{ asset('images/manual/users_main.png') }}" alt="ผู้ใช้และสิทธิ์การใช้งาน">
-                            <span class="vg-badge-step" style="background:#059669;"><i class="bi bi-shield-lock-fill me-1"></i> หมวด 9.2: 8 ฟังก์ชันพร้อมรูปจริง</span>
+                            <span class="vg-badge-step" style="background:#059669;"><i class="bi bi-shield-lock-fill me-1"></i> บทที่ 1.2: 8 ฟังก์ชันพร้อมรูปจริง</span>
                         </div>
                         <div class="vg-body">
                             <div>
-                                <h4 class="vg-title"><i class="bi bi-people-fill text-success"></i> 9.2 ผู้ใช้และสิทธิ์ (Users & Security)</h4>
+                                <h4 class="vg-title"><i class="bi bi-people-fill text-success"></i> 1.2 ผู้ใช้และสิทธิ์ (Users & Security)</h4>
                                 <p class="vg-desc">คู่มือค้นหาผู้ใช้, จัดการผู้ใช้สำหรับ POS, ออก PIN แคชเชียร์ 6 หลัก, เพิ่ม/แก้ไขผู้ใช้, กำหนดสาขา/สายส่ง, ผูกบทบาท RBAC, รีเซ็ตรหัสผ่าน และตารางสิทธิ์ BPlus</p>
                             </div>
                             <button type="button" class="vg-btn-action" style="background:#d1fae5; color:#065f46; border-color:#6ee7b7;">
-                                <i class="bi bi-book-half"></i> เปิดอ่านคู่มือผู้ใช้และสิทธิ์ (8 ฟังก์ชัน)
+                                <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 1.2 (8 ฟังก์ชัน)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="vg-card" onclick="openManualReader('settings')">
+                        <div class="vg-thumb">
+                            <img src="{{ asset('images/manual/settings_main.png') }}" alt="ตั้งค่าระบบและเอกสาร">
+                            <span class="vg-badge-step" style="background:#2563eb;"><i class="bi bi-gear-fill me-1"></i> บทที่ 1.3: 14 ฟังก์ชันพร้อมรูปจริง</span>
+                        </div>
+                        <div class="vg-body">
+                            <div>
+                                <h4 class="vg-title"><i class="bi bi-gear-wide-connected text-primary"></i> 1.3 ตั้งค่าระบบ & เอกสาร (Settings Master)</h4>
+                                <p class="vg-desc">คู่มือตั้งค่าครบ 14 ฟังก์ชัน: ฟังก์ชันเอกสาร, อัตราภาษี VAT 7%, เลขรันเอกสาร, โลโก้/ตราประทับ, หมายเหตุเอกสาร, ข้อมูลกิจการ, ศูนย์ควบคุมโมดูล, POS Designer, จัดลำดับเมนู, ปรับธีม, ข้อมูลการรับชำระ, ผูกบัญชี GL, ออกแบบใบเสร็จ, สายการอนุมัติ และ Backup/Security</p>
+                            </div>
+                            <button type="button" class="vg-btn-action" style="background:#dbeafe; color:#1e40af; border-color:#93c5fd;">
+                                <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 1.3 (14 ฟังก์ชัน)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- บทที่ 2: ระบบขายหน้าร้าน (Point of Sale) -->
+                    <div class="vg-card" onclick="openManualReader('python_pos')">
+                        <div class="vg-thumb">
+                            <img src="{{ asset('images/manual/python_pos_main.png') }}" alt="แอปพลิเคชัน Python POS">
+                            <span class="vg-badge-step"><i class="bi bi-terminal-fill me-1"></i> บทที่ 2.1: 6 ขั้นตอนพร้อมรูปจริง</span>
+                        </div>
+                        <div class="vg-body">
+                            <div>
+                                <h4 class="vg-title"><i class="bi bi-terminal-fill text-danger"></i> 2.1 แอปแคชเชียร์ (Python POS Desktop)</h4>
+                                <p class="vg-desc">คู่มือใช้งานโปรแกรมแคชเชียร์หน้าร้านจริง เข้าสู่ระบบ เปิดกะ ยิงบาร์โค้ด ค้นหาสินค้า ชำระเงินสด/QR Code และปิดกะทำงาน</p>
+                            </div>
+                            <button type="button" class="vg-btn-action">
+                                <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 2.1 (6 ขั้นตอน)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="vg-card" onclick="openManualReader('pos')">
+                        <div class="vg-thumb">
+                            <img src="{{ asset('images/manual/pos_main.png') }}" alt="หน้าจอ POS">
+                            <span class="vg-badge-step"><i class="bi bi-camera me-1"></i> บทที่ 2.2: 5 ขั้นตอนพร้อมรูป</span>
+                        </div>
+                        <div class="vg-body">
+                            <div>
+                                <h4 class="vg-title"><i class="bi bi-cart4 text-danger"></i> 2.2 วิธีขายหน้าร้าน (JET POS Web)</h4>
+                                <p class="vg-desc">คู่มือเปิดกะแคชเชียร์ สแกนบาร์โค้ด ชั่งน้ำหนัก คิดเงิน รับเงินสด/โอน QR พักบิล และพิมพ์รายงานปิดกะ Z-Report</p>
+                            </div>
+                            <button type="button" class="vg-btn-action">
+                                <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 2.2 (5 ขั้นตอน)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- บทที่ 3: ระบบสินค้าและคลังสินค้า (Inventory & Warehousing) -->
+                    <div class="vg-card" onclick="openManualReader('products')">
+                        <div class="vg-thumb">
+                            <img src="{{ asset('images/manual/products_main.png') }}" alt="หน้ารายการสินค้า">
+                            <span class="vg-badge-step"><i class="bi bi-box-seam me-1"></i> บทที่ 3.1: 5 ขั้นตอนพร้อมรูป</span>
+                        </div>
+                        <div class="vg-body">
+                            <div>
+                                <h4 class="vg-title"><i class="bi bi-box-seam text-danger"></i> 3.1 จัดการสินค้า & สต็อก</h4>
+                                <p class="vg-desc">การตรวจสอบสต็อกคงเหลือรายสาขา การค้นหาสินค้า การสร้างสินค้าใหม่ การตั้งราคา และรับเข้าสต็อกด่วน</p>
+                            </div>
+                            <button type="button" class="vg-btn-action">
+                                <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 3.1 (5 ขั้นตอน)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="vg-card" onclick="openManualReader('transfer')">
+                        <div class="vg-thumb">
+                            <img src="{{ asset('images/manual/stock_transfers.png') }}" alt="หน้าโอนสต็อก">
+                            <span class="vg-badge-step"><i class="bi bi-arrow-left-right me-1"></i> บทที่ 3.2: 4 ขั้นตอนพร้อมรูป</span>
+                        </div>
+                        <div class="vg-body">
+                            <div>
+                                <h4 class="vg-title"><i class="bi bi-arrow-left-right text-danger"></i> 3.2 โอนย้ายสต็อกข้ามสาขา</h4>
+                                <p class="vg-desc">ขั้นตอนการเบิกวัตถุดิบและสินค้าจากคลังใหญ่ (HQ) กระจายสู่สาขาหน้าร้านเพื่อเติมสต็อกให้ขายได้</p>
+                            </div>
+                            <button type="button" class="vg-btn-action">
+                                <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 3.2 (4 ขั้นตอน)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="vg-card" onclick="openManualReader('counts')">
+                        <div class="vg-thumb">
+                            <img src="{{ asset('images/manual/stock_counts.png') }}" alt="หน้าตรวจนับสต็อก">
+                            <span class="vg-badge-step"><i class="bi bi-clipboard-check me-1"></i> บทที่ 3.3: 4 ขั้นตอนพร้อมรูป</span>
+                        </div>
+                        <div class="vg-body">
+                            <div>
+                                <h4 class="vg-title"><i class="bi bi-clipboard-check text-danger"></i> 3.3 ตรวจนับสต็อก (Stock Count)</h4>
+                                <p class="vg-desc">การตรวจนับของจริงเปรียบเทียบกับระบบ คำนวณผลต่าง (Variance) ของขาด/ของเกิน และปรับยอดสมุดบัญชี</p>
+                            </div>
+                            <button type="button" class="vg-btn-action">
+                                <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 3.3 (4 ขั้นตอน)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="vg-card" onclick="openManualReader('master_data')">
+                        <div class="vg-thumb">
+                            <img src="{{ asset('images/manual/master_data_main.png') }}" alt="ข้อมูลหลักและโครงสร้างระบบ">
+                            <span class="vg-badge-step" style="background:#0284c7;"><i class="bi bi-people-fill me-1"></i> บทที่ 3.4: 13 ฟังก์ชันพร้อมรูปจริง</span>
+                        </div>
+                        <div class="vg-body">
+                            <div>
+                                <h4 class="vg-title"><i class="bi bi-box-seam-fill text-info"></i> 3.4 ข้อมูลหลัก & สูตรผลิต BOM (Master Data)</h4>
+                                <p class="vg-desc">คู่มือศูนย์ตั้งต้นระบบ, ลูกค้า, ซัพพลายเออร์, สมาชิก, ผังคลังสินค้า, ตารางราคา, ราคาเครื่องชั่ง, โปรโมชั่น, ราคานาทีทอง, ป้ายราคา, บัตรส่วนลด, แต้มสะสม และแคมเปญซื้อครบ</p>
+                            </div>
+                            <button type="button" class="vg-btn-action" style="background:#e0f2fe; color:#0369a1; border-color:#bae6fd;">
+                                <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 3.4 (13 ฟังก์ชัน)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- บทที่ 4: ระบบการขายและเอกสารลูกค้า (Sales & Invoicing) -->
+                    <div class="vg-card" onclick="openManualReader('sales')">
+                        <div class="vg-thumb">
+                            <img src="{{ asset('images/manual/sales_main.png') }}" alt="งานขายและเอกสาร">
+                            <span class="vg-badge-step" style="background:#d97706;"><i class="bi bi-receipt-cutoff me-1"></i> บทที่ 4.1: 9 ฟังก์ชันพร้อมรูปจริง</span>
+                        </div>
+                        <div class="vg-body">
+                            <div>
+                                <h4 class="vg-title"><i class="bi bi-receipt-cutoff text-warning"></i> 4.1 งานขายและเอกสารลูกค้า (Sales & Documents)</h4>
+                                <p class="vg-desc">คู่มือศูนย์เอกสารย้อนหลัง, ใบเสนอราคา, ใบจอง/ขายเชื่อ, ใบขายสด, ใบรับคืนสินค้า, ใบวางบิล, ใบเพิ่มหนี้/ใบลดหนี้, ลูกค้าสัมพันธ์ (CRM) และ Sales Pipeline Kanban</p>
+                            </div>
+                            <button type="button" class="vg-btn-action" style="background:#fef3c7; color:#92400e; border-color:#fcd34d;">
+                                <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 4.1 (9 ฟังก์ชัน)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- บทที่ 5: ระบบการจัดซื้อและเจ้าหนี้ (Purchasing & Payables) -->
+                    <div class="vg-card" onclick="openManualReader('purchasing')">
+                        <div class="vg-thumb">
+                            <img src="{{ asset('images/manual/purchasing_main.png') }}" alt="จัดซื้อ คลังวัตถุดิบ และการผลิต">
+                            <span class="vg-badge-step" style="background:#ea580c;"><i class="bi bi-truck me-1"></i> บทที่ 5.1: 6 ฟังก์ชันพร้อมรูปจริง</span>
+                        </div>
+                        <div class="vg-body">
+                            <div>
+                                <h4 class="vg-title"><i class="bi bi-truck text-warning"></i> 5.1 จัดซื้อ คลังวัตถุดิบ & การผลิต (Purchasing & Production)</h4>
+                                <p class="vg-desc">คู่มือใบขอซื้อ/สั่งซื้อ (PO), ใบเบิกสินค้า/วัตถุดิบ, ใบคืนสินค้าจากการเบิก, ใบตัดสินค้าชำรุด, สูตรผลิต (BOM)/ใบสั่งผลิต, และแจ้งเตือนสต็อกต่ำจุดสั่งซื้อซ้ำ</p>
+                            </div>
+                            <button type="button" class="vg-btn-action" style="background:#ffedd5; color:#9a3412; border-color:#fed7aa;">
+                                <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 5.1 (6 ฟังก์ชัน)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- บทที่ 6: ระบบการเงิน บัญชี และภาษี (Finance, Accounting & Tax) -->
+                    <div class="vg-card" onclick="openManualReader('finance')">
+                        <div class="vg-thumb">
+                            <img src="{{ asset('images/manual/finance_main.png') }}" alt="ระบบการเงินและบัญชี">
+                            <span class="vg-badge-step" style="background:#dc2626;"><i class="bi bi-calculator-fill me-1"></i> บทที่ 6.1: 8 ฟังก์ชันพร้อมรูปจริง</span>
+                        </div>
+                        <div class="vg-body">
+                            <div>
+                                <h4 class="vg-title"><i class="bi bi-calculator-fill text-danger"></i> 6.1 การเงินและบัญชีครบวงจร (Finance & Accounting)</h4>
+                                <p class="vg-desc">คู่มือสมุดเงินสดรายวัน, ทะเบียนบัญชีธนาคาร, ฝาก/ถอนเงินสด, ทะเบียนเช็ครับ-จ่าย, ผังบัญชีแยกประเภท, สมุดรายวันทั่วไป (GL), งบการเงิน/งบทดลอง และศูนย์ภาษีไทย/E-Tax</p>
+                            </div>
+                            <button type="button" class="vg-btn-action" style="background:#fee2e2; color:#991b1b; border-color:#fca5a5;">
+                                <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 6.1 (8 ฟังก์ชัน)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- บทที่ 7: รายงานและการวิเคราะห์เชิงบริหาร (Reports & Analytics) -->
+                    <div class="vg-card" onclick="openManualReader('reports')">
+                        <div class="vg-thumb">
+                            <img src="{{ asset('images/manual/reports_main.png') }}" alt="รายงานและวิเคราะห์ข้อมูล">
+                            <span class="vg-badge-step" style="background:#0891b2;"><i class="bi bi-bar-chart-line-fill me-1"></i> บทที่ 7.1: 6 ฟังก์ชันพร้อมรูปจริง</span>
+                        </div>
+                        <div class="vg-body">
+                            <div>
+                                <h4 class="vg-title"><i class="bi bi-bar-chart-line-fill text-info"></i> 7.1 รายงานและวิเคราะห์ข้อมูล (Reports & Analytics)</h4>
+                                <p class="vg-desc">คู่มือรายงานครบ 6 หมวด: รายงานยอดขาย, รายงานการจัดซื้อและซัพพลายเออร์, รายงานคลังสินค้าและล็อต, รายงานการเงินและการรับชำระ, รายงานภาษีซื้อ/ขาย VAT 7%, และรายงานประวัติระบบเดิม BPlus</p>
+                            </div>
+                            <button type="button" class="vg-btn-action" style="background:#cffafe; color:#155e75; border-color:#a5f3fc;">
+                                <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 7.1 (6 ฟังก์ชัน)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- บทที่ 8: การเชื่อมต่อภายนอกและการดูแลระบบ (Integrations & Operations) -->
+                    <div class="vg-card" onclick="openManualReader('integrations')">
+                        <div class="vg-thumb">
+                            <img src="{{ asset('images/manual/integrations_main.png') }}" alt="เชื่อมต่อภายนอก LINE">
+                            <span class="vg-badge-step" style="background:#16a34a;"><i class="bi bi-chat-dots-fill me-1"></i> บทที่ 8.1: 1 ฟังก์ชันพร้อมรูปจริง</span>
+                        </div>
+                        <div class="vg-body">
+                            <div>
+                                <h4 class="vg-title"><i class="bi bi-chat-dots-fill text-success"></i> 8.1 เชื่อมต่อภายนอก (LINE Integration)</h4>
+                                <p class="vg-desc">คู่มือตั้งค่า LINE Messaging API & LINE Notify สำหรับแจ้งเตือนยอดขายรายวัน แจ้งเตือนสินค้าใกล้หมด และแจ้งเตือนสรุปปิดรอบกะแคชเชียร์อัตโนมัติเข้ากลุ่ม LINE</p>
+                            </div>
+                            <button type="button" class="vg-btn-action" style="background:#dcfce7; color:#166534; border-color:#bbf7d0;">
+                                <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 8.1 (1 ฟังก์ชัน)
                             </button>
                         </div>
                     </div>

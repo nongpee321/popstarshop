@@ -179,11 +179,27 @@ cd apps/python-pos
 
 ---
 
-## 📖 คู่มือการใช้งานและเอกสารอ้างอิง (Documentation)
+## 📖 คู่มือการใช้งานและเอกสารมาตรฐาน 8 บท (Standard Operating Procedures - SOP)
 
-- **คู่มือฉบับเต็มออนไลน์**: เข้าดูได้ที่เมนู "คู่มือ 4M" บนแถบด้านบน หรือเปิดที่ URL `/manual`
-- **เครื่องมืออ่านคู่มือแบบโต้ตอบ (Visual Reader)**: เปิดที่ URL `/core-modules`
-- **ระบบช่วยเหลือใน POS**: กดปุ่ม `F1` หรือกดปุ่มไอคอนคู่มือบนหน้าจอสัมผัสในโปรแกรม JET POS
+ระบบจัดเตรียมคู่มือการปฏิบัติงานมาตรฐานไว้ทั้งในรูปแบบ **Web Interactive Reader** และเอกสาร **Offline Markdown** แบ่งออกเป็น **8 บทหลัก**:
+
+| บทที่ | ชื่อบทและเนื้อหา | เอกสารออฟไลน์ (Docs) | เว็บคู่มือ (Interactive) |
+| :---: | :--- | :---: | :---: |
+| **บทที่ 1** | **ภาพรวมระบบและการเริ่มต้นใช้งาน (Getting Started & Overview)**<br>• 1.1 ภาพรวมและศูนย์ควบคุมผู้บริหาร (9 ฟังก์ชัน)<br>• 1.2 การจัดการผู้ใช้ สิทธิ์ และความปลอดภัย (8 ฟังก์ชัน)<br>• 1.3 การตั้งค่าระบบ สาขา และเอกสาร (14 ฟังก์ชัน) | [📖 Chapter 1](docs/manual/Chapter_01_Overview_and_Setup.md) | [เปิดอ่าน](http://localhost:8000/manual#guide-overview) |
+| **บทที่ 2** | **ระบบขายหน้าร้าน (Point of Sale - JET POS)**<br>• 2.1 โปรแกรมแคชเชียร์ออฟไลน์ (Python Desktop POS - 6 ขั้นตอน)<br>• 2.2 ระบบขายหน้าร้านบนเว็บ (JET POS Web - 5 ขั้นตอน) | [📖 Chapter 2](docs/manual/Chapter_02_Point_of_Sale.md) | [เปิดอ่าน](http://localhost:8000/manual#guide-python-pos) |
+| **บทที่ 3** | **ระบบสินค้าและคลังสินค้า (Inventory & Warehousing)**<br>• 3.1 ทะเบียนสินค้าและสต็อกคงเหลือ (5 ขั้นตอน)<br>• 3.2 การโอนย้ายสต็อกข้ามสาขา (4 ขั้นตอน)<br>• 3.3 การตรวจนับสต็อกสินค้าจริง (4 ขั้นตอน)<br>• 3.4 ข้อมูลหลัก วัตถุดิบ และสูตรการผลิต BOM (13 ฟังก์ชัน) | [📖 Chapter 3](docs/manual/Chapter_03_Inventory_and_Warehouse.md) | [เปิดอ่าน](http://localhost:8000/manual#guide-products) |
+| **บทที่ 4** | **ระบบการขายและเอกสารลูกค้า (Sales & Invoicing)**<br>• 4.1 ศูนย์เอกสารการขาย ใบเสนอราคา ใบแจ้งหนี้ ใบเสร็จ และ CRM (9 ฟังก์ชัน) | [📖 Chapter 4](docs/manual/Chapter_04_Sales_and_Customers.md) | [เปิดอ่าน](http://localhost:8000/manual#guide-sales) |
+| **บทที่ 5** | **ระบบการจัดซื้อและเจ้าหนี้ (Purchasing & Payables)**<br>• 5.1 การจัดซื้อ คลังวัตถุดิบ ใบสั่งซื้อ (PO) และการผลิต (6 ฟังก์ชัน) | [📖 Chapter 5](docs/manual/Chapter_05_Purchasing_and_Suppliers.md) | [เปิดอ่าน](http://localhost:8000/manual#guide-purchasing) |
+| **บทที่ 6** | **ระบบการเงิน บัญชี และภาษี (Finance, Accounting & Tax)**<br>• 6.1 สมุดเงินสด ธนาคาร เช็ค ผังบัญชี GL งบการเงิน และศูนย์ภาษี E-Tax (8 ฟังก์ชัน) | [📖 Chapter 6](docs/manual/Chapter_06_Finance_and_Accounting.md) | [เปิดอ่าน](http://localhost:8000/manual#guide-finance) |
+| **บทที่ 7** | **รายงานและการวิเคราะห์เชิงบริหาร (Reports & Business Intelligence)**<br>• 7.1 รายงานยอดขาย จัดซื้อ สต็อก การเงิน ภาษี และส่งออก Excel/PDF (6 ฟังก์ชัน) | [📖 Chapter 7](docs/manual/Chapter_07_Reports_and_Analytics.md) | [เปิดอ่าน](http://localhost:8000/manual#guide-reports) |
+| **บทที่ 8** | **การเชื่อมต่อภายนอกและการดูแลระบบ (Integrations & Operations)**<br>• 8.1 การเชื่อมต่อ LINE Notify, Webhook, API และการ Backup/Restore (1 ฟังก์ชัน) | [📖 Chapter 8](docs/manual/Chapter_08_Integrations_and_Maintenance.md) | [เปิดอ่าน](http://localhost:8000/manual#guide-integrations) |
+
+> 📑 **สารบัญรวมทั้งหมด**: ดูรายละเอียดเต็มได้ที่ [docs/manual/README.md](docs/manual/README.md)
+>
+> 🖥️ **ช่องทางการเข้าถึงบนระบบออนไลน์**:
+> - **คู่มือสาธารณะสำหรับพนักงาน**: [http://localhost:8000/manual](http://localhost:8000/manual)
+> - **ระบบอ่านคู่มือ 4M ภายใน ERP**: [http://localhost:8000/core-modules](http://localhost:8000/core-modules)
+> - **ความช่วยเหลือใน JET POS**: กดปุ่ม `F1` หรือไอคอนคู่มือบนหน้าจอสัมผัส POS
 
 ---
 
