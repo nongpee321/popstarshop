@@ -1,13 +1,14 @@
-from PySide6.QtWidgets import (
+﻿from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit, QFrame, QMessageBox, QWidget
 )
 from PySide6.QtCore import Qt
 
 class ShiftOpenDialog(QDialog):
-    def __init__(self, parent=None, cashier_name="Unknown", api_url="", pos_token=""):
+    def __init__(self, parent=None, cashier_name="Unknown", api_url="", pos_token="", branch_name="สำนักงานใหญ่"):
         self.api_url = api_url
         self.pos_token = pos_token
         self.selected_branch_id = None
+        self.branch_name = branch_name
         super().__init__(parent)
         self.setWindowTitle("เปิดกะขาย")
         self.setFixedSize(500, 400)
@@ -63,7 +64,7 @@ class ShiftOpenDialog(QDialog):
         left_info.setSpacing(5)
         
         right_info = QVBoxLayout()
-        r1 = QLabel("สำนักงานใหญ่")
+        r1 = QLabel(self.branch_name)
         r1.setAlignment(Qt.AlignRight)
         r1.setStyleSheet("font-weight: bold;")
         r2 = QLabel(self.cashier_name)
@@ -189,3 +190,4 @@ class ShiftCloseDialog(QDialog):
             self.accept()
         except ValueError:
             QMessageBox.warning(self, "แจ้งเตือน", "กรุณาใส่ยอดเงินที่นับได้จริง")
+

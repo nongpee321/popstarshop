@@ -16,8 +16,23 @@ class DashboardController extends Controller
 
         // Branch-scoped visibility: users bound to a branch (แคชเชียร์/พนักงานสาขา)
         // เห็นเฉพาะยอดขายสาขาตัวเอง; ส่วนกลาง/ผู้บริหาร (branch_id = null) เห็นทุกสาขา.
-        $branchId = auth()->user()?->branchScopeId();
+        $userBranchId = auth()->user()?->branchScopeId();
+        
+        // Let user select branch from dropdown, if they are admin they can see all
+        if ($request->filled('branch_id')) {
+            $branchId = $request->input('branch_id') === 'all' ? null : (int) $request->input('branch_id');
+        } else {
+            $branchId = $userBranchId;
+        }
+        
+        // อนุญาตให้เลือกดูสาขาอื่น หรือรวมยอดทุกสาขาได้ตามที่ผู้ใช้ร้องขอ
+        // ยกเลิกการบังคับล็อคสาขาสำหรับหน้า Dashboard
+        // if ($userBranchId !== null && $branchId !== $userBranchId) {
+        //     $branchId = $userBranchId;
+        // }
+        
         $scopeBranchName = $branchId ? Branch::whereKey($branchId)->value('name_th') : null;
+        $allBranches = Branch::orderBy('code')->get();
 
         // pos_receipts ผูกสาขาผ่าน pos_terminals.branch_id
         $receiptBranchScope = fn ($query, string $receiptAlias) => $query
@@ -76,7 +91,7 @@ class DashboardController extends Controller
             ->whereBetween('s.sale_date', [$from->toDateString(), $to->toDateString()])
             ->groupBy('b.id', 'b.code', 'b.name_th')
             ->orderByDesc(DB::raw('sum(s.net_sales)'))
-            ->select('b.code', 'b.name_th', DB::raw('count(*) as receipt_count'), DB::raw('sum(s.net_sales) as total_sales'))
+            ->select('b.id', 'b.code', 'b.name_th', DB::raw('count(*) as receipt_count'), DB::raw('sum(s.net_sales) as total_sales'))
             ->get();
 
         $dailySales = DB::table('sales_postings')
@@ -96,20 +111,25 @@ class DashboardController extends Controller
 
         $topProducts = DB::table('pos_receipt_items as i')
             ->join('pos_receipts as r', 'r.id', '=', 'i.pos_receipt_id')
+            ->join('pos_terminals as t', 't.id', '=', 'r.pos_terminal_id')
+            ->join('branches as b', 'b.id', '=', 't.branch_id')
             ->join('products as p', 'p.id', '=', 'i.product_id')
-            ->when($branchId, fn ($q) => $receiptBranchScope($q, 'r'))
+            ->when($branchId, fn ($q) => $q->where('b.id', $branchId))
             ->whereBetween('r.receipt_date', [$from->startOfDay(), $to->copy()->endOfDay()])
-            ->groupBy('p.id', 'p.sku_code', 'p.name_th')
+            ->groupBy('p.id', 'p.sku_code', 'p.name_th', 'b.id', 'b.name_th')
             ->orderByDesc(DB::raw('sum(i.net_amount)'))
-            ->select('p.sku_code', 'p.name_th', DB::raw('sum(i.qty) as total_qty'), DB::raw('sum(i.net_amount) as total_amount'))
+            ->select('p.id as product_id', 'p.sku_code', 'p.name_th', 'b.name_th as branch_name', DB::raw('sum(i.qty) as total_qty'), DB::raw('sum(i.net_amount) as total_amount'))
             ->limit(20)
             ->get();
 
         $lowStock = DB::table('stock_balances as sb')
             ->join('products as p', 'p.id', '=', 'sb.product_id')
             ->join('warehouse_locations as wl', 'wl.id', '=', 'sb.warehouse_location_id')
+            ->join('warehouses as w', 'w.id', '=', 'wl.warehouse_id')
+            ->join('branches as b', 'b.id', '=', 'w.branch_id')
+            ->when($branchId, fn ($q) => $q->where('b.id', $branchId))
             ->orderBy('sb.on_hand_qty')
-            ->select('p.sku_code', 'p.name_th', 'wl.name as location_name', 'sb.on_hand_qty')
+            ->select('p.id as product_id', 'p.sku_code', 'p.name_th', 'wl.name as location_name', 'b.name_th as branch_name', 'sb.on_hand_qty')
             ->limit(20)
             ->get();
 
@@ -210,6 +230,8 @@ class DashboardController extends Controller
             'receiptStatus' => $receiptStatus,
             'recentReceipts' => $recentReceipts,
             'cashVariance' => $cashVariance,
+            'allBranches' => $allBranches,
+            'currentBranchId' => $branchId,
         ]);
     }
 }

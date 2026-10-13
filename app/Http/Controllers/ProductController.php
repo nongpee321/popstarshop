@@ -42,6 +42,7 @@ class ProductController extends Controller
     {
         $q = trim((string) $request->query('q', ''));
         $categoryId = $request->integer('category_id') ?: null;
+        $warehouseId = $request->integer('warehouse_id') ?: null;
         $productType = trim((string) $request->query('product_type', ''));
         $status = in_array($request->query('status'), ['active', 'inactive'], true)
             ? (string) $request->query('status')
@@ -63,7 +64,9 @@ class ProductController extends Controller
                 ->where('is_active', true)
                 ->where(fn ($w) => $w->where('barcode', 'like', '800%')->orWhere('barcode', 'like', '801%'))));
         $filteredProductIds = (clone $filteredProductScope)->pluck('id');
-        $stockBalances = StockBalance::whereIn('product_id', $filteredProductIds)->get(['product_id', 'on_hand_qty']);
+        $stockBalances = StockBalance::whereIn('product_id', $filteredProductIds)
+            ->when($warehouseId, fn ($query) => $query->where('warehouse_location_id', $warehouseId))
+            ->get(['product_id', 'on_hand_qty']);
         $stockByProduct = $stockBalances->groupBy('product_id')->map(fn ($balances) => (float) $balances->sum('on_hand_qty'));
         $stockSummary = [
             'products' => $filteredProductIds->count(),
@@ -75,7 +78,10 @@ class ProductController extends Controller
         ];
 
         $products = (clone $filteredProductScope)
-            ->with(['category', 'brand', 'baseUnit', 'stockBalances'])
+            ->with([
+                'category', 'brand', 'baseUnit',
+                'stockBalances' => fn ($query) => $query->when($warehouseId, fn ($q) => $q->where('warehouse_location_id', $warehouseId))
+            ])
             ->orderBy('name_th')
             ->paginate(30)
             ->withQueryString();
@@ -92,6 +98,7 @@ class ProductController extends Controller
             'products' => $products,
             'q' => $q,
             'categoryId' => $categoryId,
+            'warehouseId' => $warehouseId,
             'productType' => $productType,
             'status' => $status,
             'counts' => $counts,
@@ -99,6 +106,7 @@ class ProductController extends Controller
             'nextScalePlu' => $nextScalePlu,
             'stockSummary' => $stockSummary,
             'categories' => ProductCategory::orderBy('name_th')->get(),
+            'warehouses' => \App\Models\WarehouseLocation::orderBy('name')->get(),
             'departments' => ProductDepartment::orderBy('name_th')->get(),
             'brands' => ProductBrand::orderBy('name_th')->get(),
             'units' => ProductUnit::orderBy('name')->get()

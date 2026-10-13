@@ -1,6 +1,9 @@
 @extends('erp-mockup.layout')
 @section('title', 'บิลขายหน้าร้าน')
 @section('content')
+<style>
+@keyframes spin { 100% { transform: rotate(360deg); } }
+</style>
 <div class="pop-head">
     <div><h1>บิลขายหน้าร้าน</h1><p>ตรวจสอบบิลจากเครื่อง POS ทุกสาขา</p></div>
     <div class="pop-head-actions">
@@ -30,7 +33,10 @@
                     <button class="pop-btn" style="padding:4px 8px"><i class="bi bi-eye"></i></button>
                     <button class="pop-btn" style="padding:4px 8px"><i class="bi bi-printer"></i></button>
                     @if($order['sync'] === 'failed')
-                        <button class="pop-btn" style="padding:4px 8px;color:var(--pop-primary)"><i class="bi bi-arrow-repeat"></i></button>
+                        <button type="button" class="pop-btn" style="padding:4px 8px;color:var(--pop-primary)" 
+                            onclick="const btn = this; btn.innerHTML = '<i class=\'bi bi-arrow-repeat\' style=\'display:inline-block; animation: spin 1s linear infinite\'></i>'; btn.disabled=true; setTimeout(() => { btn.outerHTML = '<span style=\'font-size:12px;color:#16a34a;margin-left:5px;font-weight:bold;\'><i class=\'bi bi-check-circle-fill\'></i> เสร็จสิ้น</span>'; }, 1000)">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </button>
                     @endif
                     @if($order['sync'] !== 'voided')
                         <button class="pop-btn" style="padding:4px 8px;color:var(--pop-red)"><i class="bi bi-slash-circle"></i></button>

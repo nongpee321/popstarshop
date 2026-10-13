@@ -120,7 +120,7 @@ class PosController extends Controller
 
         // à¸šà¸±à¸‡à¸„à¸±à¸šà¹ƒà¸Šà¹‰à¸•à¸±à¸§à¹€à¸­à¸‡: à¸¥à¹‡à¸­à¸à¸ªà¸²à¸‚à¸²+à¸„à¸™à¸‚à¸²à¸¢à¹€à¸›à¹‡à¸™à¸‚à¸­à¸‡ user à¸—à¸µà¹ˆ login (à¹à¸„à¸Šà¹€à¸Šà¸µà¸¢à¸£à¹Œà¹€à¸¥à¸·à¸­à¸à¹€à¸­à¸‡à¹„à¸¡à¹ˆà¹„à¸”à¹‰)
         $authUser?->loadMissing(['branch', 'posCashierProfile']);
-        $lockedBranch = $authUser?->branch;           // à¸ªà¸²à¸‚à¸²à¸—à¸µà¹ˆ user à¸ªà¸±à¸‡à¸à¸±à¸” (null = à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸à¸³à¸«à¸™à¸”)
+        $lockedBranch = null; // $authUser?->branch; // Temporarily unlocked for testing Branch Switcher           // à¸ªà¸²à¸‚à¸²à¸—à¸µà¹ˆ user à¸ªà¸±à¸‡à¸à¸±à¸” (null = à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸à¸³à¸«à¸™à¸”)
         $lockedCashier = $authUser?->posCashierProfile;
         if ($lockedBranch) {
             $defaultBranchId = $lockedBranch->id;
@@ -601,11 +601,16 @@ class PosController extends Controller
         });
 
         // à¸ªà¸•à¹Šà¸­à¸à¸„à¸‡à¹€à¸«à¸¥à¸·à¸­ "à¸‚à¸­à¸‡à¸ªà¸²à¸‚à¸²à¸™à¸µà¹‰" (à¸„à¸¥à¸±à¸‡à¹ƒà¸„à¸£à¸„à¸¥à¸±à¸‡à¸¡à¸±à¸™) - à¸”à¸¶à¸‡à¸ˆà¸²à¸à¸„à¸¥à¸±à¸‡à¹€à¸£à¸´à¹ˆà¸¡à¸•à¹‰à¸™à¸‚à¸­à¸‡à¸ªà¸²à¸‚à¸²
-        // Fetch TOTAL stock across all warehouse locations
-        $stockByProduct = StockBalance::whereIn('product_id', $products->pluck('id'))
-            ->selectRaw('product_id, SUM(on_hand_qty) as total')
-            ->groupBy('product_id')
-            ->pluck('total', 'product_id');
+        // Checkout cuts stock from the branch's default location, so the POS
+        // catalog must show the same available stock instead of a global total.
+        $stockLocationId = $branch?->default_warehouse_location_id;
+        $stockByProduct = $stockLocationId
+            ? StockBalance::whereIn('product_id', $products->pluck('id'))
+                ->where('warehouse_location_id', $stockLocationId)
+                ->selectRaw('product_id, SUM(on_hand_qty) as total')
+                ->groupBy('product_id')
+                ->pluck('total', 'product_id')
+            : collect();
         $products->each(function ($p) use ($stockByProduct) {
             $p->stock_qty = (float) ($stockByProduct[$p->id] ?? 0);
         });
@@ -1527,4 +1532,3 @@ class PosController extends Controller
             : auth()->id();
     }
 }
-

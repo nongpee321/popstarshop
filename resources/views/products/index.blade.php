@@ -2,7 +2,7 @@
 
 @section('title', 'สินค้า - PopCentral')
 @section('page-title', 'สินค้า / บริการ')
-@section('page-subtitle', 'ทะเบียนสินค้า หน่วยนับ บาร์โค้ด และราคาเริ่มต้น')
+@section('page-subtitle', 'ระบบจัดการสินค้าและสต็อก')
 
 @section('content')
     <div x-data="productPage()" x-cloak class="product-page">
@@ -18,35 +18,67 @@
                 </div>
                 <div class="product-filter-field">
                     <label>ประเภทสินค้า</label>
-                <select name="category_id" class="form-select" style="max-width:240px" @change="$refs.filterForm.requestSubmit()">
-                    <option value="">ทุกหมวดสินค้า</option>
-                    @foreach($categories as $category)
-                        <option value="{{ $category->id }}" @selected($categoryId === $category->id)>{{ $category->name_th }}</option>
-                    @endforeach
-                </select>
+                    <select name="category_id" class="form-select" @change="$refs.filterForm.requestSubmit()">
+                        <option value="">ทุกหมวดสินค้า</option>
+                        @foreach($categories as $category)
+                            <option value="{{ $category->id }}" @selected($categoryId === $category->id)>{{ $category->name_th }}</option>
+                        @endforeach
+                    </select>
                 </div>
-                <div class="product-filter-field" style="min-width:190px">
+                <div class="product-filter-field">
+                    <label>คลังสินค้า</label>
+                    <select name="warehouse_id" class="form-select" @change="$refs.filterForm.requestSubmit()">
+                        <option value="">ทุกคลังสินค้ารวมกัน</option>
+                        @foreach($warehouses as $warehouse)
+                            <option value="{{ $warehouse->id }}" @selected($warehouseId === $warehouse->id)>{{ $warehouse->name ?: $warehouse->code }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="product-filter-field">
                     <label>รูปแบบการขาย</label>
                     <select name="product_type" class="form-select" @change="$refs.filterForm.requestSubmit()">
                         <option value="">สินค้าทั้งหมด</option>
                         <option value="scale" @selected($productType === 'scale')>สินค้าชั่งน้ำหนัก</option>
                     </select>
                 </div>
-                @if($q !== '' || $categoryId || $productType)<a href="{{ route('products.index') }}" class="btn btn-light border align-self-end">ล้าง</a>@endif
+                @if($q !== '' || $categoryId || $warehouseId || $productType)
+                <div class="product-filter-field" style="min-width:auto; flex: 0 0 auto;">
+                    <label>&nbsp;</label>
+                    <a href="{{ route('products.index') }}" class="btn btn-outline-secondary d-flex align-items-center justify-content-center p-0" style="width: 32px; height: 32px; border-radius: 7px;" title="ล้างตัวกรอง">
+                        <i class="bi bi-x-lg"></i>
+                    </a>
+                </div>
+                @endif
             </form>
             <div class="product-actions">
+                <button type="button" class="btn btn-outline-secondary px-3" @click="helpModalOpen = true" title="วิธีใช้งานหน้านี้">
+                    <i class="bi bi-question-circle me-1"></i> วิธีใช้งาน
+                </button>
                 <a href="{{ route('product-units.index') }}" class="btn btn-light border px-3">
                     <i class="bi bi-rulers me-1"></i> จัดการหน่วยนับ
                 </a>
-                <button type="button" class="btn btn-primary px-3" @click="modalOpen = true">
+                <button type="button" class="btn btn-danger px-3" @click="modalOpen = true">
                     <i class="bi bi-plus-lg me-1"></i> เพิ่มสินค้า
                 </button>
             </div>
         </div>
 
         <div class="row g-3 mb-3">
-            @foreach([['key' => 'all', 'label' => 'สินค้าทั้งหมด', 'tone' => 'primary', 'icon' => 'bi-boxes'], ['key' => 'active', 'label' => 'กำลังใช้งาน', 'tone' => 'success', 'icon' => 'bi-box-seam'], ['key' => 'inactive', 'label' => 'ไม่ใช้งาน / พักไว้', 'tone' => 'secondary', 'icon' => 'bi-box']] as $summary)
-                <div class="col-md-4"><a href="{{ route('products.index', array_filter(['q' => $q, 'category_id' => $categoryId, 'product_type' => $productType, 'status' => $summary['key'] === 'all' ? null : $summary['key']])) }}" class="status-summary {{ $status === $summary['key'] ? 'is-selected' : '' }}"><span class="status-summary-icon text-{{ $summary['tone'] }}"><i class="bi {{ $summary['icon'] }}"></i></span><span><small>{{ $summary['label'] }}</small><strong>{{ number_format($counts[$summary['key']]) }}</strong></span></a></div>
+            @php
+                $badges = [
+                    'all' => '<span class="badge bg-primary-subtle text-primary rounded-pill px-3">รายการ</span>',
+                    'active' => '<span class="badge bg-success-subtle text-success rounded-pill px-3">ปกติ 100%</span>',
+                    'inactive' => '<span class="badge bg-secondary-subtle text-secondary rounded-pill px-3">ไม่มี</span>'
+                ];
+            @endphp
+            @foreach([['key' => 'all', 'label' => 'สินค้าทั้งหมด', 'tone' => 'primary', 'icon' => 'bi-box-seam'], ['key' => 'active', 'label' => 'กำลังใช้งาน', 'tone' => 'success', 'icon' => 'bi-box'], ['key' => 'inactive', 'label' => 'ไม่ใช้งาน / พักไว้', 'tone' => 'secondary', 'icon' => 'bi-box-seam']] as $summary)
+                <div class="col-md-4">
+                    <a href="{{ route('products.index', array_filter(['q' => $q, 'category_id' => $categoryId, 'product_type' => $productType, 'status' => $summary['key'] === 'all' ? null : $summary['key']])) }}" class="status-summary {{ $status === $summary['key'] ? 'is-selected' : '' }}">
+                        <span class="status-summary-icon text-{{ $summary['tone'] }}"><i class="bi {{ $summary['icon'] }}"></i></span>
+                        <span><small>{{ $summary['label'] }}</small><strong class="{{ $summary['tone'] === 'success' ? 'text-success' : '' }}">{{ number_format($counts[$summary['key']]) }}</strong></span>
+                        <div class="ms-auto">{!! $badges[$summary['key']] !!}</div>
+                    </a>
+                </div>
             @endforeach
         </div>
 
@@ -59,18 +91,58 @@
         </div>
 
         <div class="row g-3 mb-3">
-            <div class="col-md-4"><div class="inventory-summary"><span class="inventory-summary-icon text-primary"><i class="bi bi-boxes"></i></span><span><small>สินค้าตามตัวกรอง</small><strong>{{ number_format($stockSummary['products']) }}</strong></span></div></div>
-            <div class="col-md-4"><div class="inventory-summary"><span class="inventory-summary-icon text-success"><i class="bi bi-stack"></i></span><span><small>คงเหลือรวมทุกคลัง</small><strong>{{ number_format($stockSummary['on_hand'], 4) }}</strong></span></div></div>
-            <div class="col-md-4"><div class="inventory-summary"><span class="inventory-summary-icon text-warning"><i class="bi bi-exclamation-triangle"></i></span><span><small>ถึงจุดสั่งซื้อ</small><strong>{{ number_format($stockSummary['low_stock']) }}</strong></span></div></div>
+            <div class="col-md-4">
+                <div class="inventory-summary">
+                    <span class="inventory-summary-icon text-primary"><i class="bi bi-funnel"></i></span>
+                    <span><small>สินค้าตามตัวกรอง</small><strong>{{ number_format($stockSummary['products']) }}</strong></span>
+                    <div class="ms-auto"><span class="badge bg-secondary-subtle text-secondary rounded-pill px-3">ตรงตามเกณฑ์</span></div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="inventory-summary">
+                    <span class="inventory-summary-icon text-success"><i class="bi bi-stack"></i></span>
+                    <span><small>คงเหลือรวมทุกคลัง</small><strong>{{ rtrim(rtrim(number_format($stockSummary['on_hand'], 4), '0'), '.') }}</strong></span>
+                    <div class="ms-auto"><span class="badge bg-success-subtle text-success rounded-pill px-3">ชิ้น / หน่วย</span></div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="inventory-summary">
+                    <span class="inventory-summary-icon text-warning"><i class="bi bi-exclamation-triangle"></i></span>
+                    <span><small>ถึงจุดสั่งซื้อ (ต่ำกว่าเกณฑ์)</small><strong>{{ number_format($stockSummary['low_stock']) }}</strong></span>
+                    <div class="ms-auto">
+                        @if($stockSummary['low_stock'] > 0)
+                            <span class="badge bg-danger-subtle text-danger rounded-pill px-3">ต้องสั่งซื้อ</span>
+                        @else
+                            <span class="badge bg-success-subtle text-success rounded-pill px-3">สต็อกเพียงพอ</span>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex align-items-center justify-content-between mb-2 px-1">
+            <div>
+                <i class="bi bi-list-ul text-danger me-1"></i>
+                <span class="fw-bold" style="font-size:13px; color:#374151;">ตารางแสดงรายการสินค้า</span>
+                <span class="badge bg-secondary-subtle text-secondary rounded-pill ms-2">{{ number_format($stockSummary['products']) }} รายการ</span>
+            </div>
+            <div class="text-muted" style="font-size:11px;">เรียงลำดับ: รหัสสินค้าล่าสุด</div>
         </div>
 
         <div class="content-card product-table-card">
             <div class="table-responsive">
                 <table class="table align-middle product-table mb-0">
                     <thead>
-                        <tr>
-                            <th>รหัส</th><th>ชื่อสินค้า</th><th>หมวด</th><th>ยี่ห้อ</th>
-                            <th>หน่วยหลัก</th><th class="text-end">คงเหลือ</th><th class="text-end">ราคาเริ่มต้น</th><th>สถานะ</th><th></th>
+                        <tr style="background:#b91c1c; color:#fff;">
+                            <th style="background:inherit; color:inherit;">รหัส (SKU)</th>
+                            <th style="background:inherit; color:inherit;">ชื่อสินค้า</th>
+                            <th style="background:inherit; color:inherit;">หมวดหมู่</th>
+                            <th style="background:inherit; color:inherit;">ยี่ห้อ</th>
+                            <th style="background:inherit; color:inherit;">หน่วยหลัก</th>
+                            <th style="background:inherit; color:inherit;" class="text-end">คงเหลือ</th>
+                            <th style="background:inherit; color:inherit;" class="text-end">ราคาเริ่มต้น</th>
+                            <th style="background:inherit; color:inherit;">สถานะ</th>
+                            <th style="background:inherit; color:inherit;" class="text-center">จัดการ</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -81,21 +153,23 @@
                                 <td>{{ $product->category?->name_th ?? '-' }}</td>
                                 <td>{{ $product->brand?->name_th ?? '-' }}</td>
                                 <td>{{ $product->baseUnit?->displayLabel() ?? '-' }}</td>
-                                <td class="text-end fw-semibold">{{ number_format((float) $product->stockBalances->sum('on_hand_qty'), 4) }}</td>
+                                <td class="text-end fw-semibold">{{ rtrim(rtrim(number_format((float) $product->stockBalances->sum('on_hand_qty'), 4), '0'), '.') }}</td>
                                 <td class="text-end">{{ number_format($product->default_price ?? 0, 2) }}</td>
-                                <td>
-                                    <span class="badge {{ $product->is_active ? 'text-bg-success' : 'text-bg-secondary' }}">
+                                <td class="text-center">
+                                    <span class="badge {{ $product->is_active ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }} rounded-pill px-3">
                                         {{ $product->is_active ? 'ใช้งาน' : 'ปิดใช้งาน' }}
                                     </span>
                                 </td>
-                                <td class="text-end">
-                                    <div class="d-flex gap-1 justify-content-end">
-                                        <a href="{{ route('products.show', $product) }}" class="btn btn-sm btn-primary" @click.prevent="openProduct('{{ route('products.show', $product) }}?popup=1')"><i class="bi bi-pencil-square me-1"></i>แก้ไข</a>
-                                        <button type="button" class="btn btn-sm btn-success"
+                                <td class="text-center">
+                                    <div class="d-flex gap-1 justify-content-center">
+                                        <a href="{{ route('products.show', $product) }}" class="btn btn-sm btn-danger px-2 py-1 rounded border-0" style="font-size:10px;" @click.prevent="openProduct('{{ route('products.show', $product) }}?popup=1')">
+                                            <i class="bi bi-pencil-square me-1"></i> แก้ไข
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-outline-success bg-success-subtle border-success-subtle px-2 py-1 rounded" style="font-size:10px;"
                                             @click="openStockIn({{ $product->id }}, '{{ addslashes($product->name_th) }}', '{{ $product->sku_code }}')">
                                             <i class="bi bi-box-arrow-in-down"></i>
                                         </button>
-                                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                        <button type="button" class="btn btn-sm btn-outline-danger bg-danger-subtle border-danger-subtle px-2 py-1 rounded" style="font-size:10px;"
                                             @click="openDelete({{ $product->id }}, '{{ addslashes($product->name_th) }}', '{{ $product->sku_code }}')">
                                             <i class="bi bi-trash"></i>
                                         </button>
@@ -120,6 +194,67 @@
                     <button type="button" @click="closeProduct()" aria-label="ปิด"><i class="bi bi-x-lg"></i></button>
                 </div>
                 <iframe x-show="productUrl" :src="productUrl" title="รายละเอียดสินค้า"></iframe>
+            </div>
+        </div>
+
+        {{-- Modal ช่วยเหลือ: วิธีใช้งานหน้ารายการสินค้า --}}
+        <div class="booking-modal-backdrop" x-show="helpModalOpen" x-cloak x-transition.opacity @keydown.escape.window="helpModalOpen = false">
+            <div class="booking-modal" style="width: min(840px, 100%);" @click.outside="helpModalOpen = false" x-transition>
+                <div class="modal-header border-bottom px-4 py-3 d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-danger rounded-pill px-3 py-1"><i class="bi bi-camera me-1"></i>คู่มือการใช้งาน</span>
+                        <h4 class="h5 fw-bold mb-0">วิธีใช้งาน: ทะเบียนสินค้าและจัดการสต็อก</h4>
+                    </div>
+                    <button type="button" class="btn btn-light btn-sm rounded-circle" @click="helpModalOpen = false" aria-label="Close">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="modal-body p-4" style="max-height: calc(85vh - 120px); overflow-y: auto;">
+                    <div class="mb-3 rounded-3 overflow-hidden border shadow-sm">
+                        <img src="{{ asset('images/manual/products.png') }}" alt="ตัวอย่างหน้าจอสินค้า" class="w-100 d-block" style="object-fit:cover">
+                    </div>
+                    <h5 class="fw-bold mb-3 text-primary"><i class="bi bi-list-check me-2"></i>ขั้นตอนการทำงานสำคัญ</h5>
+                    <div class="d-grid gap-2 mb-3">
+                        <div class="p-3 rounded-2 border bg-light d-flex gap-3 align-items-start">
+                            <span class="badge bg-primary fs-6 rounded-pill px-3 py-2">1</span>
+                            <div>
+                                <strong class="d-block text-dark">ตรวจสอบยอดสต็อก & เลือกดูรายสาขา</strong>
+                                <span class="small text-muted">ดูยอดคงเหลือรวมจากการ์ดสรุป หรือใช้กล่องเลือก "คลังสินค้า" ด้านบนเพื่อดูสต็อกแยกเฉพาะสาขาที่ต้องการ</span>
+                            </div>
+                        </div>
+                        <div class="p-3 rounded-2 border bg-light d-flex gap-3 align-items-start">
+                            <span class="badge bg-primary fs-6 rounded-pill px-3 py-2">2</span>
+                            <div>
+                                <strong class="d-block text-dark">ค้นหาสินค้า & กรองตามประเภท</strong>
+                                <span class="small text-muted">พิมพ์รหัส SKU หรือชื่อสินค้าในช่องค้นหา ระบบจะคัดกรองรายการในตารางให้ทันทีแบบเรียลไทม์</span>
+                            </div>
+                        </div>
+                        <div class="p-3 rounded-2 border bg-light d-flex gap-3 align-items-start">
+                            <span class="badge bg-primary fs-6 rounded-pill px-3 py-2">3</span>
+                            <div>
+                                <strong class="d-block text-dark">เพิ่มสินค้าใหม่ (+ เพิ่มสินค้า)</strong>
+                                <span class="small text-muted">กดปุ่มสีแดงขวาบน กรอกชื่อสินค้า รหัส SKU หมวดหมู่ ราคา และกำหนดเงื่อนไขชั่งน้ำหนัก</span>
+                            </div>
+                        </div>
+                        <div class="p-3 rounded-2 border bg-light d-flex gap-3 align-items-start">
+                            <span class="badge bg-primary fs-6 rounded-pill px-3 py-2">4</span>
+                            <div>
+                                <strong class="d-block text-dark">แก้ไขข้อมูล / รับเข้าสต็อกด่วน</strong>
+                                <span class="small text-muted">กดปุ่มสีแดง "แก้ไข" เพื่อเปลี่ยนราคา/บาร์โค้ด หรือกดไอคอนสีเขียวท้ายรายการเพื่อรับของเข้าคลัง</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert alert-warning py-2 px-3 small mb-0 d-flex gap-2 align-items-center">
+                        <i class="bi bi-info-circle-fill fs-5 text-warning"></i>
+                        <span>ต้องการดูคู่มือฉบับเต็มของระบบทั้งหมด สามารถคลิก <a href="{{ route('core-modules.index') }}" target="_blank" class="fw-bold alert-link">เปิดหน้าคู่มือระบบรวม (/core-modules)</a></span>
+                    </div>
+                </div>
+                <div class="modal-footer border-top px-4 py-3 d-flex justify-content-between">
+                    <a href="{{ route('core-modules.index') }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-book me-1"></i> ดูคู่มือฉบับเต็มทั้งหมด
+                    </a>
+                    <button type="button" class="btn btn-sm btn-secondary px-4" @click="helpModalOpen = false">ปิดหน้าต่าง</button>
+                </div>
             </div>
         </div>
 
@@ -361,10 +496,10 @@
     .product-popup-titlebar button:hover { color:#b91c1c; background:#fee2e2; }
     .product-popup-window iframe { width:100%; height:100%; flex:1 1 auto; border:0; background:#eef5f9; }
     .product-page { --product-border:var(--erp-border); --product-ink:var(--erp-text); }
-    .product-toolbar { display:flex; align-items:flex-end; justify-content:space-between; gap:9px; padding:9px 10px; border:1px solid var(--product-border); border-radius:10px; background:rgba(255,255,255,.88); box-shadow:0 3px 10px rgba(15,51,74,.04); }
-    .product-filter-bar { display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap; flex:1 1 auto; }
-    .product-filter-field { display:grid; gap:2px; min-width:150px; }
-    .product-filter-field.search-field { width:min(250px,100%); }
+    .product-toolbar { display:flex; align-items:flex-end; justify-content:space-between; gap:9px; padding:9px 10px; border:1px solid var(--product-border); border-radius:10px; background:var(--erp-surface, rgba(255,255,255,.88)); box-shadow:0 3px 10px rgba(15,51,74,.04); flex-wrap: nowrap; overflow-x: auto; }
+    .product-filter-bar { display:flex; align-items:flex-end; gap:8px; flex-wrap:nowrap; flex:1 1 auto; }
+    .product-filter-field { display:grid; gap:2px; min-width:110px; flex: 1 1 auto; max-width: max-content; }
+    .product-filter-field.search-field { min-width:180px; flex: 2 1 auto; width: auto; }
     .product-filter-field label { margin:0; color:var(--erp-muted); font-size:9px; line-height:1.1; font-weight:700; }
     .product-filter-field .form-control,.product-filter-field .form-select,.product-filter-field .input-group-text { min-height:32px; height:32px; border-color:var(--erp-border); font-size:11px; padding-top:3px; padding-bottom:3px; }
     .product-filter-field .form-select { max-width:none!important; }
@@ -382,7 +517,7 @@
     .product-table tbody td { padding:7px 10px; border-color:var(--erp-success-soft); color:var(--erp-text); vertical-align:middle; line-height:1.2; }
     .product-table tbody tr { transition:background-color .15s ease; }
     .product-table tbody tr:hover { background:var(--erp-surface-2); }
-    .product-table .badge { border-radius:5px; padding:3px 6px; font-size:9px; font-weight:700; }
+    .product-table .badge { padding:5px 10px; font-size:11px; font-weight:700; }
     .product-table tbody .btn-primary { min-width:58px; min-height:27px; border-radius:6px; font-size:9px; font-weight:700; padding:3px 7px; box-shadow:none; }
     .product-pagination { padding:12px 14px 4px; border-top:1px solid var(--erp-surface-2); }
     @media(max-width:1200px){.product-toolbar{align-items:stretch;flex-direction:column}.product-actions{justify-content:flex-end}.product-filter-field.search-field{width:min(280px,100%)}}
@@ -395,7 +530,8 @@
 <script>
     function productPage() {
         return {
-            modalOpen: false,
+            modalOpen: {{ request('open_add') ? 'true' : 'false' }},
+            helpModalOpen: false,
             stockInOpen: false,
             stockInUrl: '',
             stockInName: '',

@@ -42,7 +42,7 @@
         <i class="bi bi-info-circle-fill"></i>
         <div>
             <strong>วิธีติดตั้งแอป POS v{{ $pythonPosInstaller ? $pythonPosInstaller['version'] : $posVersion }}</strong>
-            ดาวน์โหลดไฟล์ตัวติดตั้ง (.exe) จากนั้นดับเบิลคลิกเพื่อรัน แล้วเปิด <strong>PopCentral POS.exe</strong> โปรแกรมจะเปิด Web POS ของ ERP โดยอัตโนมัติ ไม่ต้องติดตั้ง ERP ทั้งระบบ
+            ดาวน์โหลดไฟล์ตัวติดตั้ง (.exe) จากนั้นดับเบิลคลิกเพื่อรัน แล้วเปิด <strong>PopCentral Python POS.exe (Python + PySide6, Local SQLite)</strong> โปรแกรมจะเปิด Web POS ของ ERP โดยอัตโนมัติ ไม่ต้องติดตั้ง ERP ทั้งระบบ
         </div>
     </div>
 

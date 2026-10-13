@@ -151,3 +151,4 @@
 @endsection
 
 @push('head')<style>[x-cloak]{display:none!important}</style>@endpush
+

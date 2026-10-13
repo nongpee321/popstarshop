@@ -6,7 +6,31 @@ use Illuminate\View\View;
 
 class ManualController extends Controller
 {
+    /**
+     * คู่มือแบบยังไม่ได้ล็อกอิน (Public / Standalone Visual Guide)
+     */
     public function index(): View
+    {
+        return view('manual.index', [
+            'pillars' => $this->pillars(),
+            'workflows' => $this->workflows(),
+            'testSuites' => $this->testSuites(),
+            'controlManuals' => $this->controlManuals(),
+            'gaps' => $this->gaps(),
+            'routines' => $this->routines(),
+            'thaiErpStandards' => $this->thaiErpStandards(),
+            'thaiErpSources' => $this->thaiErpSources(),
+            'bplusBackCoverage' => $this->bplusBackCoverage(),
+            'blueprintControls' => $this->blueprintControls(),
+            'blueprintRoadmap' => $this->blueprintRoadmap(),
+            'calculationFormulas' => $this->calculationFormulas(),
+        ]);
+    }
+
+    /**
+     * คู่มือแบบล็อกอินเข้ามาในระบบแล้ว (In-App ERP Layout: คู่มือ PopStar 4M)
+     */
+    public function coreModules(): View
     {
         return view('core-modules.index', [
             'pillars' => $this->pillars(),

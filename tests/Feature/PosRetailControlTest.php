@@ -20,9 +20,12 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Role;
 use App\Models\Salesman;
+use App\Models\StockBalance;
 use App\Models\Supplier;
 use App\Models\SupplierPriceSchedule;
 use App\Models\User;
+use App\Models\Warehouse;
+use App\Models\WarehouseLocation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Tests\TestCase;
@@ -226,6 +229,42 @@ class PosRetailControlTest extends TestCase
         $this->assertTrue($products[0]['margin_warning']);
         $this->assertLessThan(20, $products[0]['margin_percent']);
         $this->assertArrayNotHasKey('average_cost', $products[0]);
+    }
+
+    public function test_pos_catalog_stock_matches_the_branch_default_location_used_at_checkout(): void
+    {
+        [$user, $branch, , , $product] = $this->posMasters('STOCK-SCOPE');
+        $warehouse = Warehouse::create(['branch_id' => $branch->id, 'code' => 'POS-STOCK', 'name' => 'คลังขาย']);
+        $defaultLocation = WarehouseLocation::create([
+            'warehouse_id' => $warehouse->id,
+            'code' => 'POS-DEFAULT',
+            'name' => 'จุดขาย',
+        ]);
+        $otherLocation = WarehouseLocation::create([
+            'warehouse_id' => $warehouse->id,
+            'code' => 'POS-OTHER',
+            'name' => 'คลังสำรอง',
+        ]);
+        $branch->update(['default_warehouse_location_id' => $defaultLocation->id]);
+        StockBalance::create([
+            'product_id' => $product->id,
+            'warehouse_location_id' => $defaultLocation->id,
+            'on_hand_qty' => 2,
+            'reserved_qty' => 0,
+        ]);
+        StockBalance::create([
+            'product_id' => $product->id,
+            'warehouse_location_id' => $otherLocation->id,
+            'on_hand_qty' => 20,
+            'reserved_qty' => 0,
+        ]);
+        $this->actingAs($user);
+
+        $products = app(PosController::class)->products(Request::create('/pos/products', 'GET', [
+            'branch_id' => $branch->id,
+        ]))->getData(true);
+
+        $this->assertEquals(2, $products[0]['stock_qty']);
     }
 
     public function test_exact_pos_scan_prefers_barcode_over_a_same_value_sku(): void

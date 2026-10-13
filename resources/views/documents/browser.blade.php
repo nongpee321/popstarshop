@@ -6,36 +6,47 @@
 
 <form method="get" id="docFilter">
     {{-- แถบกรองด้านบน --}}
-    <div class="doc-filter-bar mb-3">
+    <div class="doc-filter-bar mb-3 d-flex flex-column flex-xl-row gap-3">
         <input type="hidden" name="type" value="{{ $filters['type'] }}">
         <input type="hidden" name="year" value="{{ $filters['year'] }}">
         <input type="hidden" name="month" value="{{ $filters['month'] }}">
         <input type="hidden" name="legacy_type" value="{{ $filters['legacy_type'] ?? '' }}">
 
-        <span class="text-muted small fw-bold text-nowrap"><i class="bi bi-calendar3 me-1"></i>ดูรายวัน</span>
-        @if(! empty($filters['legacy_type']))
-            <span class="badge text-bg-info border">
-                BPlus {{ $filters['legacy_type'] }}
-                <a class="text-decoration-none text-dark ms-1" href="{{ route('documents.browser', ['year' => $filters['year'], 'month' => $filters['month'], 'q' => $filters['q']]) }}">x</a>
-            </span>
-        @endif
+        <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 gap-md-3">
+            <div class="d-flex align-items-center gap-2 w-100 w-md-auto">
+                <span class="text-muted small fw-bold text-nowrap"><i class="bi bi-calendar3 me-1"></i>ดูรายวัน</span>
+                @if(! empty($filters['legacy_type']))
+                    <span class="badge text-bg-info border">
+                        BPlus {{ $filters['legacy_type'] }}
+                        <a class="text-decoration-none text-dark ms-1" href="{{ route('documents.browser', ['year' => $filters['year'], 'month' => $filters['month'], 'q' => $filters['q']]) }}">x</a>
+                    </span>
+                @endif
+                <input type="date" name="day" value="{{ $filters['day'] }}" class="form-control form-control-sm flex-grow-1" style="max-width:150px"
+                    onchange="this.form.year.value='';this.form.month.value='';this.form.submit()">
+            </div>
+            
+            <div class="d-flex align-items-center gap-2 w-100 w-md-auto">
+                <span class="text-muted small text-nowrap">หรือช่วง</span>
+                <div class="input-group input-group-sm flex-nowrap w-100" style="max-width:320px">
+                    <input type="date" name="from" value="{{ $filters['from'] }}" class="form-control">
+                    <span class="input-group-text px-2 border-start-0 border-end-0 bg-light">ถึง</span>
+                    <input type="date" name="to" value="{{ $filters['to'] }}" class="form-control">
+                </div>
+            </div>
+        </div>
 
-        <input type="date" name="day" value="{{ $filters['day'] }}" class="form-control form-control-sm" style="width:150px"
-            onchange="this.form.year.value='';this.form.month.value='';this.form.submit()">
+        <div class="d-flex flex-column flex-sm-row ms-xl-auto gap-2 w-100 w-xl-auto">
+            <div class="btn-group w-100 w-sm-auto">
+                <a href="{{ route('documents.browser', ['type' => $filters['type'], 'day' => now()->toDateString()]) }}" class="btn btn-sm btn-light border py-2 py-sm-1 text-nowrap">วันนี้</a>
+                <a href="{{ route('documents.browser', ['type' => $filters['type'], 'day' => now()->subDay()->toDateString()]) }}" class="btn btn-sm btn-light border py-2 py-sm-1 text-nowrap">เมื่อวาน</a>
+                <a href="{{ route('documents.browser', ['type' => $filters['type'], 'year' => now()->year, 'month' => now()->month]) }}" class="btn btn-sm btn-light border py-2 py-sm-1 text-nowrap">เดือนนี้</a>
+            </div>
 
-        <span class="text-muted small text-nowrap">หรือช่วง</span>
-        <input type="date" name="from" value="{{ $filters['from'] }}" class="form-control form-control-sm" style="width:150px">
-        <span class="text-muted small">ถึง</span>
-        <input type="date" name="to" value="{{ $filters['to'] }}" class="form-control form-control-sm" style="width:150px">
-
-        <a href="{{ route('documents.browser', ['type' => $filters['type'], 'day' => now()->toDateString()]) }}" class="btn btn-sm btn-light border">วันนี้</a>
-        <a href="{{ route('documents.browser', ['type' => $filters['type'], 'day' => now()->subDay()->toDateString()]) }}" class="btn btn-sm btn-light border">เมื่อวาน</a>
-        <a href="{{ route('documents.browser', ['type' => $filters['type'], 'year' => now()->year, 'month' => now()->month]) }}" class="btn btn-sm btn-light border">เดือนนี้</a>
-
-        <div class="ms-auto d-flex gap-2">
-            <input type="text" name="q" value="{{ $filters['q'] }}" class="form-control form-control-sm" style="width:220px"
-                placeholder="เลขที่เอกสาร / ลูกค้า / อ้างอิง">
-            <button class="btn btn-sm btn-primary px-3" onclick="this.form.day.value=''"><i class="bi bi-funnel-fill me-1"></i>กรอง</button>
+            <div class="d-flex gap-2 w-100 w-sm-auto flex-grow-1">
+                <input type="text" name="q" value="{{ $filters['q'] }}" class="form-control form-control-sm flex-grow-1 py-2 py-sm-1" style="min-width:180px"
+                    placeholder="เลขที่เอกสาร / ลูกค้า / อ้างอิง">
+                <button class="btn btn-sm btn-primary px-3 py-2 py-sm-1 fw-bold text-nowrap" onclick="this.form.day.value=''"><i class="bi bi-funnel-fill me-1"></i>กรอง</button>
+            </div>
         </div>
     </div>
 </form>

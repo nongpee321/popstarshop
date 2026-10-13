@@ -21,6 +21,7 @@ class PrintablePageSizeTest extends TestCase
      */
     private const NOT_DOCUMENTS = [
         'layout.blade.php',
+        'manual/index.blade.php',
         'core-modules/index.blade.php',
         'database-structure/index.blade.php',
         'financial-statements/index.blade.php',

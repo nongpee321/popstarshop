@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 import os
 import io
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
@@ -38,7 +38,7 @@ class CustomerDisplayWindow(QMainWindow):
         self.setWindowTitle("Customer Display")
         self.setMinimumSize(1024, 768)
         
-        self.setStyleSheet(\"\"\"
+        self.setStyleSheet("""
             QMainWindow { background-color: #f0f2f5; }
             QLabel { font-family: 'Tahoma', sans-serif; }
             
@@ -84,7 +84,7 @@ class CustomerDisplayWindow(QMainWindow):
                 color: #007934;
                 padding: 10px;
             }
-        \"\"\")
+        """)
 
         central = QWidget()
         self.setCentralWidget(central)

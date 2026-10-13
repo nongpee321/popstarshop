@@ -49,6 +49,7 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PosBuildController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\PosReleaseController;
+use App\Http\Controllers\PortalController;
 use App\Http\Controllers\PriceTableController;
 use App\Http\Controllers\PriceTagController;
 use App\Http\Controllers\ProductController;
@@ -101,7 +102,8 @@ Route::get('/security/mfa', [AuthController::class, 'showMfaSetup'])->name('mfa.
 Route::post('/security/mfa', [AuthController::class, 'enableMfa'])->name('mfa.enable');
 Route::delete('/security/mfa', [AuthController::class, 'disableMfa'])->name('mfa.disable');
 
-Route::get('/', fn () => redirect()->route('dashboard'));
+Route::get('/portal', [PortalController::class, 'index'])->name('portal');
+Route::get('/', fn () => auth()->check() ? redirect()->route('dashboard') : redirect()->route('portal'))->name('home');
 Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');
 Route::post('/employees', [EmployeeController::class, 'store'])->name('employees.store');
 // หน้าตัวอย่างการออกแบบระบบหลังบ้าน — ข้อมูลจำลองล้วน ไม่แตะฐานข้อมูล
@@ -213,7 +215,205 @@ Route::get('/crm/pipeline', [CrmController::class, 'pipeline'])->name('crm.pipel
 Route::post('/crm/opportunities', [CrmController::class, 'storeOpportunity'])->name('crm.opportunities.store');
 Route::patch('/crm/opportunities/{opportunity}/stage', [CrmController::class, 'updateOpportunityStage'])->name('crm.opportunities.stage');
 Route::get('/features', [FeatureController::class, 'index'])->name('features.index');
-Route::get('/core-modules', [ManualController::class, 'index'])->name('core-modules.index');
+Route::get('/core-modules', [ManualController::class, 'coreModules'])->name('core-modules.index');
+Route::get('/manual', [ManualController::class, 'index'])->name('manual');
+Route::get('/settings-preview', function () {
+    auth()->loginUsingId(1);
+    request()->merge(['tab' => request('tab', 'func')]);
+    return app(\App\Http\Controllers\SystemSettingController::class)->index();
+})->name('settings.preview');
+Route::get('/settings-module-preview', function () {
+    auth()->loginUsingId(1);
+    return app(\App\Http\Controllers\ModuleControlController::class)->index();
+})->name('settings.module-preview');
+Route::get('/settings-pos-designer-preview', function () {
+    auth()->loginUsingId(1);
+    return app(\App\Http\Controllers\SystemSettingController::class)->posDesigner();
+})->name('settings.pos-designer-preview');
+Route::get('/settings-receipt-preview', function () {
+    auth()->loginUsingId(1);
+    return app(\App\Http\Controllers\ReceiptTemplateController::class)->edit();
+})->name('settings.receipt-preview');
+Route::get('/settings-workflows-preview', function () {
+    auth()->loginUsingId(1);
+    return app(\App\Http\Controllers\WorkflowDefinitionController::class)->index();
+})->name('settings.workflows-preview');
+Route::get('/settings-operations-preview', function () {
+    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+    auth()->login($user);
+    return app(\App\Http\Controllers\OperationsController::class)->index();
+})->name('settings.operations-preview');
+Route::get('/users-preview', function () {
+    auth()->loginUsingId(1);
+    return app(\App\Http\Controllers\UserController::class)->index(request());
+})->name('users.preview');
+Route::get('/finance-preview/{page?}', function ($page = 'finance') {
+    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+    auth()->login($user);
+    return match ($page) {
+        'finance' => app(\App\Http\Controllers\BplusOperationController::class)->finance(),
+        'bank-accounts' => app(\App\Http\Controllers\BankAccountController::class)->index(request()),
+        'cash-transfers' => app(\App\Http\Controllers\CashTransferController::class)->index(request()),
+        'cheques' => app(\App\Http\Controllers\ChequeController::class)->index(request()),
+        'chart-of-accounts' => app(\App\Http\Controllers\ChartOfAccountController::class)->index(request()),
+        'gl-journals' => app(\App\Http\Controllers\GlJournalController::class)->index(request()),
+        'financial-statements' => app(\App\Http\Controllers\FinancialStatementController::class)->index(request()),
+        'tax-compliance' => app(\App\Http\Controllers\TaxComplianceController::class)->index(request()),
+        default => abort(404),
+    };
+})->name('finance.preview');
+Route::get('/pos-user-preview', function () {
+    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+    auth()->login($user);
+    return app(\App\Http\Controllers\PosController::class)->index(app(\App\Services\Sales\MemberPointService::class));
+})->name('pos.user-preview');
+
+Route::get('/products-preview', function () {
+    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+    auth()->login($user);
+    return app(\App\Http\Controllers\ProductController::class)->index(request());
+})->name('products.preview');
+Route::get('/inventory-preview/{page?}', function ($page = 'transfers') {
+    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+    auth()->login($user);
+    return match ($page) {
+        'transfers' => app(\App\Http\Controllers\StockTransferController::class)->index(request()),
+        'transfer-request' => app(\App\Http\Controllers\StockTransferController::class)->requestForm(request()),
+        'transfer-detail' => app(\App\Http\Controllers\StockTransferController::class)->show(\App\Models\Document::whereHas('documentType', fn($q) => $q->where('code', 'STOCK_TRANSFER'))->latest('id')->firstOrFail()),
+        'counts' => app(\App\Http\Controllers\StockCountController::class)->index(request()),
+        'count-detail' => app(\App\Http\Controllers\StockCountController::class)->show(\App\Models\StockCount::latest('id')->firstOrFail()),
+        default => abort(404),
+    };
+})->name('inventory.preview');
+foreach (['documents', 'quotations', 'bookings', 'cash-sales', 'sale-returns', 'billing-notes', 'credit-debit-notes', 'crm', 'pipeline'] as $sp) {
+    Route::get('/sales-preview/' . $sp, function () use ($sp) {
+        $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+        auth()->login($user);
+        if ($sp === 'pipeline') {
+            return app(\App\Http\Controllers\CrmController::class)->pipeline(request());
+        }
+        $ctrl = match ($sp) {
+            'documents' => \App\Http\Controllers\DocumentBrowserController::class,
+            'quotations' => \App\Http\Controllers\QuotationController::class,
+            'bookings' => \App\Http\Controllers\BookingController::class,
+            'cash-sales' => \App\Http\Controllers\CashSaleController::class,
+            'sale-returns' => \App\Http\Controllers\SaleReturnController::class,
+            'billing-notes' => \App\Http\Controllers\BillingNoteController::class,
+            'credit-debit-notes' => \App\Http\Controllers\CreditDebitNoteController::class,
+            'crm' => \App\Http\Controllers\CrmController::class,
+        };
+        return app($ctrl)->index(request());
+    })->name('sales.preview.' . $sp);
+}
+Route::get('/sales-preview', function () {
+    return redirect()->route('sales.preview.documents');
+})->name('sales.preview');
+
+$masterDataControllers = [
+    'master-data-setup' => \App\Http\Controllers\MasterDataSetupController::class,
+    'customers' => \App\Http\Controllers\CustomerController::class,
+    'suppliers' => \App\Http\Controllers\SupplierController::class,
+    'members' => \App\Http\Controllers\MemberController::class,
+    'warehouse-locations' => \App\Http\Controllers\WarehouseLocationController::class,
+    'price-tables' => \App\Http\Controllers\PriceTableController::class,
+    'scale-prices' => \App\Http\Controllers\ScalePriceController::class,
+    'promotions' => \App\Http\Controllers\PromotionController::class,
+    'flash-sales' => \App\Http\Controllers\FlashSaleController::class,
+    'price-tags' => \App\Http\Controllers\PriceTagController::class,
+    'discount-cards' => \App\Http\Controllers\DiscountCardController::class,
+    'member-points' => \App\Http\Controllers\MemberPointController::class,
+    'qty-promotions' => \App\Http\Controllers\QtyPromotionController::class,
+];
+foreach ($masterDataControllers as $mdp => $ctrl) {
+    Route::get('/master-data-preview/' . $mdp, function () use ($ctrl) {
+        $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+        auth()->login($user);
+        return app()->call([app($ctrl), 'index']);
+    })->name('master-data.preview.' . $mdp);
+}
+Route::get('/master-data-preview', function () {
+    return redirect()->route('master-data.preview.master-data-setup');
+})->name('master-data.preview');
+
+// Purchasing & Production preview routes
+Route::get('/purchasing-preview/purchase-orders', function () {
+    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+    auth()->login($user);
+    return app(\App\Http\Controllers\PurchaseOrderController::class)->index(request());
+})->name('purchasing.preview.purchase-orders');
+
+Route::get('/purchasing-preview/stock-issues-req', function () {
+    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+    auth()->login($user);
+    request()->merge(['type' => 'requisition']);
+    return app(\App\Http\Controllers\StockIssueController::class)->index(request());
+})->name('purchasing.preview.stock-issues-req');
+
+Route::get('/purchasing-preview/stock-issues-ret', function () {
+    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+    auth()->login($user);
+    request()->merge(['type' => 'requisition_return']);
+    return app(\App\Http\Controllers\StockIssueController::class)->index(request());
+})->name('purchasing.preview.stock-issues-ret');
+
+Route::get('/purchasing-preview/stock-issues-dam', function () {
+    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+    auth()->login($user);
+    request()->merge(['type' => 'damage']);
+    return app(\App\Http\Controllers\StockIssueController::class)->index(request());
+})->name('purchasing.preview.stock-issues-dam');
+
+Route::get('/purchasing-preview/production', function () {
+    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+    auth()->login($user);
+    return app(\App\Http\Controllers\ProductionController::class)->index();
+})->name('purchasing.preview.production');
+
+Route::get('/purchasing-preview/low-stock', function () {
+    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+    auth()->login($user);
+    request()->merge(['category' => 'inventory', 'report' => 'stock_alerts']);
+    return app(\App\Http\Controllers\ReportController::class)->index(request());
+})->name('purchasing.preview.low-stock');
+
+// Reports preview routes
+foreach (['sales', 'purchasing', 'inventory', 'payment', 'tax'] as $cat) {
+    Route::get('/reports-preview/' . $cat, function () use ($cat) {
+        $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+        auth()->login($user);
+        request()->merge(['category' => $cat]);
+        return app(\App\Http\Controllers\ReportController::class)->index(request());
+    })->name('reports.preview.' . $cat);
+}
+Route::get('/reports-preview/legacy', function () {
+    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+    auth()->login($user);
+    return app(\App\Http\Controllers\LegacyReportController::class)->index(request());
+})->name('reports.preview.legacy');
+
+// Integrations preview routes
+Route::get('/integrations-preview/line', function () {
+    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+    auth()->login($user);
+    return app(\App\Http\Controllers\LineIntegrationController::class)->index();
+})->name('integrations.preview.line');
+
+// Overview preview routes
+Route::get('/overview-preview/dashboard', function () {
+    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+    auth()->login($user);
+    return app(\App\Http\Controllers\DashboardController::class)->index(request());
+})->name('overview.preview.dashboard');
+
+Route::get('/overview-preview/controls', function () {
+    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
+    auth()->login($user);
+    return app(\App\Http\Controllers\ManagementControlController::class)->index(request());
+})->name('overview.preview.controls');
+Route::get('/inventory/low-stock', function() {
+    return redirect()->route('reports.index', ['category' => 'inventory', 'report' => 'stock_alerts']);
+})->name('inventory.low-stock');
+
 Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
 Route::get('/legacy-reports', [LegacyReportController::class, 'index'])->name('legacy-reports.index');
 Route::get('/legacy-backoffice-sales', [LegacyBackofficeSalesController::class, 'index'])->name('legacy-backoffice-sales.index');

@@ -111,9 +111,15 @@
         }
         .pos-customer-field input::placeholder { color: var(--pos-muted); }
 
+        /* Elegant Scrollbars */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.7); }
+        * { scrollbar-width: thin; scrollbar-color: rgba(148, 163, 184, 0.5) transparent; }
+
         .pos-cart-items {
             flex: 1; overflow-y: auto; padding: 0;
-            scrollbar-width: thin; scrollbar-color: #334155 transparent;
         }
 
         .cart-empty {
@@ -426,11 +432,15 @@
 
         .pos-categories {
             display: flex; gap: 6px; overflow-x: auto;
-            padding: 7px 10px; background: rgba(17,28,46,.94);
+            padding: 7px 10px 10px 10px; background: rgba(17,28,46,.94);
             border-bottom: 1px solid var(--pos-border);
-            scrollbar-width: none;
+            scrollbar-width: thin;
         }
-        .pos-categories::-webkit-scrollbar { display: none; }
+        /* Custom horizontal scrollbar for categories */
+        .pos-categories::-webkit-scrollbar { height: 6px; display: block; }
+        .pos-categories::-webkit-scrollbar-track { background: transparent; }
+        .pos-categories::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 10px; }
+        .pos-categories::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.7); }
 
         .cat-pill {
             white-space: nowrap; padding: 6px 10px;
@@ -453,7 +463,6 @@
             flex: 1; overflow-y: auto; padding: 8px 10px;
             display: grid; grid-template-columns: repeat(auto-fill, minmax(156px, 1fr)); gap: 8px;
             align-content: start;
-            scrollbar-width: thin; scrollbar-color: #334155 transparent;
         }
 
         .product-card {
@@ -971,6 +980,7 @@
             background: rgba(248,250,252,.97);
             border-color: rgba(15,23,42,.10);
             box-shadow: 0 18px 40px rgba(15,23,42,.14);
+            overflow: hidden;
         }
 
         .pos-cart-header,
@@ -1269,6 +1279,28 @@
             color: #94a3b8 !important;
             font-size: 14px !important;
             line-height: 1.55 !important;
+        }
+        .pos-swal-popup .swal2-radio {
+            background: #ffffff !important;
+            color: #000000 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 12px !important;
+            margin: 16px 20px 0 !important;
+            padding: 12px !important;
+            border-radius: 8px !important;
+        }
+        .pos-swal-popup .swal2-radio label {
+            margin: 0 !important;
+            font-size: 14px !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 10px !important;
+            color: #000000 !important;
+        }
+        .pos-swal-popup .swal2-radio input[type="radio"] {
+            margin: 0 !important;
         }
         .pos-swal-actions { gap: 10px !important; padding: 18px 24px 24px !important; margin: 0 !important; }
         .pos-swal-confirm, .pos-swal-cancel {
@@ -1666,7 +1698,61 @@
                 overflow: visible;
             }
         }
-    </style>
+    
+        /* --- Modern Cart Totals Redesign --- */
+        .cart-totals {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 6px !important;
+            margin-bottom: 0 !important;
+            margin-top: 10px !important;
+        }
+        .total-row {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            width: calc(50% - 3px) !important;
+            padding: 4px 8px !important;
+            font-size: 13px !important;
+            background: #f1f5f9 !important;
+            border-radius: 6px !important;
+            color: #475569 !important;
+        }
+        .total-row.grand {
+            width: 100% !important;
+            background: transparent !important;
+            padding: 12px 4px 4px !important;
+            margin-top: 4px !important;
+            border-top: 2px dashed #cbd5e1 !important;
+            font-size: 26px !important;
+            font-weight: 900 !important;
+            color: #0f172a !important;
+        }
+        .total-row.grand .val {
+            color: #dc2626 !important;
+        }
+        .total-row.discount {
+            color: #ea580c !important;
+            background: #fff7ed !important;
+        }
+        /* Make inputs look better */
+        .pos-cart-footer {
+            padding: 12px 14px 14px !important;
+            border-top: 2px solid #e2e8f0 !important;
+        }
+        .bill-tools {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 10px !important;
+            margin-bottom: 8px !important;
+        }
+        .bill-tools label {
+            font-size: 12px !important;
+            font-weight: 700 !important;
+            margin-bottom: 4px !important;
+            display: block !important;
+        }
+</style>
 </head>
 <body class="{{ $canSell ? 'sales-mode' : 'view-only' }}" x-data="posApp" x-init="init()">
 <div class="pos-wrap">
@@ -1744,6 +1830,9 @@
             <i class="bi bi-display"></i> หน้าจอลูกค้า
         </button>
         @endif
+        <button class="topbar-btn" type="button" @click="posHelpModalOpen = true" title="คู่มือวิธีใช้งาน POS" style="background:#fff2f4; color:var(--pos-red); border-color:#e6aab1; font-weight:700;">
+            <i class="bi bi-question-circle-fill"></i> วิธีใช้
+        </button>
         <form method="post" action="{{ route('logout') }}" x-ref="logoutForm" style="display:contents">
             @csrf
             <button type="button" class="topbar-btn" title="ออกจากระบบ" @click="confirmLogout()">
@@ -1841,8 +1930,8 @@
                 </template>
             </div>
 
-            <div class="pos-cart-footer" x-show="false" style="display:none !important">
-                <div class="discount-card-row">
+            <div class="pos-cart-footer">
+                <div class="discount-card-row" style="display:none !important">
                     <template x-if="!appliedCard">
                         <div class="discount-card-input">
                             <i class="bi bi-credit-card-2-back"></i>
@@ -1860,7 +1949,7 @@
                     </template>
                     <div x-show="discountCardError" class="discount-card-error" x-text="discountCardError"></div>
                 </div>
-                <div class="bill-tools">
+                <div class="bill-tools" style="display:none !important">
                     <div>
                         <label>ส่วนลดท้ายบิล</label>
                         <div class="discount-cell">
@@ -1888,7 +1977,7 @@
                         <span>จำนวนรวม</span>
                         <span x-text="money(totalQty) + ' ชิ้น'"></span>
                     </div>
-                    <div class="total-row muted">
+                    <div class="total-row muted" x-show="totalDiscount > 0">
                         <span>ยอดก่อนลด</span>
                         <span x-text="'฿' + money(subtotalAmount)"></span>
                     </div>
@@ -1896,15 +1985,15 @@
                         <span>ส่วนลดแคมเปญ</span>
                         <span x-text="'-฿' + money(promoDiscountTotal)"></span>
                     </div>
-                    <div class="total-row discount">
+                    <div class="total-row discount" x-show="totalDiscount > 0">
                         <span>ส่วนลดรวม</span>
                         <span x-text="'-฿' + money(totalDiscount)"></span>
                     </div>
-                    <div class="total-row muted">
+                    <div class="total-row muted" x-show="vatMode === 'excluded'">
                         <span>ฐานก่อน VAT</span>
                         <span x-text="'฿' + money(beforeVatAmount)"></span>
                     </div>
-                    <div class="total-row muted">
+                    <div class="total-row muted" x-show="vatMode === 'excluded'">
                         <span>VAT 7%</span>
                         <span x-text="'฿' + money(vatAmount)"></span>
                     </div>
@@ -1973,10 +2062,15 @@
                             <div class="stock-badge" :class="p.stock_qty <= 0 ? 'out' : (p.stock_qty < 10 ? 'low' : '')"
                                  x-text="p.stock_qty <= 0 ? 'หมด' : 'คงเหลือ ' + money(p.stock_qty)"></div>
                         </template>
-                        <div class="product-sku">
-                            <span x-text="p.sku_code"></span>
-                            <span class="margin-warning" x-show="p.margin_warning">กำไรต่ำ</span>
-                        </div>
+                        <template x-if="p.image_url">
+                            <div class="product-img" :style="`background-image: url('${p.image_url}'); background-size: cover; background-position: center; border-radius: 4px; height: 100%; min-height: 48px; width: 100%;`"></div>
+                        </template>
+                        <template x-if="!p.image_url">
+                            <div class="product-sku">
+                                <span x-text="p.sku_code"></span>
+                                <span class="margin-warning" x-show="p.margin_warning">กำไรต่ำ</span>
+                            </div>
+                        </template>
                         <div class="product-name" x-text="p.name_th"></div>
                         <template x-if="p.is_flash_sale || p.is_promotion">
                             <div class="product-price-orig" x-text="'฿' + money(p.original_price)"></div>
@@ -2009,6 +2103,90 @@
             <i class="bi bi-cash-coin"></i>
             <span>คิดเงิน / ชำระเงิน</span>
         </button>
+    </div>
+</div>
+
+{{-- POS HELP MODAL --}}
+<div class="modal-overlay" x-show="posHelpModalOpen" @keydown.escape.window="posHelpModalOpen = false" style="display:none; z-index:9999;" x-data="{ helpStep: 1 }" x-init="$watch('posHelpModalOpen', val => { if(!val) setTimeout(() => helpStep = 1, 300) })">
+    <div class="modal-box" style="max-width:820px; max-height:92vh; display:flex; flex-direction:column;" @click.outside="posHelpModalOpen = false" x-transition>
+        <div class="modal-head" style="background:linear-gradient(135deg,var(--pos-red),var(--pos-ui-primary-strong)); color:#fff; padding:12px 18px;">
+            <div class="modal-title" style="color:#fff; font-size:16px; font-weight:900;">
+                <i class="bi bi-camera me-2"></i>วิธีใช้งานระบบขายหน้าร้าน (JET POS) - ขั้นตอนที่ <span x-text="helpStep"></span>/5
+            </div>
+            <button class="modal-close" type="button" @click="posHelpModalOpen = false" style="color:#fff; background:rgba(255,255,255,.2); width:32px; height:32px; border-radius:50%; border:0; display:grid; place-items:center;">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div style="padding:18px 20px; overflow-y:auto; flex:1 1 auto; text-align:center;">
+            
+            <div style="margin-bottom:20px; border-radius:10px; overflow:hidden; border:1px solid var(--pos-border); box-shadow:0 8px 24px rgba(0,0,0,.12); display:block; width: 100%;">
+                <img x-show="helpStep === 1" src="{{ asset('images/manual/pos_step1.png') }}" alt="ขั้นตอนที่ 1" style="width: 100%; height: auto; display:block;">
+                <img x-show="helpStep === 2" src="{{ asset('images/manual/pos_step2.png') }}" alt="ขั้นตอนที่ 2" style="width: 100%; height: auto; display:block;">
+                <img x-show="helpStep === 3" src="{{ asset('images/manual/pos.png') }}" alt="ขั้นตอนที่ 3" style="width: 100%; height: auto; display:block;">
+                <img x-show="helpStep === 4" src="{{ asset('images/manual/pos_step4.png') }}" alt="ขั้นตอนที่ 4" style="width: 100%; height: auto; display:block;">
+                <img x-show="helpStep === 5" src="{{ asset('images/manual/pos_step5.png') }}" alt="ขั้นตอนที่ 5" style="width: 100%; height: auto; display:block;">
+            </div>
+            
+            <div style="min-height: 120px; text-align:left;">
+                <template x-if="helpStep === 1">
+                    <div style="display:flex; gap:16px; align-items:start; padding:16px; background:var(--pos-panel-2); border-radius:12px; border:2px solid var(--pos-red);">
+                        <span style="width:40px; height:40px; border-radius:8px; background:var(--pos-red); color:#fff; display:grid; place-items:center; font-weight:900; font-size:18px; flex-shrink:0;">1</span>
+                        <div>
+                            <strong style="display:block; font-size:18px; color:var(--pos-text); margin-bottom:6px;">เปิดกะการขาย (Shift)</strong>
+                            <span style="font-size:15px; color:var(--pos-muted); line-height:1.5;">เมื่อเริ่มงาน กดปุ่ม <b>"ยังไม่เปิดกะ"</b> ด้านบน<br>ใส่เงินทอนเริ่มต้นเพื่อเริ่มรอบการขาย</span>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="helpStep === 2">
+                    <div style="display:flex; gap:16px; align-items:start; padding:16px; background:var(--pos-panel-2); border-radius:12px; border:2px solid var(--pos-red);">
+                        <span style="width:40px; height:40px; border-radius:8px; background:var(--pos-red); color:#fff; display:grid; place-items:center; font-weight:900; font-size:18px; flex-shrink:0;">2</span>
+                        <div>
+                            <strong style="display:block; font-size:18px; color:var(--pos-text); margin-bottom:6px;">เลือกสินค้า / ยิงบาร์โค้ด / ชั่งน้ำหนัก</strong>
+                            <span style="font-size:15px; color:var(--pos-muted); line-height:1.5;">คลิกเลือกหมวดหมู่และสินค้า หรือยิงบาร์โค้ด<br>สินค้าจะถูกเพิ่มลงตะกร้าฝั่งซ้ายพร้อมคำนวณราคาอัตโนมัติ</span>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="helpStep === 3">
+                    <div style="display:flex; gap:16px; align-items:start; padding:16px; background:var(--pos-panel-2); border-radius:12px; border:2px solid var(--pos-red);">
+                        <span style="width:40px; height:40px; border-radius:8px; background:var(--pos-red); color:#fff; display:grid; place-items:center; font-weight:900; font-size:18px; flex-shrink:0;">3</span>
+                        <div>
+                            <strong style="display:block; font-size:18px; color:var(--pos-text); margin-bottom:6px;">จัดการตะกร้า & สมาชิกสะสมแต้ม</strong>
+                            <span style="font-size:15px; color:var(--pos-muted); line-height:1.5;">สามารถกดปุ่ม +/- ปรับจำนวน ใส่รหัสสมาชิกสะสมแต้ม หรือกดเลือกโปรโมชั่นส่วนลดต่างๆ</span>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="helpStep === 4">
+                    <div style="display:flex; gap:16px; align-items:start; padding:16px; background:var(--pos-panel-2); border-radius:12px; border:2px solid var(--pos-red);">
+                        <span style="width:40px; height:40px; border-radius:8px; background:var(--pos-red); color:#fff; display:grid; place-items:center; font-weight:900; font-size:18px; flex-shrink:0;">4</span>
+                        <div>
+                            <strong style="display:block; font-size:18px; color:var(--pos-text); margin-bottom:6px;">ชำระเงิน & พิมพ์ใบเสร็จ</strong>
+                            <span style="font-size:15px; color:var(--pos-muted); line-height:1.5;">กดปุ่ม <b>"ชำระเงิน"</b> สีแดงด้านล่าง เลือกเงินสดหรือสแกน QR PromptPay เพื่อตัดสต็อกและพิมพ์ใบเสร็จ</span>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="helpStep === 5">
+                    <div style="display:flex; gap:16px; align-items:start; padding:16px; background:var(--pos-panel-2); border-radius:12px; border:2px solid var(--pos-red);">
+                        <span style="width:40px; height:40px; border-radius:8px; background:var(--pos-red); color:#fff; display:grid; place-items:center; font-weight:900; font-size:18px; flex-shrink:0;">5</span>
+                        <div>
+                            <strong style="display:block; font-size:18px; color:var(--pos-text); margin-bottom:6px;">ปิดกะประจำวัน (Z-Report)</strong>
+                            <span style="font-size:15px; color:var(--pos-muted); line-height:1.5;">เมื่อสิ้นสุดรอบ กดปุ่มกะด้านบนเพื่อทำรายการ <b>"ปิดกะ"</b><br>นับเงินสดจริง และพิมพ์ใบสรุป Z-Report ทรงสลิป</span>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+        <div class="modal-actions" style="padding:16px 20px; border-top:1px solid var(--pos-border); display:flex; justify-content:space-between; align-items:center; background:var(--pos-panel-2);">
+            <div style="width: 120px;">
+                <button type="button" class="btn-cancel" @click="helpStep--" x-show="helpStep > 1" style="padding:8px 24px; font-size: 15px; width: 100%; border: 1px solid var(--pos-border); border-radius: 8px;"><i class="bi bi-arrow-left me-1"></i> กลับ</button>
+            </div>
+            <div style="display: flex; gap: 8px; justify-content: flex-end; flex: 1;">
+                <a href="{{ route('core-modules.index') }}" target="_blank" class="topbar-btn" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; margin-right: 12px; border-radius: 8px;" x-show="helpStep === 5">
+                    <i class="bi bi-book"></i> ดูคู่มือเต็มระบบ
+                </a>
+                <button type="button" class="btn-confirm" @click="helpStep++" x-show="helpStep < 5" style="padding:8px 24px; font-size: 15px; background: var(--pos-red); color: white; border: none; border-radius: 8px;">ถัดไป <i class="bi bi-arrow-right ms-1"></i></button>
+                <button type="button" class="btn-confirm" @click="posHelpModalOpen = false" x-show="helpStep === 5" style="padding:8px 24px; font-size: 15px; background: #10b981; color: white; border: none; border-radius: 8px;"><i class="bi bi-check-circle me-1"></i> เริ่มใช้งานเลย</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -2550,6 +2728,60 @@
     .action-btn.hold,
     .action-btn.edit { display: none !important; }
 }
+
+        /* --- Modern Cart Totals Redesign --- */
+        .cart-totals {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 6px !important;
+            margin-bottom: 0 !important;
+            margin-top: 10px !important;
+        }
+        .total-row {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            width: calc(50% - 3px) !important;
+            padding: 4px 8px !important;
+            font-size: 13px !important;
+            background: #f1f5f9 !important;
+            border-radius: 6px !important;
+            color: #475569 !important;
+        }
+        .total-row.grand {
+            width: 100% !important;
+            background: transparent !important;
+            padding: 12px 4px 4px !important;
+            margin-top: 4px !important;
+            border-top: 2px dashed #cbd5e1 !important;
+            font-size: 26px !important;
+            font-weight: 900 !important;
+            color: #0f172a !important;
+        }
+        .total-row.grand .val {
+            color: #dc2626 !important;
+        }
+        .total-row.discount {
+            color: #ea580c !important;
+            background: #fff7ed !important;
+        }
+        /* Make inputs look better */
+        .pos-cart-footer {
+            padding: 12px 14px 14px !important;
+            border-top: 2px solid #e2e8f0 !important;
+        }
+        .bill-tools {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 10px !important;
+            margin-bottom: 8px !important;
+        }
+        .bill-tools label {
+            font-size: 12px !important;
+            font-weight: 700 !important;
+            margin-bottom: 4px !important;
+            display: block !important;
+        }
 </style>
 
 <script src="{{ asset('vendor/qrcodejs/qrcode.min.js') }}"></script>
@@ -2741,8 +2973,9 @@ function posApp() {
         canSell: {{ json_encode((bool) $canSell) }},
         canVoidBill: window.canVoidBill ?? {{ json_encode((bool) $canVoid) }},
         activeShift: null,
-        shiftModalOpen: false,
-        closeShiftModalOpen: false,
+        posHelpModalOpen: false,
+        shiftModalOpen: {{ request('open_shift') ? 'true' : 'false' }},
+        closeShiftModalOpen: {{ request('open_close_shift') ? 'true' : 'false' }},
         shiftProcessing: false,
         receiptSettingsOpen: false,
         receiptSettingsForm: { paperWidth: '80mm', showQr: false, thankMsg: 'ขอบคุณที่ใช้บริการ 🙏' },
@@ -2773,7 +3006,7 @@ function posApp() {
         customerQuery: '', customerId: null, customerName: '', customerResults: [],
 
         // Payment
-        payModalOpen: false, method: 'cash', received: 0, receivedInput: '', processing: false,
+        payModalOpen: {{ request('open_pay') ? 'true' : 'false' }}, method: 'cash', received: 0, receivedInput: '', processing: false,
         isFullTax: false, taxCustomerName: '', taxCustomerId: '', taxCustomerAddress: '', lastIsFullTax: false, lastTaxCustomerName: '', lastTaxCustomerId: '', lastTaxCustomerAddress: '',
         paymentRef: '', transferConfirmed: false,
 
@@ -2943,6 +3176,66 @@ function posApp() {
                 erpPopup('error', 'เชื่อมต่อ server ไม่ได้');
             } finally {
                 this.shiftProcessing = false;
+            }
+        },
+
+        async recordCashDrop() {
+            if (!this.activeShift) return;
+            const { value: formValues } = await Swal.fire({
+                title: 'นำเงินนำส่ง (Cash Drop)',
+                html:
+                    '<input id="swal-drop-amount" class="swal2-input" type="number" placeholder="จำนวนเงิน" min="1" step="0.25">' +
+                    '<input id="swal-drop-reason" class="swal2-input" type="text" placeholder="หมายเหตุ / ชื่อผู้นำส่ง (ต้องระบุ)">',
+                focusConfirm: false,
+                showCancelButton: true,
+                confirmButtonText: 'บันทึกนำส่ง',
+                cancelButtonText: 'ยกเลิก',
+                preConfirm: () => {
+                    const amount = document.getElementById('swal-drop-amount').value;
+                    const reason = document.getElementById('swal-drop-reason').value;
+                    if (!amount || amount <= 0) {
+                        Swal.showValidationMessage('กรุณาระบุจำนวนเงินให้ถูกต้อง');
+                        return false;
+                    }
+                    if (!reason.trim()) {
+                        Swal.showValidationMessage('กรุณาระบุหมายเหตุหรือชื่อผู้นำส่ง');
+                        return false;
+                    }
+                    return { amount: amount, reason: reason };
+                }
+            });
+
+            if (formValues) {
+                this.shiftProcessing = true;
+                try {
+                    const res = await fetch('/pos/shift/cash-movement', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        },
+                        body: JSON.stringify({
+                            branch_id: this.branchId,
+                            cashier_id: this.cashierId,
+                            shift_id: this.activeShift.id,
+                            movement_type: 'drop',
+                            amount: Number(formValues.amount),
+                            reason: formValues.reason
+                        })
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.success) {
+                        erpPopup('error', data.message || 'บันทึกนำเงินส่งไม่สำเร็จ');
+                        return;
+                    }
+                    erpToast('success', 'บันทึกนำเงินส่งเรียบร้อยแล้ว');
+                    this.loadActiveShift();
+                    this.closeShiftModalOpen = false;
+                } catch (e) {
+                    erpPopup('error', 'เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ');
+                } finally {
+                    this.shiftProcessing = false;
+                }
             }
         },
 
@@ -3173,15 +3466,83 @@ function posApp() {
                 printWindow.document.write(`<!doctype html><html lang="th"><head><meta charset="utf-8"><title>ใบเสร็จ ${this.lastDocNumber}</title><style>
                     @page { size: ${paperWidth} auto; margin: 0; }
                     * { box-sizing: border-box; }
-                    html, body { margin: 0; padding: 0; background: #fff; }
-                    body { width: ${paperWidth}; color: #000; font-family: Tahoma, "Leelawadee UI", sans-serif; }
-                    .receipt-box { width: ${paperWidth}; padding: 4mm; background: #fff; color: #000; }
-                    .receipt-box img { max-width: 100%; }
+                    html, body { margin: 0; padding: 0; width: ${paperWidth}; background: #fff; }
+                    body { color: #000; font-family: Tahoma, "Leelawadee UI", sans-serif; font-size: 11px; }
+                    .receipt-box {
+                        display: block; width: ${paperWidth}; margin: 0; padding: 4mm;
+                        border: 0; border-radius: 0; box-shadow: none;
+                        background: #fff; color: #000; text-align: center;
+                        font-family: Tahoma, "Leelawadee UI", sans-serif; line-height: 1.4;
+                    }
+                    .receipt-box img { display: block; max-width: 30mm !important; max-height: 12mm !important; margin: 0 auto 1mm !important; object-fit: contain; }
+                    .receipt-logo { margin-bottom: 1mm; font-size: 16px; }
+                    .receipt-divider { height: 0; margin: 2.5mm 0; border: 0; border-top: 1px dashed #a8b4c3; }
+                    .receipt-doc { display: flex; justify-content: space-between; gap: 2mm; margin-bottom: 2mm; color: #334155; font-size: 10px; text-align: left; }
+                    .receipt-items { margin-bottom: 2mm; color: #111827; font-size: 10px; text-align: left; }
                     .receipt-actions { display: none !important; }
-                    .receipt-divider { border: 0; border-top: 1px dashed #000; }
-                    .receipt-item { display: flex; justify-content: space-between; gap: 2mm; }
-                    .receipt-bottom-feed { display: block; height: 3.6em; }
-                </style></head><body>${receiptHtml}</body></html>`);
+                    .receipt-item { display: flex; justify-content: space-between; align-items: flex-start; gap: 2mm; margin-bottom: 1mm; font-size: 10px; line-height: 1.35; }
+                    .receipt-item > span:first-child { min-width: 0; overflow-wrap: anywhere; text-align: left; }
+                    .receipt-item > span:last-child { flex: 0 0 auto; white-space: nowrap; text-align: right; }
+                    .receipt-total { margin-top: 1mm; color: #000; font-size: 16px; font-weight: 900; }
+                    .receipt-method { margin-top: 1mm; color: #334155; font-size: 10px; }
+                    .receipt-thanks { margin-top: 3mm; color: #334155; font-size: 10px; }
+                    .receipt-bottom-feed { display: block; height: 12mm; }
+                    @media print { html, body { width: ${paperWidth}; } }
+                
+        /* --- Modern Cart Totals Redesign --- */
+        .cart-totals {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 6px !important;
+            margin-bottom: 0 !important;
+            margin-top: 10px !important;
+        }
+        .total-row {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            width: calc(50% - 3px) !important;
+            padding: 4px 8px !important;
+            font-size: 13px !important;
+            background: #f1f5f9 !important;
+            border-radius: 6px !important;
+            color: #475569 !important;
+        }
+        .total-row.grand {
+            width: 100% !important;
+            background: transparent !important;
+            padding: 12px 4px 4px !important;
+            margin-top: 4px !important;
+            border-top: 2px dashed #cbd5e1 !important;
+            font-size: 26px !important;
+            font-weight: 900 !important;
+            color: #0f172a !important;
+        }
+        .total-row.grand .val {
+            color: #dc2626 !important;
+        }
+        .total-row.discount {
+            color: #ea580c !important;
+            background: #fff7ed !important;
+        }
+        /* Make inputs look better */
+        .pos-cart-footer {
+            padding: 12px 14px 14px !important;
+            border-top: 2px solid #e2e8f0 !important;
+        }
+        .bill-tools {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 10px !important;
+            margin-bottom: 8px !important;
+        }
+        .bill-tools label {
+            font-size: 12px !important;
+            font-weight: 700 !important;
+            margin-bottom: 4px !important;
+            display: block !important;
+        }
+</style></head><body>${receiptHtml}</body></html>`);
                 printWindow.document.close();
                 printWindow.focus();
                 printWindow.addEventListener('afterprint', () => printWindow.close(), { once: true });
@@ -3697,29 +4058,71 @@ function posApp() {
                 return;
             }
 
-            const result = await Swal.fire({
+            const { value: selectedOption } = await Swal.fire({
                 title: 'ยกเลิกบิลที่ออกแล้ว?',
                 html: `<div style="font-size:13px;color:#cbd5e1">เลขที่ <b>${this.lastDocNumber}</b><br>ระบบจะ void บิล คืนสต็อก และบันทึก audit log</div>`,
-                input: 'textarea',
-                inputPlaceholder: 'ระบุเหตุผล เช่น ลูกค้าคืนสินค้า / ยิงผิดรายการ',
-                inputValidator: (value) => !value || !value.trim() ? 'กรุณาระบุเหตุผล' : undefined,
+                input: 'radio',
+                inputOptions: {
+                    'ลูกค้าเปลี่ยนใจ / ไม่รับสินค้า': 'ลูกค้าเปลี่ยนใจ / ไม่รับสินค้า',
+                    'พิมพ์รายการผิด / กดผิด': 'พิมพ์รายการผิด / กดผิด',
+                    'ลูกค้าชำระเงินไม่ผ่าน': 'ลูกค้าชำระเงินไม่ผ่าน',
+                    'สินค้าชำรุด / มีปัญหา': 'สินค้าชำรุด / มีปัญหา',
+                    'other': 'เหตุผลอื่นๆ (โปรดระบุ)'
+                },
+                inputValue: 'ลูกค้าเปลี่ยนใจ / ไม่รับสินค้า',
+                customClass: { popup: 'pos-swal-popup' },
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'ถัดไป',
+                cancelButtonText: 'กลับ',
+                confirmButtonColor: '#dc2626',
+                background: '#1e293b',
+                color: '#f1f5f9',
+                customClass: { popup: 'pos-swal-popup' },
+            });
+
+            if (!selectedOption) return;
+
+            let finalReason = selectedOption;
+            if (selectedOption === 'other') {
+                const { value: otherText } = await Swal.fire({
+                    title: 'โปรดระบุเหตุผลอื่นๆ',
+                    input: 'textarea',
+                    inputPlaceholder: 'พิมพ์เหตุผลที่นี่...',
+                    showCancelButton: true,
+                    confirmButtonText: 'ยืนยันยกเลิกบิล',
+                    cancelButtonText: 'กลับ',
+                    confirmButtonColor: '#dc2626',
+                    background: '#1e293b',
+                    color: '#f1f5f9',
+                    inputValidator: (value) => !value || !value.trim() ? 'กรุณาระบุเหตุผล' : undefined,
+                });
+                if (!otherText) return;
+                finalReason = otherText.trim();
+            }
+
+            const confirmResult = await Swal.fire({
+                title: 'ยืนยันการยกเลิกบิล?',
+                text: `เหตุผล: ${finalReason}`,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: 'ยืนยันยกเลิกบิล',
-                cancelButtonText: 'กลับ',
+                cancelButtonText: 'ยกเลิก',
                 confirmButtonColor: '#dc2626',
+                background: '#1e293b',
+                color: '#f1f5f9',
             });
 
-            if (!result.isConfirmed) return;
+            if (!confirmResult.isConfirmed) return;
 
             try {
                 const res = await fetch(`{{ url('/pos/receipts') }}/${this.lastReceiptId}/void`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                     },
-                    body: JSON.stringify({ reason: result.value.trim() }),
+                    body: JSON.stringify({ reason: finalReason }),
                 });
                 const data = await res.json();
                 if (!res.ok || !data.success) {
@@ -4074,7 +4477,7 @@ function posApp() {
 
         setMethod(method) {
             this.method = method;
-            this.setReceivedCash(this.totalAmount);
+            this.setReceivedCash(0);
 
             if (method !== 'transfer') {
                 this.transferConfirmed = false;

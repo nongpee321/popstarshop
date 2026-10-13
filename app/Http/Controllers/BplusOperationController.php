@@ -71,6 +71,7 @@ class BplusOperationController extends Controller
             ->get();
 
         $receipts = PosReceipt::with(['terminal.branch', 'shift.branch'])
+            ->where('status', 'completed')
             ->whereDate('receipt_date', $selectedDate)
             ->when($selectedBranchId, fn ($query) => $query->where(function ($w) use ($selectedBranchId) {
                 $w->whereHas('terminal', fn ($terminal) => $terminal->where('branch_id', $selectedBranchId))

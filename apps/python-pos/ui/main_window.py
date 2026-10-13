@@ -1,4 +1,5 @@
-﻿import sys
+# -*- coding: utf-8 -*-
+import sys
 import os
 import json
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
@@ -84,7 +85,7 @@ class MainWindow(QMainWindow):
             'api_url': 'http://localhost:8000', 
             'pos_token': '',
             'receipt_printer': '',
-            'receipt_paper_size': '58mm',
+            'receipt_paper_size': '80mm',
             'receipt_header': 'PopCentral POS\nบริษัท ป๊อบ เซ็นทรัล จำกัด\n480 ถนนสุคนธสวัสดิ์ เขตลาดพร้าว กรุงเทพฯ 10230\nเลขประจำตัวผู้เสียภาษี 0105566003246',
             'receipt_footer': 'ขอบคุณที่ใช้บริการ'
         }
@@ -428,7 +429,7 @@ class MainWindow(QMainWindow):
         
         # Determine base path for cx_Freeze or normal execution
         if getattr(sys, 'frozen', False):
-            base_path = os.path.dirname(sys.executable)
+            base_path = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
         else:
             base_path = os.path.dirname(os.path.dirname(__file__))
             
@@ -440,7 +441,7 @@ class MainWindow(QMainWindow):
             logo.setText("PopCentral POS")
             logo.setStyleSheet("font-size: 20px; font-weight: bold; color: #b91c1c;")
         
-        version_label = QLabel("v1.11.41")
+        version_label = QLabel("v1.12.22")
         version_label.setStyleSheet("font-size: 14px; color: #64748b; font-weight: bold; background: #e2e8f0; padding: 2px 8px; border-radius: 10px;")
         
         self.branch_label = QLabel(f"🏢 {self.config.get('branch_name', 'กำลังตรวจสอบ...')}")
@@ -566,6 +567,15 @@ class MainWindow(QMainWindow):
         
         layout.addWidget(self.cfd_btn)
         layout.addSpacing(10)
+        
+        self.help_btn = QPushButton("📖 วิธีใช้")
+        self.help_btn.setToolTip('คู่มือการใช้งาน')
+        self.help_btn.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+        self.help_btn.setStyleSheet("QPushButton { background-color: #f1f5f9; border: 1px solid #cbd5e1; color: #b91c1c; padding: 5px 10px; border-radius: 6px; font-weight: bold; font-size: 14px;} QPushButton:hover { background-color: #e2e8f0; }")
+        self.help_btn.clicked.connect(self.show_help)
+        
+        layout.addWidget(self.help_btn)
+        layout.addSpacing(10)
         layout.addWidget(menu_btn)
         
         return frame
@@ -589,6 +599,7 @@ class MainWindow(QMainWindow):
             self.cashier_btn.show()
             self.logout_btn.hide()
             QMessageBox.information(self, "สำเร็จ", "ล็อกเอาท์เรียบร้อยแล้ว")
+        self.check_active_shift()
 
     def login_cashier(self):
         if not self.config.get('pos_token'):
@@ -614,6 +625,7 @@ class MainWindow(QMainWindow):
                 self.cashier_btn.hide()
                 
                 QMessageBox.information(self, "สำเร็จ", f"เข้าสู่ระบบแคชเชียร์: {name} สำเร็จ")
+                self.check_active_shift()
 
     def toggle_shift(self):
         if not hasattr(self, 'logged_in_cashier') or not self.logged_in_cashier:
@@ -979,14 +991,31 @@ class MainWindow(QMainWindow):
         
 
     def cancel_current_bill(self, auto_reason=None):
+        if isinstance(auto_reason, bool):
+            auto_reason = None
+            
         if self.cart_table.rowCount() == 0:
             QMessageBox.warning(self, "แจ้งเตือน", "ไม่มีสินค้าในตะกร้า!")
             return
             
         if auto_reason is None:
-            reason, ok = QInputDialog.getText(self, "ยกเลิกบิล (ล้างตะกร้า)", "กรุณาระบุเหตุผลการยกเลิกบิล:")
-            if not ok or not reason.strip():
+            options = [
+                "ลูกค้าเปลี่ยนใจ / ไม่รับสินค้า",
+                "พิมพ์รายการผิด / กดผิด",
+                "ลูกค้าชำระเงินไม่ผ่าน",
+                "สินค้าชำรุด / มีปัญหา",
+                "เหตุผลอื่นๆ (โปรดระบุ)"
+            ]
+            item, ok = QInputDialog.getItem(self, "ยกเลิกบิล (ล้างตะกร้า)", "กรุณาเลือกสาเหตุการยกเลิกบิล:", options, 0, False)
+            if not ok or not item:
                 return
+            
+            if item == "เหตุผลอื่นๆ (โปรดระบุ)":
+                reason, ok2 = QInputDialog.getText(self, "ระบุเหตุผลอื่นๆ", "กรุณาระบุเหตุผลที่ต้องการยกเลิก:")
+                if not ok2 or not reason.strip():
+                    return
+            else:
+                reason = item
         else:
             reason = auto_reason
             
@@ -1069,6 +1098,7 @@ class MainWindow(QMainWindow):
                     total_amount += total
                 
             from ui.payment_dialog import PaymentDialog
+            from ui.help_dialog import HelpDialog
             dialog = PaymentDialog(self, total_amount, total_items, total_qty)
             
             if hasattr(self, 'customer_display') and self.customer_display and not self.customer_display.isHidden():
@@ -1214,6 +1244,12 @@ class MainWindow(QMainWindow):
         from datetime import datetime
         self.clock_label.setText(datetime.now().strftime("%H:%M:%S"))
 
+    
+    def show_help(self):
+        from ui.help_dialog import HelpDialog
+        dialog = HelpDialog(self)
+        dialog.exec()
+
     def toggle_fullscreen(self):
         if self.isFullScreen():
             self.showNormal()
@@ -1227,10 +1263,3 @@ if __name__ == "__main__":
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
-
-
-
-
-
-
-

@@ -14,7 +14,7 @@
         'slate' => 'menu-icon-slate',
         'amber' => 'menu-icon-amber',
     ];
-    $faviconUrl = asset('images/logo-jet-j-red.png').'?v='.filemtime(public_path('images/logo-jet-j-red.png'));
+    $faviconUrl = asset('images/popstar-icon-64.png').'?v='.filemtime(public_path('images/popstar-icon-64.png'));
     $companyName = \App\Models\AppSetting::company('name_th') ?: 'กิจการของคุณ';
     $companyLogo = \App\Models\AppSetting::logoUrl();
     $erpTheme = in_array(\App\Models\AppSetting::get('erp_theme', 'ocean'), ['ocean', 'navy', 'emerald', 'slate', 'clear', 'popstar'], true)
@@ -32,7 +32,10 @@
         (function() {
             try {
                 var mode = localStorage.getItem('erp_color_mode');
-                if (mode && mode !== 'light') document.documentElement.setAttribute('data-color-mode', mode);
+                if (mode && mode !== 'light') {
+                    document.documentElement.setAttribute('data-color-mode', mode);
+                    if (mode === 'night') document.documentElement.setAttribute('data-bs-theme', 'dark');
+                }
             } catch (e) {}
         })();
     </script>
@@ -779,9 +782,10 @@
             flex: 0 0 44px;
             box-shadow: 0 10px 24px rgba(0,40,80,.22);
             transition: transform .15s;
+            background: #ffffff;
         }
         .fa-rail-logo:hover { transform: scale(1.06); }
-        .fa-rail-logo img { width: 44px; height: 44px; object-fit: contain; }
+        .fa-rail-logo img { width: 38px; height: 38px; object-fit: contain; }
         .fa-rail-logo span { font-weight: 900; color: var(--fa-blue-deep); font-size: 15px; background: #fff; width: 44px; height: 44px; display: grid; place-items: center; }
 
         .fa-rail-btn {
@@ -950,6 +954,15 @@
             position: absolute; right: 0; top: calc(100% + 8px); z-index: 3000;
             width: 330px; background: #fff; border: 1px solid var(--erp-border); border-radius: 14px;
             box-shadow: 0 18px 48px rgba(15,23,42,.18); overflow: hidden;
+        }
+        @media (max-width: 575.98px) {
+            .notify-panel {
+                position: fixed;
+                top: 65px;
+                left: 10px;
+                right: 10px;
+                width: auto;
+            }
         }
         .notify-head {
             display: flex; justify-content: space-between; align-items: center;
@@ -1534,7 +1547,10 @@
                     }
                 }
             }
-            $appLogo = asset('images/popstar-shop-logo.png');
+            if (request()->has('sec') && is_numeric(request('sec'))) {
+                $activeSection = (int) request('sec');
+            }
+            $appLogo = \App\Models\AppSetting::logoUrl() ?: asset('images/popstar-app-badge.png');
         @endphp
 @if ($erpLayout === 'odoo')
         {{-- แถบบนแบบ Odoo: ปุ่มโมดูล + ชื่อระบบ + เมนูหมวด
@@ -2290,8 +2306,11 @@ document.addEventListener('alpine:init', () => {
             localStorage.setItem('erp_color_mode', theme);
             if (theme === 'light') {
                 document.documentElement.removeAttribute('data-color-mode');
+                document.documentElement.removeAttribute('data-bs-theme');
             } else {
                 document.documentElement.setAttribute('data-color-mode', theme);
+                if (theme === 'night') document.documentElement.setAttribute('data-bs-theme', 'dark');
+                else document.documentElement.removeAttribute('data-bs-theme');
             }
         },
         getIcon() {

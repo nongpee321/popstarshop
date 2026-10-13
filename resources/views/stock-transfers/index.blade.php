@@ -227,7 +227,7 @@
 <script>
     function stockTransferPage() {
         return {
-            modalOpen: false,
+            modalOpen: {{ request('open_create') ? 'true' : 'false' }},
             fromLocationId: '',
             items: [{ product_id: '', productQuery: '', qty: 1, onHandQty: '-', results: [] }],
 

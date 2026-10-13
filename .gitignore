@@ -97,3 +97,19 @@ apps/python-pos/dist/
 apps/python-pos/venv/
 public/**/*.exe
 public/temp_unzip/
+
+# Python & Cache
+**/__pycache__/
+*.py[cod]
+*.class
+apps/python-pos/test_out.txt
+
+# Scratch & Temporary test files
+/scratch/
+/storage/temp_scripts/
+test_*.png
+test_pos.js
+testglob.php
+check_stock.sql
+generate_perfect_python_pos_manual.py
+reannotate_all_precise.py

@@ -26,12 +26,12 @@
     @endif
 
     <div class="content-card p-3 mb-3">
-        <form method="get" class="d-flex align-items-end gap-2 flex-wrap">
-            <div style="min-width:min(360px,100%)">
+        <form method="get" class="d-flex flex-column flex-md-row align-items-start align-items-md-end gap-2">
+            <div class="flex-grow-1 w-100">
                 <label class="form-label small text-muted mb-1">ค้นหาผู้ใช้</label>
                 <input name="q" value="{{ $q }}" class="form-control" placeholder="รหัสพนักงาน / ชื่อ / ตำแหน่ง / โทรศัพท์">
             </div>
-            <div style="min-width:190px">
+            <div class="w-100 w-md-auto" style="min-width:190px">
                 <label class="form-label small text-muted mb-1">สถานะ</label>
                 <select name="status" class="form-select">
                     <option value="">ทุกสถานะ</option>
@@ -40,8 +40,10 @@
                     <option value="must_change" @selected($status === 'must_change')>รอเปลี่ยนรหัสผ่าน</option>
                 </select>
             </div>
-            <button class="btn btn-primary"><i class="bi bi-search me-1"></i>ค้นหา</button>
-            <a href="{{ route('users.index') }}" class="btn btn-light border">ล้าง</a>
+            <div class="d-flex gap-2 w-100 w-md-auto mt-2 mt-md-0">
+                <button class="btn btn-primary w-100 w-md-auto text-nowrap"><i class="bi bi-search me-1"></i>ค้นหา</button>
+                <a href="{{ route('users.index') }}" class="btn btn-light border w-100 w-md-auto text-nowrap text-center">ล้าง</a>
+            </div>
         </form>
     </div>
 

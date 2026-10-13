@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    @php($faviconUrl = asset('images/logo-jet-j-red.png').'?v='.filemtime(public_path('images/logo-jet-j-red.png')))
+    @php($faviconUrl = asset('images/popstar-icon-64.png').'?v='.(file_exists(public_path('images/popstar-icon-64.png')) ? filemtime(public_path('images/popstar-icon-64.png')) : time()))
     <link rel="icon" href="{{ $faviconUrl }}">
     <link rel="shortcut icon" href="{{ $faviconUrl }}">
     <link rel="apple-touch-icon" href="{{ $faviconUrl }}">
@@ -456,6 +456,23 @@
 
         <div class="secure-badge"><i class="bi bi-shield-lock-fill"></i> การเชื่อมต่อได้รับการป้องกัน</div>
         <div class="foot-note">ลืมรหัสผ่าน? กรุณาติดต่อผู้ดูแลระบบ</div>
+
+        <div class="foot-links" style="margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 8px; text-align: center; font-size: 13px;">
+            <a href="{{ route('portal') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                <i class="bi bi-grid-fill"></i> หน้ารวมระบบ (PopStar Gateway)
+            </a>
+            <div style="display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;">
+                <a href="{{ route('python-pos.download') }}" style="color: #059669; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">
+                    <i class="bi bi-display"></i> ดาวน์โหลดแอป POS
+                </a>
+                <a href="{{ route('manual') }}" style="color: #d97706; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">
+                    <i class="bi bi-book-half"></i> คู่มือการใช้งาน
+                </a>
+            </div>
+            <a href="https://popstarshops.com/" target="_blank" rel="noopener noreferrer" style="color: var(--ink-soft); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                <i class="bi bi-globe2"></i> ไปยังเว็บไซต์ PopStarShops.com <i class="bi bi-box-arrow-up-right" style="font-size: 11px;"></i>
+            </a>
+        </div>
     </form>
 </main>
 </body>
