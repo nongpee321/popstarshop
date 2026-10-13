@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'version' => '1.10.42',
+    'version' => '1.12.23',
     'notes' => 'PopCentral POS 1.4.4: PWA install flow and versioned service-worker updates.',
     'pub_date' => '2026-07-29T15:25:00+00:00',
     'platforms' => [

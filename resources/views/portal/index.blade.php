@@ -882,7 +882,7 @@
                         </div>
                         <div class="system-status-chip status-download">
                             <i class="bi bi-windows"></i>
-                            Windows App (v{{ $posInstaller['version'] ?? '1.12.9' }})
+                            Windows App (v{{ $posInstaller['version'] ?? '1.12.23' }})
                         </div>
                     </div>
 
@@ -903,13 +903,13 @@
                         </li>
                         <li class="feature-item">
                             <i class="bi bi-file-earmark-arrow-down"></i>
-                            <span><strong>ไฟล์ติดตั้ง:</strong> {{ $posInstaller['filename'] ?? 'PopCentral-POS-UAT-setup.exe' }} ({{ $posInstaller['size_mb'] ?? '42.8' }} MB)</span>
+                            <span><strong>ไฟล์ติดตั้ง:</strong> {{ $posInstaller['filename'] ?? 'PopCentral-POS-UAT-1.12.23-setup.exe' }} ({{ $posInstaller['size_mb'] ?? '43.7' }} MB)</span>
                         </li>
                     </ul>
 
                     <div class="url-preview-pill">
                         <i class="bi bi-download"></i>
-                        <span>{{ $posInstaller['filename'] ?? 'PopCentral-POS-UAT-1.12.9-setup.exe' }}</span>
+                        <span>{{ $posInstaller['filename'] ?? 'PopCentral-POS-UAT-1.12.23-setup.exe' }}</span>
                     </div>
                 </div>
 

@@ -48,7 +48,7 @@ class PortalController extends Controller
 
         return [
             'filename' => basename($path),
-            'version' => $matches[1] ?? '1.12.9',
+            'version' => $matches[1] ?? '1.12.23',
             'size_mb' => round(filesize($path) / (1024 * 1024), 1),
             'url' => route('python-pos.download'),
         ];

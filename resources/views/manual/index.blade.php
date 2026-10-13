@@ -921,11 +921,11 @@
                 <div class="nav-group-title">🛒 บทที่ 2: ระบบขายหน้าร้าน (POS)</div>
                 <a href="#guide-python-pos" class="nav-link-item" onclick="openManualReader('python_pos'); setActiveNav(this);">
                     <i class="bi bi-terminal-fill text-danger"></i>
-                    <span>2.1 แอปแคชเชียร์ (Python POS)</span>
+                    <span>2.1 แอปแคชเชียร์ (Python POS v1.12.23)</span>
                 </a>
                 <a href="#guide-pos" class="nav-link-item" onclick="openManualReader('pos'); setActiveNav(this);">
                     <i class="bi bi-cart4 text-danger"></i>
-                    <span>2.2 วิธีขายหน้าร้าน (JET POS)</span>
+                    <span>2.2 ขั้นตอนการขายหน้าร้าน (JET POS v1.12.23)</span>
                 </a>
             </div>
 
@@ -1100,8 +1100,8 @@
                         </div>
                         <div class="vg-body">
                             <div>
-                                <h4 class="vg-title"><i class="bi bi-terminal-fill text-danger"></i> 2.1 แอปแคชเชียร์ (Python POS Desktop)</h4>
-                                <p class="vg-desc">คู่มือใช้งานโปรแกรมแคชเชียร์หน้าร้านจริง เข้าสู่ระบบ เปิดกะ ยิงบาร์โค้ด ค้นหาสินค้า ชำระเงินสด/QR Code และปิดกะทำงาน</p>
+                                <h4 class="vg-title"><i class="bi bi-terminal-fill text-danger"></i> 2.1 แอปแคชเชียร์ (Python POS Desktop v1.12.23)</h4>
+                                <p class="vg-desc">คู่มือใช้งานโปรแกรมแคชเชียร์หน้าร้านจริง เข้าสู่ระบบ เปิดกะ ยิงบาร์โค้ด ค้นหาสินค้า ชำระเงินสด/QR Code และปิดกะทำงาน (เวอร์ชันล่าสุด v1.12.23)</p>
                             </div>
                             <button type="button" class="vg-btn-action">
                                 <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 2.1 (6 ขั้นตอน)
@@ -1116,8 +1116,8 @@
                         </div>
                         <div class="vg-body">
                             <div>
-                                <h4 class="vg-title"><i class="bi bi-cart4 text-danger"></i> 2.2 ขั้นตอนการขายหน้าร้าน (JET POS)</h4>
-                                <p class="vg-desc">คู่มือการเปิดกะแคชเชียร์ ค้นหาสินค้า สแกนบาร์โค้ด เลือกหมวดหมู่ จัดการตะกร้าสินค้า ชำระเงินสด/QR และพิมพ์รายงานปิดกะ Z-Report ผ่านโปรแกรมจอสัมผัสจริง</p>
+                                <h4 class="vg-title"><i class="bi bi-cart4 text-danger"></i> 2.2 ขั้นตอนการขายหน้าร้าน (JET POS v1.12.23)</h4>
+                                <p class="vg-desc">คู่มือการเปิดกะแคชเชียร์ ค้นหาสินค้า สแกนบาร์โค้ด เลือกหมวดหมู่ จัดการตะกร้าสินค้า ชำระเงินสด/QR และพิมพ์รายงานปิดกะ Z-Report ผ่านโปรแกรมจอสัมผัสจริง (เวอร์ชันล่าสุด v1.12.23)</p>
                             </div>
                             <button type="button" class="vg-btn-action">
                                 <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 2.2 (5 ขั้นตอน)
@@ -1663,7 +1663,7 @@ flowchart LR
     subgraph CentralERP["🌐 เซิร์ฟเวอร์หลัก (Pop ERP Server / Laravel)"]
         API["RESTful API Endpoints<br>(PosController.php)"]
         MasterDB[("ฐานข้อมูลกลาง (MySQL)")]
-        UpdateServer["ระบบ Auto-Update Release<br>(v1.12.x Installers)"]
+        UpdateServer["ระบบ Auto-Update Release<br>(v1.12.23 Installers)"]
         API <--> MasterDB
         UpdateServer --> API
     end
@@ -1871,7 +1871,7 @@ flowchart TD
     <script>
         const manualGuidesData = {
             python_pos: {
-                title: 'คู่มือการใช้งานโปรแกรมแคชเชียร์หน้าร้าน (Python POS)',
+                title: 'คู่มือการใช้งานโปรแกรมแคชเชียร์หน้าร้าน (Python POS v1.12.23)',
                 steps: [
                     {
                         badge: 'ขั้นตอนที่ 1',
@@ -1930,7 +1930,7 @@ flowchart TD
                 ]
             },
             pos: {
-                title: 'ระบบขายหน้าร้าน (JET POS)',
+                title: 'ระบบขายหน้าร้าน (JET POS v1.12.23)',
                 steps: [
                     {
                         badge: 'ขั้นตอนที่ 1',

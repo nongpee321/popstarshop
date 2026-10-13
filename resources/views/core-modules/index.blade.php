@@ -388,8 +388,8 @@
                     <span class="vg-card-badge"><i class="bi bi-terminal-fill me-1"></i> บทที่ 2.1: 6 ขั้นตอนพร้อมรูปจริง</span>
                 </div>
                 <div class="vg-card-body">
-                    <h3 class="vg-card-title"><i class="bi bi-terminal-fill text-danger"></i> 2.1 แอปแคชเชียร์ (Python POS)</h3>
-                    <p class="vg-card-desc">คู่มือใช้งานโปรแกรมแคชเชียร์หน้าร้านจริง เข้าสู่ระบบ เปิดกะ ยิงบาร์โค้ด ค้นหาสินค้า ชำระเงินสด/QR Code และปิดกะทำงาน</p>
+                    <h3 class="vg-card-title"><i class="bi bi-terminal-fill text-danger"></i> 2.1 แอปแคชเชียร์ (Python POS Desktop v1.12.23)</h3>
+                    <p class="vg-card-desc">คู่มือใช้งานโปรแกรมแคชเชียร์หน้าร้านจริง เข้าสู่ระบบ เปิดกะ ยิงบาร์โค้ด ค้นหาสินค้า ชำระเงินสด/QR Code และปิดกะทำงาน (เวอร์ชันล่าสุด v1.12.23)</p>
                     <div class="vg-card-steps-count">
                         <i class="bi bi-layers-fill"></i> มีภาพประกอบ 6 ขั้นตอนอย่างละเอียด
                     </div>
@@ -406,8 +406,8 @@
                     <span class="vg-card-badge"><i class="bi bi-cart4 me-1"></i> บทที่ 2.2: 5 ขั้นตอนพร้อมรูปจริง</span>
                 </div>
                 <div class="vg-card-body">
-                    <h3 class="vg-card-title"><i class="bi bi-cart4 text-danger"></i> 2.2 ขั้นตอนการขายหน้าร้าน (JET POS)</h3>
-                    <p class="vg-card-desc">คู่มือการเปิดกะแคชเชียร์ ค้นหาสินค้า สแกนบาร์โค้ด เลือกหมวดหมู่ จัดการตะกร้าสินค้า ชำระเงินสด/QR และพิมพ์รายงานปิดกะ Z-Report ผ่านโปรแกรมจอสัมผัสจริง</p>
+                    <h3 class="vg-card-title"><i class="bi bi-cart4 text-danger"></i> 2.2 ขั้นตอนการขายหน้าร้าน (JET POS v1.12.23)</h3>
+                    <p class="vg-card-desc">คู่มือการเปิดกะแคชเชียร์ ค้นหาสินค้า สแกนบาร์โค้ด เลือกหมวดหมู่ จัดการตะกร้าสินค้า ชำระเงินสด/QR และพิมพ์รายงานปิดกะ Z-Report ผ่านโปรแกรมจอสัมผัสจริง (เวอร์ชันล่าสุด v1.12.23)</p>
                     <div class="vg-card-steps-count">
                         <i class="bi bi-layers-fill"></i> มีภาพประกอบ 5 ขั้นตอนอย่างละเอียด
                     </div>
@@ -650,7 +650,7 @@
     <script>
         const manualGuidesData = {
             python_pos: {
-                title: 'คู่มือการใช้งานโปรแกรมแคชเชียร์หน้าร้าน (Python POS)',
+                title: 'คู่มือการใช้งานโปรแกรมแคชเชียร์หน้าร้าน (Python POS v1.12.23)',
                 route: '{{ route('python-pos.download') }}',
                 steps: [
                     {
@@ -710,7 +710,7 @@
                 ]
             },
 pos: {
-                title: 'ระบบขายหน้าร้าน (JET POS)',
+                title: 'ระบบขายหน้าร้าน (JET POS v1.12.23)',
                 route: '{{ route('pos.index') }}',
                 steps: [
                     {
