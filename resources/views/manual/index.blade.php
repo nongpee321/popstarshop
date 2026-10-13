@@ -1111,13 +1111,13 @@
 
                     <div class="vg-card" onclick="openManualReader('pos')">
                         <div class="vg-thumb">
-                            <img src="{{ asset('images/manual/pos_main.png') }}" alt="หน้าจอ POS">
-                            <span class="vg-badge-step"><i class="bi bi-camera me-1"></i> บทที่ 2.2: 5 ขั้นตอนพร้อมรูป</span>
+                            <img src="{{ asset('images/manual/pos_main.png') }}" alt="หน้าจอโปรแกรม POS">
+                            <span class="vg-badge-step"><i class="bi bi-cart4 me-1"></i> บทที่ 2.2: 5 ขั้นตอนพร้อมรูปจริง</span>
                         </div>
                         <div class="vg-body">
                             <div>
-                                <h4 class="vg-title"><i class="bi bi-cart4 text-danger"></i> 2.2 วิธีขายหน้าร้าน (JET POS Web)</h4>
-                                <p class="vg-desc">คู่มือเปิดกะแคชเชียร์ สแกนบาร์โค้ด ชั่งน้ำหนัก คิดเงิน รับเงินสด/โอน QR พักบิล และพิมพ์รายงานปิดกะ Z-Report</p>
+                                <h4 class="vg-title"><i class="bi bi-cart4 text-danger"></i> 2.2 ขั้นตอนการขายหน้าร้าน (JET POS)</h4>
+                                <p class="vg-desc">คู่มือการเปิดกะแคชเชียร์ ค้นหาสินค้า สแกนบาร์โค้ด เลือกหมวดหมู่ จัดการตะกร้าสินค้า ชำระเงินสด/QR และพิมพ์รายงานปิดกะ Z-Report ผ่านโปรแกรมจอสัมผัสจริง</p>
                             </div>
                             <button type="button" class="vg-btn-action">
                                 <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 2.2 (5 ขั้นตอน)
@@ -1934,46 +1934,46 @@ flowchart TD
                 steps: [
                     {
                         badge: 'ขั้นตอนที่ 1',
-                        title: 'เปิดกะขาย & ใส่เงินทอนเริ่มต้น',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>กรอกเงินทอนตั้งต้น:</strong> ใส่จำนวนเงินทอนเริ่มต้นในลิ้นชัก (เช่น 1,000 บาท)</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>หมายเหตุเปิดกะ:</strong> ใส่บันทึกเพิ่มเติม (ถ้ามี หรือเว้นว่างไว้ได้)</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีเขียว "เปิดกะ":</strong> เพื่อเริ่มบันทึกยอดขายประจำวันและเปิดระบบลิ้นชัก</div></div>`,
+                        title: 'เปิดกะขาย & ใส่เงินทอนเริ่มต้น (Shift Open)',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ข้อมูลสาขา & แคชเชียร์:</strong> ตรวจสอบชื่อสาขาและพนักงานผู้รับผิดชอบกะการขาย</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>กรอกเงินทอนตั้งต้น:</strong> ระบุจำนวนเงินสดเริ่มต้นในลิ้นชัก (เช่น 1,000.00 บาท)</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีเขียว "🔓 เปิดกะ":</strong> เพื่อเริ่มต้นรอบการขายและเริ่มคิดเงินลูกค้า</div></div>`,
                         img: '{{ asset('images/manual/pos_step1.png') }}',
                         tip: 'เงินทอนเริ่มต้นนี้จะถูกนำไปคำนวณกระทบยอดเงินสดเมื่อสิ้นสุดวันในใบรายงาน Z-Report'
                     },
                     {
                         badge: 'ขั้นตอนที่ 2',
-                        title: 'เลือกสินค้า / ยิงบาร์โค้ด / ชั่งน้ำหนัก',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ค้นหาสินค้า:</strong> พิมพ์รหัส SKU ชื่อสินค้า หรือใช้เครื่องสแกนยิงบาร์โค้ด</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>เลือกหมวดหมู่สินค้า:</strong> คลิกแท็บหมวดหมู่ด้านบนเพื่อกรองดูเฉพาะกลุ่ม</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>คลิกเลือกสินค้าลงตะกร้า:</strong> กดที่การ์ดสินค้าเพื่อเพิ่มลงตะกร้าขายฝั่งขวา</div></div>`,
+                        title: 'เลือกสินค้า / ยิงบาร์โค้ด / หมวดหมู่สินค้า',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ค้นหาสินค้า & สแกนบาร์โค้ด:</strong> พิมพ์รหัส SKU ชื่อสินค้า หรือใช้เครื่องสแกนยิงบาร์โค้ดในช่องค้นหา</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>เลือกหมวดหมู่สินค้า:</strong> คลิกแท็บหมวดหมู่ด้านบน (ทั้งหมด, เครื่องดื่ม, ของว่าง, เมนูแนะนำ) เพื่อกรองรายการ</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>คลิกเลือกการ์ดสินค้า:</strong> แตะที่รูปหรือชื่อสินค้าเพื่อเพิ่มลงตะกร้าขายฝั่งขวาทันที</div></div>`,
                         img: '{{ asset('images/manual/pos_step2.png') }}',
-                        tip: 'หากสินค้าขึ้นสต็อกคงเหลือ 0 ระบบจะบล็อกไม่ให้ขายจนกว่าจะมีการทำรายการโอนสต็อกมาจากคลังใหญ่'
+                        tip: 'หากสินค้าขึ้นสต็อกคงเหลือ 0 ระบบจะแจ้งเตือนและบล็อกไม่ให้ขายจนกว่าจะมีการทำรายการรับโอนสต็อก'
                     },
                     {
                         badge: 'ขั้นตอนที่ 3',
-                        title: 'จัดการตะกร้าสินค้า & สมาชิกสะสมแต้ม',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>รายการในตะกร้า:</strong> กดปุ่มบวก/ลบ (+/-) เพื่อปรับจำนวน หรือค้นหาเบอร์โทรสะสมแต้มสมาชิก</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>ปุ่ม "พักบิล":</strong> กดพักบิลชั่วคราวเพื่อสลับไปคิดเงินให้ลูกค้ารายอื่นก่อนได้ทันที</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีแดง "คิดเงิน / ชำระเงิน":</strong> เมื่อลูกค้าพร้อมชำระเงินเพื่อเปิดหน้าต่างชำระเงิน</div></div>`,
-                        img: '{{ asset('images/manual/pos_main.png') }}',
-                        tip: 'สามารถกดปุ่ม "เรียกบิล" เพื่อดึงบิลที่เคยพักไว้กลับมาคิดเงินต่อได้ตลอดเวลา'
+                        title: 'จัดการตะกร้าสินค้า & คำนวณยอดชำระ',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>รายการในตะกร้า & ปรับจำนวน:</strong> ตรวจสอบรายการในตารางฝั่งขวา กดปรับจำนวน หรือลบรายการที่ไม่ต้องการ</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>สรุปยอดเงิน & ภาษี:</strong> ระบบคำนวณยอดรวม, ส่วนลด, ภาษีมูลค่าเพิ่ม (VAT 7%) และยอดสุทธิโดยอัตโนมัติ</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีน้ำเงิน "💳 ชำระเงิน (F12)":</strong> หรือกดปุ่มลัด [F12] เพื่อเปิดหน้าต่างรับชำระเงิน</div></div>`,
+                        img: '{{ asset('images/manual/pos_step3.png') }}',
+                        tip: 'สามารถกด F12 บนแป้นพิมพ์เพื่อเปิดหน้าชำระเงินได้ทันทีโดยไม่ต้องคลิกเมาส์'
                     },
                     {
                         badge: 'ขั้นตอนที่ 4',
-                        title: 'ชำระเงิน & พิมพ์ใบเสร็จรับเงิน',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>เลือกช่องทางชำระเงิน:</strong> เลือกเงินสด, สแกน QR PromptPay, หรือบัตรเครดิต</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>ระบุยอดเงิน:</strong> กรอกจำนวนเงินที่รับมา หรือกดปุ่มเงินด่วน (พอดี, 100, 500, 1000)</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดยืนยันชำระเงิน:</strong> ระบบจะคำนวณเงินทอน สั่งตัดสต็อก และพิมพ์ใบเสร็จอัตโนมัติ</div></div>`,
+                        title: 'ชำระเงินด้วยเงินสด & พิมพ์ใบเสร็จ (Cash Payment)',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>เลือกวิธีชำระ "เงินสด":</strong> ตรวจสอบการ์ดสรุปยอดเงินและจำนวนชิ้นที่ต้องชำระ</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>ยอดเงินที่รับ & เงินทอน:</strong> กดแป้นตัวเลขหรือปุ่มด่วน (500, 1,000) ระบบจะแสดงเงินทอนสีเขียวอัตโนมัติ</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดยืนยันชำระเงิน (Enter):</strong> บันทึกตัดสต็อก สั่งเปิดลิ้นชักเก็บเงิน และพิมพ์ใบเสร็จอัตโนมัติ</div></div>`,
                         img: '{{ asset('images/manual/pos_step4.png') }}',
-                        tip: 'เครื่องพิมพ์ใบเสร็จและลิ้นชักเก็บเงินจะเปิดออกอัตโนมัติเมื่อกดยืนยันชำระเงิน'
+                        tip: 'เครื่องพิมพ์ใบเสร็จและลิ้นชักเก็บเงินจะทำงานโดยอัตโนมัติเมื่อกดยืนยันชำระเงิน'
                     },
                     {
                         badge: 'ขั้นตอนที่ 5',
-                        title: 'ปิดกะประจำวัน (Z-Report)',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ตรวจสอบยอดขาย:</strong> ดูสรุปยอดเงินสดขาย, ยอด QR โอน และยอดเงินสดที่ควรมี</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>นับเงินสดจริงในลิ้นชัก:</strong> กรอกยอดที่นับได้ลงในช่อง "เงินสดที่นับจริง"</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่ม "ปิดกะ":</strong> ระบบจะพิมพ์ใบสรุปยอดขาย Z-Report สำหรับส่งมอบเงินให้ผู้จัดการ</div></div>`,
+                        title: 'ปิดกะทำงานประจำวัน (Shift Close & Z-Report)',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ยอดเงินในระบบ:</strong> ตรวจสอบยอดเงินสดที่ระบบคำนวณไว้ (เงินทอนตั้งต้น + ยอดขายเงินสด)</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>ยอดเงินนับจริง:</strong> แคชเชียร์นับเงินสดจริงทั้งหมดในลิ้นชักและกรอกลงในช่อง</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีแดง "ยืนยันปิดกะ":</strong> ระบบจะทำการปิดกะ พิมพ์ใบสรุปยอดขาย Z-Report และส่งยอดซิงค์เข้าสู่ระบบ ERP</div></div>`,
                         img: '{{ asset('images/manual/pos_step5.png') }}',
                         tip: 'ควรปิดกะทุกสิ้นวัน เพื่อตรวจสอบว่าเงินสดในลิ้นชักตรงกับยอดขายในระบบหรือไม่'
                     }
