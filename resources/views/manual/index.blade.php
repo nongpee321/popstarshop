@@ -1659,47 +1659,62 @@ sequenceDiagram
                     </p>
                     <div class="mermaid-container">
                         <div class="mermaid">
-flowchart LR
-    subgraph CentralERP["🌐 เซิร์ฟเวอร์หลัก (Pop ERP Server / Laravel)"]
-        API["RESTful API Endpoints<br>(PosController.php)"]
-        MasterDB[("ฐานข้อมูลกลาง (MySQL)")]
-        UpdateServer["ระบบ Auto-Update Release<br>(v1.12.23 Installers)"]
-        API <--> MasterDB
-        UpdateServer --> API
-    end
-
-    subgraph WebPOS["💻 Web POS (บนเบราว์เซอร์)"]
-        WEB_UI["Responsive Web UI<br>(Blade + Alpine.js)"]
-        WEB_PRINT["Web Print Driver"]
-        WEB_UI --> WEB_PRINT
-    end
-
-    subgraph DesktopApp["🖥️ Desktop Python POS App (PySide6)"]
-        APP_CORE["Modern Touch UI & POS Engine"]
-        SQLiteCache[("ฐานข้อมูลในเครื่อง (SQLite)")]
-        CustomerDisp["📺 หน้าจอฝั่งลูกค้า (2nd Display)"]
+flowchart TB
+    %% Level 1: Central Server
+    subgraph CentralERP["🌐 1. เซิร์ฟเวอร์หลัก Pop ERP (Cloud / On-Premise Laravel)"]
+        direction LR
+        MasterDB[("🗄️ ฐานข้อมูลกลาง<br>(MySQL Database)")]
+        API["⚡ RESTful API Endpoints<br>(PosController / Token Auth)"]
+        UpdateServer["🚀 Update Server<br>(v1.12.23 Release)"]
         
-        APP_CORE <--> SQLiteCache
-        APP_CORE --> CustomerDisp
+        API <--> MasterDB
+        UpdateServer -.->|"เช็คเวอร์ชันใหม่"| API
     end
 
-    subgraph Hardware["🔌 อุปกรณ์ฮาร์ดแวร์หน้าร้าน"]
-        HW_DRAWER["💵 ลิ้นชักเก็บเงิน (RJ11)<br><i>เด้งเปิดอัตโนมัติหลังรับเงิน</i>"]
-        HW_PRINTER["🧾 เครื่องพิมพ์สลิปความร้อน<br><i>(USB / ESC/POS 80mm/58mm)</i>"]
-        HW_SCANNER["🔫 เครื่องยิงบาร์โค้ด"]
-        HW_SCALE["⚖️ เครื่องชั่งน้ำหนักดิจิทัล"]
+    %% Level 2: Front-End POS Terminals
+    subgraph Frontends["💻 2. จุดขายหน้าร้าน (Dual-Platform Terminals)"]
+        direction LR
+        
+        subgraph WebPOS["🌐 Web POS (บนเบราว์เซอร์ Chrome/Edge)"]
+            direction TB
+            WEB_UI["🖥️ Web Responsive UI<br>(Blade + Alpine.js)"]
+            WEB_PRINT["🖨️ Web Print Driver<br>(Browser Dialog)"]
+            WEB_UI --> WEB_PRINT
+        end
+
+        subgraph DesktopApp["🖥️ Desktop Python POS (Native App - Offline Ready)"]
+            direction TB
+            APP_CORE["⚡ POS Engine & Touch UI<br>(Python PySide6 / Qt)"]
+            SQLiteCache[("💾 Local SQLite Cache<br>(เก็บบิลออฟไลน์ / แคชสินค้า)")]
+            CustomerDisp["📺 หน้าจอฝั่งลูกค้า<br>(2nd Display QR Code)"]
+            
+            APP_CORE <--> SQLiteCache
+            APP_CORE -->|"แสดงยอด/QR"| CustomerDisp
+        end
     end
 
-    WEB_UI <==>|"HTTPS Web Session"| API
-    APP_CORE <==>|"REST API Token Sync"| API
-    UpdateServer -.->|"ดาวน์โหลดเวอร์ชันใหม่"| DesktopApp
+    %% Level 3: Hardware Peripherals
+    subgraph Hardware["🔌 3. อุปกรณ์ฮาร์ดแวร์หน้าร้าน (Peripherals)"]
+        direction LR
+        HW_SCANNER["🔫 เครื่องยิงบาร์โค้ด<br>(USB HID)"]
+        HW_SCALE["⚖️ เครื่องชั่งน้ำหนัก<br>(Serial COM/USB)"]
+        HW_PRINTER["🧾 เครื่องพิมพ์สลิปความร้อน<br>(80mm / 58mm ESC/POS)"]
+        HW_DRAWER["💵 ลิ้นชักเก็บเงิน<br>(RJ11 เชื่อมผ่านเครื่องพิมพ์)"]
+        
+        HW_PRINTER --- HW_DRAWER
+    end
 
-    APP_CORE ==>|"สั่งเปิดลิ้นชักทันที"| HW_DRAWER
-    APP_CORE ==>|"พิมพ์สลิป Silent Print"| HW_PRINTER
-    HW_SCANNER ==> APP_CORE
-    HW_SCALE ==> APP_CORE
-    HW_SCANNER -.-> WEB_UI
-    WEB_PRINT -.-> HW_PRINTER
+    %% Connections between layers
+    CentralERP <===>|"REST API / Token Sync"| DesktopApp
+    CentralERP <===>|"HTTPS Web Session"| WebPOS
+
+    HW_SCANNER ==>|"สแกนสินค้า"| DesktopApp
+    HW_SCALE ==>|"อ่านน้ำหนัก"| DesktopApp
+    DesktopApp ==>|"Silent Direct Print"| HW_PRINTER
+    DesktopApp ==>|"สั่งเด้งอัตโนมัติ"| HW_DRAWER
+
+    HW_SCANNER -.->|"คีย์บอร์ดเสมือน"| WebPOS
+    WEB_PRINT -.->|"สั่งพิมพ์ผ่านไดรเวอร์"| HW_PRINTER
                         </div>
                     </div>
 
@@ -2938,13 +2953,57 @@ flowchart TD
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             if (typeof mermaid !== 'undefined') {
-                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-                mermaid.initialize({
-                    startOnLoad: true,
-                    theme: isDark ? 'dark' : 'default',
-                    securityLevel: 'loose',
-                    fontFamily: "'IBM Plex Sans Thai', 'Plus Jakarta Sans', sans-serif"
-                });
+                function initMermaid() {
+                    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                    mermaid.initialize({
+                        startOnLoad: false,
+                        theme: isDark ? 'dark' : 'base',
+                        themeVariables: isDark ? {
+                            background: '#0f172a',
+                            primaryColor: '#1e293b',
+                            primaryTextColor: '#f1f5f9',
+                            primaryBorderColor: '#38bdf8',
+                            lineColor: '#64748b',
+                            secondaryColor: '#1e293b',
+                            tertiaryColor: '#162032',
+                            fontSize: '13px',
+                            fontFamily: "'IBM Plex Sans Thai', 'Plus Jakarta Sans', sans-serif"
+                        } : {
+                            background: '#ffffff',
+                            primaryColor: '#f8fafc',
+                            primaryTextColor: '#0f172a',
+                            primaryBorderColor: '#0ea5e9',
+                            lineColor: '#94a3b8',
+                            secondaryColor: '#f1f5f9',
+                            tertiaryColor: '#e2e8f0',
+                            fontSize: '13px',
+                            fontFamily: "'IBM Plex Sans Thai', 'Plus Jakarta Sans', sans-serif"
+                        },
+                        securityLevel: 'loose'
+                    });
+                    mermaid.run();
+                }
+
+                initMermaid();
+
+                // Re-run on theme change
+                const themeBtn = document.getElementById('themeToggleBtn');
+                if (themeBtn) {
+                    themeBtn.addEventListener('click', function() {
+                        setTimeout(() => {
+                            // Reset processed flags to re-render diagrams
+                            document.querySelectorAll('.mermaid').forEach(el => {
+                                if (el.getAttribute('data-original-code')) {
+                                    el.innerHTML = el.getAttribute('data-original-code');
+                                } else {
+                                    el.setAttribute('data-original-code', el.innerHTML);
+                                }
+                                el.removeAttribute('data-processed');
+                            });
+                            initMermaid();
+                        }, 50);
+                    });
+                }
             }
         });
     </script>
