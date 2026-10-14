@@ -39,24 +39,24 @@
     body.dark-mode, [data-bs-theme="dark"], [data-theme="dark"], html[data-color-mode="night"] {
         --dash-bg: #0f172a;
         --dash-surface: #1e293b;
-        --dash-text: #f8fafc;
+        --dash-text: #f1f5f9;
         --dash-muted: #94a3b8;
         --dash-border: #334155;
         
-        --dash-red: #e11d48;
-        --dash-red-soft: rgba(225, 29, 72, 0.2);
-        --dash-red-text: #fb7185;
+        --dash-red: #f43f5e;
+        --dash-red-soft: rgba(244, 63, 94, 0.15);
+        --dash-red-text: #fda4af;
         
         --dash-green: #10b981;
-        --dash-green-soft: rgba(5, 150, 105, 0.2);
-        --dash-green-text: #34d399;
+        --dash-green-soft: rgba(16, 185, 129, 0.15);
+        --dash-green-text: #6ee7b7;
         
-        --dash-yellow: #eab308;
-        --dash-yellow-soft: rgba(202, 138, 4, 0.2);
-        --dash-yellow-text: #fde047;
+        --dash-yellow: #f59e0b;
+        --dash-yellow-soft: rgba(245, 158, 11, 0.15);
+        --dash-yellow-text: #fde68a;
         
         --dash-blue: #38bdf8;
-        --dash-blue-soft: rgba(2, 132, 199, 0.2);
+        --dash-blue-soft: rgba(56, 189, 248, 0.15);
 
         --dash-alert-bg: rgba(225, 29, 72, 0.15);
         --dash-alert-border: rgba(225, 29, 72, 0.3);

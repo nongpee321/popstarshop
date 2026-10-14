@@ -653,73 +653,207 @@
         html[data-color-mode="sepia"] .fa-rail-btn.active { background: #fdf6e3 !important; color: #433422 !important; box-shadow: none !important; border-left: 3px solid #8c7355 !important; }
 
         html[data-color-mode="night"] {
-            --erp-bg: #1a222f !important; --erp-surface: #2a3441 !important; --erp-soft: #374151 !important;
-            --erp-ink: #f1f5f9 !important; --erp-border: #3b4758 !important;
-            --erp-primary-soft: #2b3648 !important;
+            --erp-bg: #0f172a !important; 
+            --erp-surface: #1e293b !important; 
+            --erp-soft: #334155 !important;
+            --erp-ink: #e2e8f0 !important; 
+            --erp-border: #334155 !important;
+            --erp-primary-soft: #1e293b !important;
         }
-        html[data-color-mode="night"] body, html[data-color-mode="night"] .content-wrapper, html[data-color-mode="night"] .main-header, html[data-color-mode="night"] .app-header {
-            background: #1a222f !important; color: #f1f5f9 !important; border-color: #3b4758 !important;
+        html[data-color-mode="night"] body, 
+        html[data-color-mode="night"] .content-wrapper, 
+        html[data-color-mode="night"] .main-header, 
+        html[data-color-mode="night"] .app-header {
+            background: #0f172a !important; 
+            color: #e2e8f0 !important; 
+            border-color: #1e293b !important;
         }
-        html[data-color-mode="night"] .replenish-summary > div, html[data-color-mode="night"] .card, html[data-color-mode="night"] .dropdown-menu, html[data-color-mode="night"] .bg-white, html[data-color-mode="night"] [class*="-panel"], html[data-color-mode="night"] [class*="-card"], html[data-color-mode="night"] [class*="-box"], html[data-color-mode="night"] [class*="-sheet"], html[data-color-mode="night"] .modal-content, html[data-color-mode="night"] .doc-filter-bar, html[data-color-mode="night"] .doc-book-chip { background-color: #2a3441 !important; border-color: #3b4758 !important; color: #f1f5f9 !important; }
-        html[data-color-mode="night"] .dropdown-item { color: #f1f5f9 !important; }
-        html[data-color-mode="night"] .dropdown-item:hover { background-color: #3b4758 !important; color: #fff !important; }
+        html[data-color-mode="night"] .replenish-summary > div, 
+        html[data-color-mode="night"] .card, 
+        html[data-color-mode="night"] .dropdown-menu, 
+        html[data-color-mode="night"] .bg-white, 
+        html[data-color-mode="night"] [class*="-panel"], 
+        html[data-color-mode="night"] [class*="-card"], 
+        html[data-color-mode="night"] [class*="-box"], 
+        html[data-color-mode="night"] [class*="-sheet"], 
+        html[data-color-mode="night"] .modal-content, 
+        html[data-color-mode="night"] .doc-filter-bar, 
+        html[data-color-mode="night"] .doc-book-chip { 
+            background-color: #1e293b !important; 
+            border-color: #334155 !important; 
+            color: #e2e8f0 !important; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+        }
+        html[data-color-mode="night"] .dropdown-item { color: #cbd5e1 !important; }
+        html[data-color-mode="night"] .dropdown-item:hover { background-color: #334155 !important; color: #f8fafc !important; }
         
         /* Table Fixes */
-        html[data-color-mode="night"] .table { --bs-table-bg: transparent; --bs-table-color: #f1f5f9; --bs-table-striped-bg: rgba(255,255,255,0.03); background-color: transparent !important; }
+        html[data-color-mode="night"] .table { 
+            --bs-table-bg: transparent; 
+            --bs-table-color: #cbd5e1; 
+            --bs-table-striped-bg: rgba(255,255,255,0.02); 
+            background-color: transparent !important; 
+        }
         html[data-color-mode="night"] .table-responsive { background-color: transparent !important; }
-        html[data-color-mode="night"] .table tr, html[data-color-mode="night"] .table td, html[data-color-mode="night"] .table th, html[data-color-mode="night"] .table > tbody > tr > td { background-color: transparent !important; color: #f1f5f9 !important; border-color: #3b4758 !important; }
-        html[data-color-mode="night"] .table input, html[data-color-mode="night"] .table select, html[data-color-mode="night"] .table textarea { background-color: #1e293b !important; color: #f1f5f9 !important; border-color: #3b4758 !important; }
+        html[data-color-mode="night"] .table tr, 
+        html[data-color-mode="night"] .table td, 
+        html[data-color-mode="night"] .table th, 
+        html[data-color-mode="night"] .table > tbody > tr > td { 
+            background-color: transparent !important; 
+            color: #cbd5e1 !important; 
+            border-color: #273549 !important; 
+        }
+        html[data-color-mode="night"] .table input, 
+        html[data-color-mode="night"] .table select, 
+        html[data-color-mode="night"] .table textarea { 
+            background-color: #0f172a !important; 
+            color: #f1f5f9 !important; 
+            border-color: #334155 !important; 
+        }
 
-        
         html[data-color-mode="night"] .form-control:not(:disabled):not([readonly]),
         html[data-color-mode="night"] .form-select:not(:disabled) {
-            background-color: #1e293b !important;
+            background-color: #0f172a !important;
             color: #f1f5f9 !important;
-            border-color: #3b4758 !important;
+            border-color: #334155 !important;
         }
         
         html[data-color-mode="night"] .form-control:focus,
         html[data-color-mode="night"] .form-select:focus {
-            background-color: #2a3441 !important;
-            color: #fff !important;
-            border-color: var(--erp-primary) !important;
+            background-color: #131d31 !important;
+            color: #ffffff !important;
+            border-color: #38bdf8 !important;
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2) !important;
         }
 
-          /* Fix Disabled form-controls in night mode */
+        /* Fix Disabled form-controls in night mode */
         html[data-color-mode="night"] .form-control:disabled,
         html[data-color-mode="night"] .form-select:disabled,
-        html[data-color-mode="night"] .form-control[readonly] { background-color: #111827 !important; color: #94a3b8 !important; border-color: #3b4758 !important; }
+        html[data-color-mode="night"] .form-control[readonly] { 
+            background-color: #090d16 !important; 
+            color: #64748b !important; 
+            border-color: #1e293b !important; 
+        }
         
-        /* Fix btn-light (4M Button) in night mode */
-        html[data-color-mode="night"] .btn-light { background-color: #1e293b !important; color: #f1f5f9 !important; border-color: #3b4758 !important; }
-        html[data-color-mode="night"] .btn-light:hover { background-color: #2a3441 !important; color: #fff !important; }
-        html[data-color-mode="night"] .table-striped tbody tr:nth-of-type(odd), html[data-color-mode="night"] .table-striped tbody tr:nth-of-type(odd) td, html[data-color-mode="night"] .table > tbody > tr:nth-child(even) > td { background-color: rgba(255,255,255,0.04) !important; }
-        html[data-color-mode="night"] .table-striped tbody tr:nth-of-type(even), html[data-color-mode="night"] .table-striped tbody tr:nth-of-type(even) td { background-color: transparent !important; }
-        html[data-color-mode="night"] .table tbody tr.bg-danger, html[data-color-mode="night"] .table tbody tr.table-danger, html[data-color-mode="night"] .table tbody tr.table-danger td { background-color: rgba(239, 68, 68, 0.15) !important; }
-        html[data-color-mode="night"] .table tbody tr.bg-danger td, html[data-color-mode="night"] .table tbody tr.table-danger td { color: #fca5a5 !important; }
-        html[data-color-mode="night"] th, html[data-color-mode="night"] thead, html[data-color-mode="night"] .bg-danger th, html[data-color-mode="night"] thead th { background-color: #1e293b !important; color: #f1f5f9 !important; border-color:#3b4758 !important; }
-        html[data-color-mode="night"] .product-name { color: #f8fafc !important; }
-        html[data-color-mode="night"] .product-sku { color: #cbd5e1 !important; }
-        html[data-color-mode="night"] .metric-value, html[data-color-mode="night"] .executive-copy h2, html[data-color-mode="night"] .executive-signal-grid strong, html[data-color-mode="night"] .metric-mini-row strong { color: #f8fafc !important; }
-        html[data-color-mode="night"] .metric-label, html[data-color-mode="night"] .executive-copy p, html[data-color-mode="night"] .executive-signal-grid span, html[data-color-mode="night"] .metric-unit { color: #cbd5e1 !important; }
+        /* Fix btn-light in night mode */
+        html[data-color-mode="night"] .btn-light { 
+            background-color: #243044 !important; 
+            color: #e2e8f0 !important; 
+            border-color: #334155 !important; 
+        }
+        html[data-color-mode="night"] .btn-light:hover { 
+            background-color: #334155 !important; 
+            color: #ffffff !important; 
+        }
+        html[data-color-mode="night"] .table-striped tbody tr:nth-of-type(odd), 
+        html[data-color-mode="night"] .table-striped tbody tr:nth-of-type(odd) td, 
+        html[data-color-mode="night"] .table > tbody > tr:nth-child(even) > td { 
+            background-color: rgba(255,255,255,0.02) !important; 
+        }
+        html[data-color-mode="night"] .table-striped tbody tr:nth-of-type(even), 
+        html[data-color-mode="night"] .table-striped tbody tr:nth-of-type(even) td { 
+            background-color: transparent !important; 
+        }
+        html[data-color-mode="night"] .table tbody tr.bg-danger, 
+        html[data-color-mode="night"] .table tbody tr.table-danger, 
+        html[data-color-mode="night"] .table tbody tr.table-danger td { 
+            background-color: rgba(244, 63, 94, 0.12) !important; 
+        }
+        html[data-color-mode="night"] .table tbody tr.bg-danger td, 
+        html[data-color-mode="night"] .table tbody tr.table-danger td { 
+            color: #fca5a5 !important; 
+        }
+        html[data-color-mode="night"] th, 
+        html[data-color-mode="night"] thead, 
+        html[data-color-mode="night"] .bg-danger th, 
+        html[data-color-mode="night"] thead th { 
+            background-color: #162032 !important; 
+            color: #e2e8f0 !important; 
+            border-color: #273549 !important; 
+            font-weight: 600;
+        }
+        html[data-color-mode="night"] .product-name { color: #f1f5f9 !important; }
+        html[data-color-mode="night"] .product-sku { color: #94a3b8 !important; }
+        html[data-color-mode="night"] .metric-value, 
+        html[data-color-mode="night"] .executive-copy h2, 
+        html[data-color-mode="night"] .executive-signal-grid strong, 
+        html[data-color-mode="night"] .metric-mini-row strong { 
+            color: #f1f5f9 !important; 
+        }
+        html[data-color-mode="night"] .metric-label, 
+        html[data-color-mode="night"] .executive-copy p, 
+        html[data-color-mode="night"] .executive-signal-grid span, 
+        html[data-color-mode="night"] .metric-unit { 
+            color: #94a3b8 !important; 
+        }
         
-        html[data-color-mode="night"] label, html[data-color-mode="night"] .text-dark, html[data-color-mode="night"] .text-muted, html[data-color-mode="night"] .text-black, html[data-color-mode="night"] p, html[data-color-mode="night"] a { color: #cbd5e1 !important; }
-        html[data-color-mode="night"] strong, html[data-color-mode="night"] h1, html[data-color-mode="night"] h2, html[data-color-mode="night"] h3, html[data-color-mode="night"] h4, html[data-color-mode="night"] h5, html[data-color-mode="night"] h6 { color: #f8fafc !important; }
+        html[data-color-mode="night"] label, 
+        html[data-color-mode="night"] .text-dark, 
+        html[data-color-mode="night"] .text-black, 
+        html[data-color-mode="night"] p, 
+        html[data-color-mode="night"] a { 
+            color: #cbd5e1 !important; 
+        }
+        html[data-color-mode="night"] .text-muted {
+            color: #94a3b8 !important;
+        }
+        html[data-color-mode="night"] strong, 
+        html[data-color-mode="night"] h1, 
+        html[data-color-mode="night"] h2, 
+        html[data-color-mode="night"] h3, 
+        html[data-color-mode="night"] h4, 
+        html[data-color-mode="night"] h5, 
+        html[data-color-mode="night"] h6 { 
+            color: #f1f5f9 !important; 
+        }
         
         /* Fix Red/Pink alerts in Night Mode */
-        html[data-color-mode="night"] .bg-danger, html[data-color-mode="night"] .alert-danger, html[data-color-mode="night"] .bg-danger-soft { background-color: rgba(239, 68, 68, 0.15) !important; color: #fca5a5 !important; border-color: rgba(239, 68, 68, 0.3) !important; }
+        html[data-color-mode="night"] .bg-danger, 
+        html[data-color-mode="night"] .alert-danger, 
+        html[data-color-mode="night"] .bg-danger-soft { 
+            background-color: rgba(244, 63, 94, 0.12) !important; 
+            color: #fda4af !important; 
+            border-color: rgba(244, 63, 94, 0.25) !important; 
+        }
         /* Night Sidebar Overrides */
-        html[data-color-mode="night"] .fa-rail { background: #131a24 !important; border-right: 1px solid #1e293b; }
-        html[data-color-mode="night"] .fa-rail-btn { color: #94a3b8 !important; text-shadow: none !important; }
-        html[data-color-mode="night"] .fa-rail-btn:hover { background: #1e293b !important; color: #f1f5f9 !important; }
-        html[data-color-mode="night"] .fa-rail-btn.active { background: #2a3441 !important; color: #14b8a6 !important; box-shadow: none !important; border-left: 3px solid #14b8a6 !important; }
+        html[data-color-mode="night"] .fa-rail { 
+            background: #090e17 !important; 
+            border-right: 1px solid #1e293b !important; 
+        }
+        html[data-color-mode="night"] .fa-rail-btn { 
+            color: #94a3b8 !important; 
+            text-shadow: none !important; 
+        }
+        html[data-color-mode="night"] .fa-rail-btn:hover { 
+            background: #1e293b !important; 
+            color: #38bdf8 !important; 
+        }
+        html[data-color-mode="night"] .fa-rail-btn.active { 
+            background: #1e293b !important; 
+            color: #38bdf8 !important; 
+            box-shadow: none !important; 
+            border-left: 3px solid #38bdf8 !important; 
+        }
 
-        
         /* Document browser fixes for night mode */
-        html[data-color-mode="night"] .doc-book-chip { background: #1e293b !important; color: #f1f5f9 !important; border-color: #3b4758 !important; }
-        html[data-color-mode="night"] .doc-book-chip:hover { background: #2a3441 !important; }
-        html[data-color-mode="night"] .doc-tree-link.active { background: #3b4758 !important; color: #fff !important; }
-        html[data-color-mode="night"] .doc-grid thead th { background: #1e293b !important; color: #f1f5f9 !important; border-bottom: 2px solid #3b4758 !important; }
+        html[data-color-mode="night"] .doc-book-chip { 
+            background: #162032 !important; 
+            color: #cbd5e1 !important; 
+            border-color: #334155 !important; 
+        }
+        html[data-color-mode="night"] .doc-book-chip:hover { 
+            background: #1e293b !important; 
+            color: #f1f5f9 !important;
+        }
+        html[data-color-mode="night"] .doc-tree-link.active { 
+            background: #253349 !important; 
+            color: #38bdf8 !important; 
+        }
+        html[data-color-mode="night"] .doc-grid thead th { 
+            background: #162032 !important; 
+            color: #e2e8f0 !important; 
+            border-bottom: 2px solid #334155 !important; 
+        }
 
         html.subnav-collapsed { --lte-sidebar-width: var(--erp-rail-w); }
 
