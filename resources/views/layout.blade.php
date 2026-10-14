@@ -1734,16 +1734,6 @@
                 </div>
 @endif
                 <ul class="navbar-nav ms-auto align-items-center gap-3">
-                    {{-- AI Assistant Button in Top Bar --}}
-                    <li class="nav-item">
-                        <a href="{{ route('ai.assistant') }}" class="btn btn-light border rounded-pill d-flex align-items-center gap-2 px-3 py-1 shadow-sm" 
-                           style="height: 42px; font-weight: 600; color: #e11d48; border-color: rgba(225,29,72,0.3)!important; background: #fff1f2;" 
-                           title="ระบบผู้ช่วย AI อัจฉริยะ (ดูคำถามเก่าและประวัติ Token)">
-                            <i class="bi bi-robot" style="font-size: 18px;"></i>
-                            <span class="d-none d-lg-inline" style="font-size: 13.5px;">แชท AI</span>
-                        </a>
-                    </li>
-
                     {{-- Theme Toggle --}}
                     <li class="nav-item" x-data="themeToggle()" x-init="initTheme()">
                         <div class="position-relative">
