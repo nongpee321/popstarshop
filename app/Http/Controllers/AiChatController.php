@@ -129,9 +129,12 @@ class AiChatController extends Controller
         }
 
         try {
-            $response = Http::withHeaders(['Content-Type' => 'application/json'])
+            $response = Http::withHeaders([
+                'Content-Type' => 'application/json',
+                'x-goog-api-key' => $apiKey,
+            ])
                 ->timeout(20)
-                ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . $apiKey, [
+                ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', [
                     'systemInstruction' => [
                         'parts' => [
                             ['text' => 'คุณคือ POP STAR AI ผู้ช่วยอัจฉริยะประจำระบบ ERP ของ บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด (ธุรกิจอาหารแช่แข็ง ชาบู หมูกระทะ ขยายสาขา ค้าส่งและปลีก) 
@@ -170,13 +173,15 @@ class AiChatController extends Controller
                 ]);
             }
 
+            \Log::error('Gemini API Error: ' . $response->body());
             return response()->json([
-                'reply' => 'ขออภัย เกิดข้อผิดพลาดจาก Google Gemini: ' . $response->body()
+                'reply' => 'ขออภัย ระบบ AI ขัดข้องชั่วคราว ไม่สามารถประมวลผลคำตอบได้ กรุณาลองใหม่อีกครั้ง'
             ], 500);
 
         } catch (\Exception $e) {
+            \Log::error('Gemini Connection Exception: ' . $e->getMessage());
             return response()->json([
-                'reply' => 'ขออภัย ระบบเครือข่ายขัดข้อง: ' . $e->getMessage()
+                'reply' => 'ขออภัย ระบบเครือข่ายขัดข้อง ไม่สามารถเชื่อมต่อกับ AI Server ได้ กรุณาลองใหม่อีกครั้ง'
             ], 500);
         }
     }
