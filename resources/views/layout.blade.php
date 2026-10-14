@@ -1737,22 +1737,6 @@
                 </div>
 @endif
                 <ul class="navbar-nav ms-auto align-items-center gap-3">
-                    @if(!request()->routeIs('ai.assistant'))
-                    {{-- POP STAR AI Assistant Drawer Trigger Button --}}
-                    <li class="nav-item">
-                        <button type="button" 
-                                class="btn border d-flex align-items-center gap-2 rounded-pill px-3 py-1 shadow-sm"
-                                style="background: linear-gradient(135deg, #fff1f2, #ffe4e6); border-color: #fecdd3 !important; transition: all 0.2s;"
-                                onmouseover="this.style.transform='scale(1.03)'; this.style.boxShadow='0 4px 12px rgba(225,29,72,0.2)';"
-                                onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none';"
-                                onclick="window.dispatchEvent(new CustomEvent('toggle-ai-drawer'))"
-                                title="เปิดผู้ช่วย AI อัจฉริยะ (POP STAR AI)">
-                            <i class="bi bi-robot text-danger fs-5"></i>
-                            <span class="fw-bold d-none d-sm-inline" style="font-size: 13px; color: #be123c;">AI ผู้ช่วย</span>
-                            <span class="badge bg-danger rounded-pill" style="font-size: 9.5px; padding: 2px 6px;">Gemini</span>
-                        </button>
-                    </li>
-                    @endif
                     {{-- Theme Toggle --}}
                     <li class="nav-item" x-data="themeToggle()" x-init="initTheme()">
                         <div class="position-relative">
@@ -2411,336 +2395,77 @@
 
 
 @if(!request()->routeIs('ai.assistant'))
-<div x-data="aiChatWidget()" 
-     @toggle-ai-drawer.window="toggleChat()" 
-     @open-ai-drawer.window="open = true" 
-     @close-ai-drawer.window="open = false" 
-     style="font-family: 'IBM Plex Sans Thai', sans-serif;">
-    <style>
-        .ai-edge-tab {
-            position: fixed;
-            right: 0;
-            top: 50%;
-            transform: translateY(-50%);
-            background: linear-gradient(135deg, #e11d48, #be123c);
-            color: #ffffff;
-            padding: 12px 7px 12px 10px;
-            border-radius: 12px 0 0 12px;
-            box-shadow: -4px 4px 18px rgba(225, 29, 72, 0.45);
-            cursor: pointer;
-            z-index: 9990;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-            user-select: none;
-            border: 1px solid rgba(255,255,255,0.3);
-            border-right: none;
-        }
-        .ai-edge-tab:hover {
-            padding-right: 14px;
-            transform: translateY(-50%) scale(1.05);
-            background: linear-gradient(135deg, #f43f5e, #e11d48);
-            box-shadow: -6px 6px 24px rgba(225, 29, 72, 0.65);
-        }
-        .ai-edge-tab-icon {
-            font-size: 18px;
-            animation: pulse-avatar 2.4s infinite;
-        }
-        .ai-edge-tab-text {
-            writing-mode: vertical-rl;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 1.5px;
-        }
-        @keyframes pulse-avatar {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.12); }
-        }
-        .ai-header-btn {
-            background: rgba(255,255,255,0.18);
-            border: none;
-            color: white;
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
-            cursor: pointer;
-            display: grid;
-            place-items: center;
-            font-size: 13.5px;
-            text-decoration: none;
-            transition: all 0.2s;
-        }
-        .ai-header-btn:hover {
-            background: rgba(255,255,255,0.35);
-            color: white;
-        }
-        .ai-export-btn {
-            font-size: 11px;
-            padding: 3px 9px;
-            border-radius: 20px;
-            border: 1px solid #cbd5e1;
-            background: #ffffff;
-            color: #475569;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            transition: all 0.15s ease;
-            text-decoration: none;
-        }
-        .ai-export-btn:hover {
-            background: #f1f5f9;
-            color: #0f172a;
-            border-color: #94a3b8;
-        }
-        .ai-export-btn.btn-pdf:hover {
-            background: #fef2f2;
-            color: #dc2626;
-            border-color: #fca5a5;
-        }
-        .ai-export-btn.btn-excel:hover {
-            background: #f0fdf4;
-            color: #16a34a;
-            border-color: #86efac;
-        }
-        .ai-chip-btn {
-            padding: 4px 10px;
-            border-radius: 9999px;
-            font-size: 11px;
-            font-weight: 600;
-            cursor: pointer;
-            flex-shrink: 0;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            transition: all 0.15s ease;
-            border: 1px solid transparent;
-        }
-        .ai-chip-btn.chip-red { background: #fff1f2; color: #be123c; border-color: #fecdd3; font-weight: 700; }
-        .ai-chip-btn.chip-red:hover { background: #ffe4e6; }
-        .ai-chip-btn.chip-amber { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
-        .ai-chip-btn.chip-amber:hover { background: #ffedd5; }
-        .ai-chip-btn.chip-slate { background: #f8fafc; color: #475569; border-color: #e2e8f0; }
-        .ai-chip-btn.chip-slate:hover { background: #f1f5f9; }
-        .ai-chip-btn.chip-blue { background: #eff6ff; color: #1d4ed8; border-color: #dbeafe; }
-        .ai-chip-btn.chip-blue:hover { background: #dbeafe; }
-        .ai-chip-btn.chip-green { background: #ecfdf5; color: #047857; border-color: #d1fae5; }
-        .ai-chip-btn.chip-green:hover { background: #d1fae5; }
-        .ai-scrollbar-hidden::-webkit-scrollbar { display: none; }
-        .ai-scrollbar-hidden { -ms-overflow-style: none; scrollbar-width: none; }
-    </style>
+<div x-data="aiChatWidget()" class="ai-widget-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; font-family: 'IBM Plex Sans Thai', sans-serif;">
+    <!-- Chat Floating Trigger Button (ปุ่มกลมสีแดงเดิมที่มุมขวาล่าง) -->
+    <button @click="open = !open; if(open) scrollToBottom();" 
+            title="เปิดผู้ช่วย AI อัจฉริยะ (POP STAR AI)"
+            style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #d32f2f, #b71c1c); color: white; border: none; box-shadow: 0 4px 14px rgba(0,0,0,0.25); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.25s ease;"
+            :style="open ? 'transform: rotate(90deg);' : 'transform: scale(1);'">
+        <i class="bi" :class="open ? 'bi-x-lg' : 'bi-robot'" style="font-size: 28px;"></i>
+    </button>
 
-    <!-- Side Edge Dock Tab (ลอยแนบขอบขวากลางจอ ทรงสลิม ไม่เกะกะมุมขวาล่าง ซ่อนเมื่อเปิดแถบ) -->
-    <div x-show="!open" x-transition.opacity.duration.200ms 
-         class="ai-edge-tab" @click="toggleChat()" title="คลิกเพื่อเปิดผู้ช่วย AI อัจฉริยะ (POP STAR AI)">
-        <div class="ai-edge-tab-icon">
-            <i class="bi bi-robot"></i>
-        </div>
-        <span class="ai-edge-tab-text">POP STAR AI</span>
-    </div>
-
-    <!-- Backdrop Overlay เมื่อเปิดแถบ AI Drawer -->
-    <div x-show="open" 
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0"
-         x-transition:enter-end="opacity-100"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100"
-         x-transition:leave-end="opacity-0"
-         @click="open = false" 
-         style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(2px); z-index: 10040;">
-    </div>
-
-    <!-- Full-Height Slide-Over Offcanvas Drawer (ตรึงเต็มความสูง 100vh แข็งแรง ช่องพิมพ์ไม่มีทางหลุดขอบ) -->
-    <div x-show="open" 
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="transform translate-x-full"
-         x-transition:enter-end="transform translate-x-0"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="transform translate-x-0"
-         x-transition:leave-end="transform translate-x-full"
-         @keydown.window.escape="if(open) open = false"
-         style="display: none; position: fixed; top: 0; right: 0; bottom: 0; width: 480px; max-width: 100vw; height: 100vh; background: #ffffff; box-shadow: -15px 0 50px rgba(0,0,0,0.25); z-index: 10050; display: flex; flex-direction: column; overflow: hidden;">
+    <!-- Chat Box Modal (กล่องแชทเดิม ลอยอยู่เหนือปุ่มกลมที่มุมขวาล่าง) -->
+    <div x-show="open" x-transition.opacity.duration.250ms
+         style="display: none; position: absolute; bottom: 75px; right: 0; width: 370px; max-width: calc(100vw - 32px); background: #ffffff; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.18); overflow: hidden; display: flex; flex-direction: column; border: 1px solid #e0e0e0;">
         
-        <!-- Drawer Header -->
-        <div style="background: linear-gradient(135deg, #e11d48, #9f1239); color: white; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #d32f2f, #b71c1c); color: white; padding: 13px 16px; display: flex; align-items: center; justify-content: space-between;">
             <div style="display: flex; align-items: center; gap: 10px;">
-                <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,0.2); display: grid; place-items: center; font-size: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
-                    <i class="bi bi-robot"></i>
-                </div>
+                <i class="bi bi-robot" style="font-size: 22px;"></i>
                 <div>
-                    <div style="display: flex; align-items: center; gap: 6px;">
-                        <strong style="font-size: 15px; letter-spacing: -0.2px;">POP STAR AI</strong>
-                        <span style="font-size: 9.5px; background: rgba(255,255,255,0.25); padding: 2px 7px; border-radius: 9999px; font-weight: 700;">Gemini 3.5</span>
-                    </div>
-                    <div style="font-size: 11px; opacity: 0.9; display: flex; align-items: center; gap: 5px; margin-top: 1px;">
-                        <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #4ade80;"></span>
-                        <span>ผู้ช่วยอัจฉริยะ • เชื่อมต่อข้อมูล ERP สด</span>
-                    </div>
+                    <strong style="display: block; font-size: 15px; letter-spacing: -0.2px;">POP STAR AI</strong>
+                    <span style="font-size: 11px; opacity: 0.85;">ผู้ช่วยอัจฉริยะของคุณ • ข้อมูลจริงจากระบบ</span>
                 </div>
             </div>
-
-            <!-- Header Quick Actions -->
             <div style="display: flex; align-items: center; gap: 6px;">
-                <a href="{{ route('ai.assistant') }}" 
-                   title="เปิดหน้าศูนย์รวม AI เต็มจอ (Full Dashboard)"
-                   class="ai-header-btn">
-                    <i class="bi bi-arrows-fullscreen"></i>
-                </a>
-
-                <button type="button" @click="showHistory = !showHistory" 
-                        title="ดูคำถามและประวัติการสนทนาย้อนหลัง"
-                        class="ai-header-btn">
-                    <i class="bi bi-clock-history"></i>
-                </button>
-
-                <button type="button" @click="clearCurrentChat()" 
-                        title="เริ่มบทสนทนาใหม่"
-                        class="ai-header-btn">
-                    <i class="bi bi-arrow-counterclockwise"></i>
-                </button>
-
-                <button type="button" @click="open = false" 
-                        title="ปิดแถบผู้ช่วย (Esc)"
-                        class="ai-header-btn" style="background: rgba(255,255,255,0.25);">
-                    <i class="bi bi-x-lg"></i>
-                </button>
+                <a href="{{ route('ai.assistant') }}" title="เปิดหน้าต่างเต็มจอ" style="color: white; opacity: 0.85; text-decoration: none; padding: 4px; display: grid; place-items: center;"><i class="bi bi-arrows-fullscreen"></i></a>
+                <button type="button" @click="clearCurrentChat()" title="เริ่มบทสนทนาใหม่" style="background: none; border: none; color: white; opacity: 0.85; cursor: pointer; padding: 4px; display: grid; place-items: center;"><i class="bi bi-arrow-counterclockwise"></i></button>
+                <button type="button" @click="open = false" title="ปิดหน้าต่าง" style="background: none; border: none; color: white; cursor: pointer; padding: 4px; display: grid; place-items: center; font-size: 16px;"><i class="bi bi-x-lg"></i></button>
             </div>
         </div>
 
-        <!-- Token Usage Bar -->
-        <div style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 6px 18px; display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: #64748b; flex-shrink: 0;">
-            <div style="display: flex; align-items: center; gap: 6px;">
-                <i class="bi bi-cpu text-primary"></i>
-                <span>โควตาใช้ไป: <strong x-text="tokenInfo.total.toLocaleString()" class="text-dark">0</strong> Token</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="background: #e0f2fe; color: #0369a1; font-weight: 700; font-size: 10.5px; padding: 2px 8px; border-radius: 9999px;">
-                    คงเหลือ: <span x-text="tokenInfo.remaining.toLocaleString()">1,000,000</span>
-                </span>
-            </div>
-        </div>
-
-        <!-- History Overlay View -->
-        <div x-show="showHistory" x-transition.opacity.duration.200ms
-             style="display: none; position: absolute; top: 92px; left: 0; right: 0; bottom: 0; background: #ffffff; z-index: 25; display: flex; flex-direction: column;">
-            <div style="padding: 12px 18px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between;">
-                <span style="font-size: 13px; font-weight: 700; color: #334155;"><i class="bi bi-clock-history me-1 text-danger"></i> ประวัติคำถามของคุณ</span>
-                <button @click="showHistory = false" style="background: none; border: none; font-size: 12.5px; color: #0284c7; cursor: pointer; font-weight: 600;">กลับสู่แชท ➔</button>
-            </div>
-            <div style="flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px;">
-                <template x-for="(item, idx) in questionHistory" :key="idx">
-                    <div @click="askAgain(item.text); showHistory = false;" 
-                         style="padding: 11px 14px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0; cursor: pointer; transition: all 0.2s;"
-                         onmouseover="this.style.background='#fff1f2'; this.style.borderColor='#fecdd3';" 
-                         onmouseout="this.style.background='#f8fafc'; this.style.borderColor='#e2e8f0';">
-                        <div style="font-size: 13px; color: #1e293b; font-weight: 600;" x-text="item.text"></div>
-                        <div style="font-size: 11px; color: #94a3b8; margin-top: 3px;" x-text="item.time"></div>
-                    </div>
-                </template>
-                <div x-show="questionHistory.length === 0" style="padding: 40px 20px; text-align: center; color: #94a3b8; font-size: 13px;">
-                    <i class="bi bi-inbox" style="font-size: 28px; display: block; margin-bottom: 8px; opacity: 0.5;"></i>
-                    ยังไม่มีประวัติคำถามที่บันทึก
-                </div>
-            </div>
-        </div>
-
-        <!-- Messages Area (พื้นที่แสดงแชท เลื่อนได้อิสระ ไม่ดันช่องพิมพ์ตกขอบ) -->
-        <div id="ai-chat-box" style="flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 18px; background: #f8fafc; display: flex; flex-direction: column; gap: 14px;">
+        <!-- Messages Area (ความสูงคงที่ 320px พอดีเป๊ะ ไม่ดันช่องพิมพ์ตกขอบ) -->
+        <div id="ai-chat-box" style="height: 320px; overflow-y: auto; padding: 14px; background: #f9f9f9; display: flex; flex-direction: column; gap: 10px;">
             <template x-for="(msg, index) in messages" :key="index">
-                <div>
-                    <!-- ข้อความผู้ใช้ -->
-                    <template x-if="msg.role === 'user'">
-                        <div style="display: flex; justify-content: flex-end;">
-                            <div style="background: #fee2e2; color: #991b1b; border: 1px solid #fecdd3; border-radius: 16px 16px 2px 16px; padding: 11px 16px; max-width: 85%; font-size: 13.5px; line-height: 1.55; box-shadow: 0 2px 6px rgba(0,0,0,0.03);">
-                                <span x-html="formatMessage(msg.content)"></span>
-                            </div>
-                        </div>
-                    </template>
-
-                    <!-- ข้อความ AI -->
+                <div :style="msg.role === 'user' ? 'align-self: flex-end; background: #ffebee; color: #b71c1c; border-radius: 12px 12px 0 12px; padding: 9px 13px; max-width: 85%; font-size: 13.5px; line-height: 1.5;' : 'align-self: flex-start; background: #ffffff; border: 1px solid #e0e0e0; color: #333; border-radius: 12px 12px 12px 0; padding: 11px 14px; max-width: 88%; font-size: 13.5px; line-height: 1.55; box-shadow: 0 1px 3px rgba(0,0,0,0.05);'">
+                    <div :id="'chat-msg-' + index" x-html="formatMessage(msg.content)"></div>
                     <template x-if="msg.role === 'ai'">
-                        <div style="display: flex; justify-content: flex-start;">
-                            <div style="background: #ffffff; border: 1px solid #e2e8f0; color: #1e293b; border-radius: 16px 16px 16px 2px; padding: 14px 18px; max-width: 95%; font-size: 13.5px; line-height: 1.65; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
-                                <div :id="'drawer-msg-' + index" x-html="formatMessage(msg.content)"></div>
-                                
-                                <!-- แถบส่งออกข้อมูล PDF, Excel, Copy, Print -->
-                                <div style="display: flex; align-items: center; gap: 6px; margin-top: 12px; padding-top: 8px; border-top: 1px dashed #e2e8f0; flex-wrap: wrap;">
-                                    <button type="button" @click="copyMessage(msg.content)" class="ai-export-btn">
-                                        <i class="bi bi-clipboard"></i> คัดลอก
-                                    </button>
-                                    <button type="button" @click="exportToPdf(index)" class="ai-export-btn btn-pdf">
-                                        <i class="bi bi-file-earmark-pdf text-danger"></i> PDF
-                                    </button>
-                                    <button type="button" @click="exportToExcel(index)" class="ai-export-btn btn-excel">
-                                        <i class="bi bi-file-earmark-excel text-success"></i> Excel
-                                    </button>
-                                    <button type="button" @click="printReport(index)" class="ai-export-btn">
-                                        <i class="bi bi-printer text-primary"></i> พิมพ์
-                                    </button>
-                                </div>
-                            </div>
+                        <div style="display: flex; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed #eee; font-size: 11px; flex-wrap: wrap;">
+                            <button type="button" @click="copyMessage(msg.content)" style="background:none; border:1px solid #ddd; border-radius:4px; padding:1px 6px; cursor:pointer; color:#666;"><i class="bi bi-clipboard"></i> คัดลอก</button>
+                            <button type="button" @click="exportToPdf(index)" style="background:none; border:1px solid #fca5a5; border-radius:4px; padding:1px 6px; cursor:pointer; color:#dc2626;"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+                            <button type="button" @click="exportToExcel(index)" style="background:none; border:1px solid #86efac; border-radius:4px; padding:1px 6px; cursor:pointer; color:#16a34a;"><i class="bi bi-file-earmark-excel"></i> Excel</button>
                         </div>
                     </template>
                 </div>
             </template>
-
-            <!-- Loading Spinner -->
-            <div x-show="loading" style="display: flex; justify-content: flex-start;">
-                <div style="background: #ffffff; border: 1px solid #e2e8f0; color: #64748b; border-radius: 16px 16px 16px 2px; padding: 12px 18px; font-size: 13px; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.03);">
-                    <div class="spinner-border spinner-border-sm text-danger" role="status" style="width: 14px; height: 14px; border-width: 2px;"></div>
-                    <span>POP STAR AI กำลังคำนวณและวิเคราะห์ข้อมูลระบบ ERP...</span>
-                </div>
+            <div x-show="loading" style="align-self: flex-start; background: #ffffff; border: 1px solid #e0e0e0; color: #888; border-radius: 12px 12px 12px 0; padding: 10px 14px; max-width: 85%; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                <div class="spinner-border spinner-border-sm text-danger" role="status" style="width: 14px; height: 14px; border-width: 2px;"></div>
+                <span>POP STAR AI กำลังวิเคราะห์ข้อมูลระบบ...</span>
             </div>
         </div>
 
-        <!-- Quick Prompt Carousel (ปุ่มคำถามด่วน) -->
-        <div class="ai-scrollbar-hidden" style="padding: 8px 14px; background: #ffffff; border-top: 1px solid #f1f5f9; display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; scroll-behavior: smooth; flex-shrink: 0;">
-            <button type="button" @click="askQuick('ขอสรุปยอดขาย 20 วันย้อนหลัง พร้อมกำไร')" class="ai-chip-btn chip-red">
-                <span>📄</span> ยอดขาย & กำไร 20 วัน
-            </button>
-            <button type="button" @click="askQuick('สินค้าขายดี 5 อันดับแรก')" class="ai-chip-btn chip-amber">
-                <span>⭐</span> 5 สินค้าขายดี
-            </button>
-            <button type="button" @click="askQuick('ตอนนี้มีสินค้าสต๊อกติดลบไหม?')" class="ai-chip-btn chip-slate">
-                <span>⚠️</span> สต๊อกติดลบ
-            </button>
-            <button type="button" @click="askQuick('สรุปยอดขายหน้าร้านวันนี้')" class="ai-chip-btn chip-blue">
-                <span>📊</span> ยอดขายวันนี้
-            </button>
-            <button type="button" @click="askQuick('มีใบสั่งซื้อ PO อะไรค้างส่งบ้าง?')" class="ai-chip-btn chip-green">
-                <span>🚚</span> PO ค้างส่ง
-            </button>
+        <!-- Quick Prompt Pills -->
+        <div style="padding: 6px 10px; background: #fff; border-top: 1px solid #f0f0f0; display: flex; gap: 5px; overflow-x: auto; white-space: nowrap; -ms-overflow-style: none; scrollbar-width: none;">
+            <button type="button" @click="askQuick('ขอสรุปยอดขาย 20 วันย้อนหลัง พร้อมกำไร')" style="padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid #ffcdd2; background: #ffebee; color: #c62828; cursor: pointer; flex-shrink: 0;">📄 ยอดขาย 20 วัน</button>
+            <button type="button" @click="askQuick('สินค้าขายดี 5 อันดับแรก')" style="padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid #ffe0b2; background: #fff3e0; color: #e65100; cursor: pointer; flex-shrink: 0;">⭐ 5 สินค้าขายดี</button>
+            <button type="button" @click="askQuick('ตอนนี้มีสินค้าสต๊อกติดลบไหม?')" style="padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid #eee; background: #f5f5f5; color: #555; cursor: pointer; flex-shrink: 0;">🔥 สต๊อกติดลบ</button>
+            <button type="button" @click="askQuick('สรุปยอดขายหน้าร้านวันนี้')" style="padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid #bbdefb; background: #e3f2fd; color: #1565c0; cursor: pointer; flex-shrink: 0;">📊 ยอดขายวันนี้</button>
         </div>
 
-        <!-- Input Area (ช่องพิมพ์คำถาม ตรึงอยู่ด้านล่างสุดของหน้าจอ 100% ไม่มีทางตกขอบ) -->
-        <div style="flex-shrink: 0; background: #ffffff; border-top: 2px solid #e2e8f0; padding: 12px 16px 14px 16px; box-shadow: 0 -4px 12px rgba(0,0,0,0.03);">
-            <div style="display: flex; align-items: center; gap: 8px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 16px; padding: 4px 6px 4px 14px; transition: all 0.2s;"
-                 onfocusin="this.style.borderColor='#e11d48'; this.style.boxShadow='0 0 0 3px rgba(225, 29, 72, 0.15)'; this.style.background='#ffffff';"
-                 onfocusout="this.style.borderColor='#cbd5e1'; this.style.boxShadow='none'; this.style.background='#f8fafc';">
-                <i class="bi bi-chat-dots-fill text-muted" style="font-size: 15px; opacity: 0.7;"></i>
-                <input type="text" x-model="inputText" @keydown.enter.prevent="sendMessage()" 
-                       placeholder="พิมพ์คำถามเกี่ยวกับสต๊อก ยอดขาย หรือกำไร... (กด Enter เพื่อส่ง)" 
-                       style="flex: 1; border: none; background: transparent; outline: none; font-size: 13.5px; color: #1e293b; padding: 8px 0; font-family: inherit;">
-                <button type="button" @click="sendMessage()" :disabled="loading || inputText.trim() === ''"
-                        style="background: linear-gradient(135deg, #e11d48, #be123c); color: white; border: none; border-radius: 12px; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 6px rgba(225, 29, 72, 0.35); flex-shrink: 0;"
-                        :style="(loading || inputText.trim() === '') ? 'opacity: 0.45; cursor: not-allowed;' : 'opacity: 1; transform: scale(1.02);'"
-                        title="ส่งคำถาม">
-                    <template x-if="!loading">
-                        <i class="bi bi-send-fill" style="font-size: 13px; margin-left: 2px;"></i>
-                    </template>
-                    <template x-if="loading">
-                        <div class="spinner-border spinner-border-sm text-white" role="status" style="width: 13px; height: 13px; border-width: 2px;"></div>
-                    </template>
-                </button>
-            </div>
-            <div style="font-size: 11px; color: #94a3b8; margin-top: 6px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                <span>กด <kbd style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 1px 5px; font-size: 10px; color: #475569;">Enter</kbd> เพื่อส่งคำถาม</span>
-                <span>•</span>
-                <span>ประมวลผลด้วย Gemini 3.5 จากข้อมูลจริง</span>
-            </div>
+        <!-- Input Area (ช่องพิมพ์คำถามเดิม ตรึงอยู่ใต้กล่องแชทตลอดเวลา 100%) -->
+        <div style="padding: 10px; background: #fff; border-top: 1px solid #eee; display: flex; gap: 8px; align-items: center;">
+            <input type="text" x-model="inputText" @keydown.enter="sendMessage()" placeholder="พิมพ์คำถามของคุณ... (กด Enter เพื่อส่ง)" 
+                   style="flex: 1; padding: 10px 14px; border: 1px solid #ccc; border-radius: 20px; outline: none; font-size: 13.5px; font-family: inherit;">
+            <button @click="sendMessage()" :disabled="loading || inputText.trim() === ''"
+                    style="background: linear-gradient(135deg, #d32f2f, #b71c1c); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; box-shadow: 0 2px 6px rgba(211, 47, 47, 0.3);"
+                    :style="(loading || inputText.trim() === '') ? 'opacity: 0.5; cursor: not-allowed;' : 'opacity: 1;'">
+                <template x-if="!loading">
+                    <i class="bi bi-send-fill" style="font-size: 14px;"></i>
+                </template>
+                <template x-if="loading">
+                    <div class="spinner-border spinner-border-sm text-white" role="status" style="width: 12px; height: 12px; border-width: 2px;"></div>
+                </template>
+            </button>
         </div>
     </div>
 </div>
@@ -2776,17 +2501,10 @@ document.addEventListener('alpine:init', () => {
 
     Alpine.data('aiChatWidget', () => ({
         open: false,
-        showHistory: false,
         inputText: '',
         loading: false,
         messages: [],
-        questionHistory: [],
-        tokenInfo: {
-            total: 0,
-            remaining: 1000000
-        },
         init() {
-            // โหลดประวัติแชท
             const saved = localStorage.getItem('ai_chat_history');
             if (saved) {
                 try {
@@ -2797,53 +2515,17 @@ document.addEventListener('alpine:init', () => {
             } else {
                 this.messages = [{ role: 'ai', content: 'สวัสดีครับ ผมคือ **POP STAR AI** ผู้ช่วยประจำระบบ ERP คุณสามารถถามสถานะสต๊อก, ตรวจสอบสินค้าติดลบ, สรุปยอดขาย หรือสอบถามข้อมูลระบบได้ตลอดเวลาครับ!' }];
             }
-
-            // โหลดประวัติเฉพาะคำถาม
-            const savedHistory = localStorage.getItem('ai_prompt_history');
-            if (savedHistory) {
-                try {
-                    this.questionHistory = JSON.parse(savedHistory);
-                } catch(e) {
-                    this.questionHistory = [];
-                }
-            }
-
-            // โหลด Token ล่าสุด
-            const savedTokens = localStorage.getItem('ai_token_info');
-            if (savedTokens) {
-                try {
-                    this.tokenInfo = JSON.parse(savedTokens);
-                } catch(e) {}
-            }
             
             this.$watch('messages', (value) => {
                 localStorage.setItem('ai_chat_history', JSON.stringify(value));
             });
-
-            this.$watch('questionHistory', (value) => {
-                localStorage.setItem('ai_prompt_history', JSON.stringify(value));
-            });
-
-            this.$watch('tokenInfo', (value) => {
-                localStorage.setItem('ai_token_info', JSON.stringify(value));
-            });
-        },
-        toggleChat() {
-            this.open = !this.open;
-            if (this.open) {
-                this.scrollToBottom();
-            }
         },
         askQuick(text) {
             this.inputText = text;
             this.sendMessage();
         },
-        askAgain(text) {
-            this.inputText = text;
-            this.sendMessage();
-        },
         clearCurrentChat() {
-            if (confirm('คุณต้องการเริ่มการสนทนาใหม่ใช่หรือไม่? (ประวัติคำถามเก่ายังคงบันทึกไว้ในเมนูคำถามย้อนหลัง)')) {
+            if (confirm('คุณต้องการเริ่มการสนทนาใหม่ใช่หรือไม่?')) {
                 this.messages = [{ role: 'ai', content: 'เริ่มต้นการสนทนาใหม่เรียบร้อยครับ มีข้อมูลส่วนใดให้ POP STAR AI ช่วยเหลือไหมครับ?' }];
             }
         },
@@ -2867,19 +2549,9 @@ document.addEventListener('alpine:init', () => {
             
             const userMsg = this.inputText.trim();
             this.messages.push({ role: 'user', content: userMsg });
-            
-            // Save to prompt history
-            const now = new Date();
-            const timeStr = now.toLocaleDateString('th-TH', { day:'numeric', month:'short' }) + ' ' + now.toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' });
-            this.questionHistory.unshift({ text: userMsg, time: timeStr });
-            if (this.questionHistory.length > 50) this.questionHistory.pop();
-
             this.inputText = '';
             this.loading = true;
             this.scrollToBottom();
-
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 12000);
 
             try {
                 const response = await fetch('/api/ai-chat', {
@@ -2888,25 +2560,13 @@ document.addEventListener('alpine:init', () => {
                         'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                     },
-                    body: JSON.stringify({ messages: this.messages }),
-                    signal: controller.signal
+                    body: JSON.stringify({ messages: this.messages })
                 });
-                clearTimeout(timeoutId);
                 
                 const data = await response.json();
                 this.messages.push({ role: 'ai', content: data.reply || 'ขออภัยครับ ไม่ได้รับคำตอบจากระบบ' });
-
-                if (data.tokens) {
-                    this.tokenInfo.total = data.tokens.total_tokens || 0;
-                    this.tokenInfo.remaining = data.tokens.remaining_tokens || 1000000;
-                }
             } catch (error) {
-                clearTimeout(timeoutId);
-                if (error.name === 'AbortError') {
-                    this.messages.push({ role: 'ai', content: 'ขออภัยครับ ระบบ AI ตอบกลับช้ากว่าปกติ กรุณาลองกดถามใหม่อีกครั้งครับ' });
-                } else {
-                    this.messages.push({ role: 'ai', content: 'ขออภัยครับ ไม่สามารถเชื่อมต่อระบบเครือข่ายได้ กรุณาลองใหม่อีกครั้ง' });
-                }
+                this.messages.push({ role: 'ai', content: 'ขออภัยครับ ไม่สามารถเชื่อมต่อระบบเครือข่ายได้ กรุณาลองใหม่อีกครั้ง' });
             }
 
             this.loading = false;
@@ -2927,7 +2587,7 @@ document.addEventListener('alpine:init', () => {
             });
         },
         exportToPdf(index) {
-            const el = document.getElementById('drawer-msg-' + index);
+            const el = document.getElementById('chat-msg-' + index);
             if (!el) return;
 
             const now = new Date();
@@ -2941,22 +2601,17 @@ document.addEventListener('alpine:init', () => {
             printWrapper.style.background = '#ffffff';
 
             printWrapper.innerHTML = `
-                <div style="border-bottom: 2px solid #e11d48; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
+                <div style="border-bottom: 2px solid #d32f2f; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
                     <div>
-                        <h2 style="margin: 0; color: #be123c; font-size: 20px; font-weight: bold;">บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด</h2>
+                        <h2 style="margin: 0; color: #b71c1c; font-size: 20px; font-weight: bold;">บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด</h2>
                         <div style="font-size: 13px; color: #64748b; margin-top: 4px;">รายงานบทวิเคราะห์อัจฉริยะ (POP STAR AI ERP Assistant)</div>
                     </div>
                     <div style="text-align: right; font-size: 11px; color: #64748b;">
                         <div>วันที่ออกเอกสาร: <strong>${dateStr} ${timeStr} น.</strong></div>
-                        <div>พิมพ์โดย: ผู้ใช้งานระบบ ERP</div>
                     </div>
                 </div>
                 <div style="font-size: 14px; line-height: 1.8; color: #1e293b;">
                     ${el.innerHTML}
-                </div>
-                <div style="margin-top: 35px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; display: flex; justify-content: space-between;">
-                    <span>เอกสารรายงานภายในระบบ PopCentral ERP</span>
-                    <span>หน้าที่ 1/1</span>
                 </div>
             `;
 
@@ -2970,8 +2625,6 @@ document.addEventListener('alpine:init', () => {
 
             if (typeof html2pdf !== 'undefined') {
                 html2pdf().set(opt).from(printWrapper).save();
-            } else {
-                this.printReport(index);
             }
         },
         exportToExcel(index) {
@@ -3007,55 +2660,7 @@ document.addEventListener('alpine:init', () => {
                 XLSX.utils.book_append_sheet(wb, ws, "AI Report");
                 const dateStr = new Date().toISOString().slice(0,10);
                 XLSX.writeFile(wb, `รายงาน_POPSTAR_AI_${dateStr}.xlsx`);
-            } else {
-                let csvContent = "\uFEFF" + dataRows.map(e => e.map(cell => `"${(cell||'').replace(/"/g, '""')}"`).join(",")).join("\n");
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement("a");
-                link.href = URL.createObjectURL(blob);
-                link.setAttribute("download", `รายงาน_POPSTAR_AI_${new Date().toISOString().slice(0,10)}.csv`);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
             }
-        },
-        printReport(index) {
-            const el = document.getElementById('drawer-msg-' + index);
-            if (!el) return;
-            const now = new Date();
-            const dateStr = now.toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
-            const timeStr = now.toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' });
-
-            const printWin = window.open('', '_blank');
-            printWin.document.write(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>รายงาน POP STAR AI ERP</title>
-                    <style>
-                        body { font-family: 'IBM Plex Sans Thai', sans-serif; padding: 30px; color: #0f172a; line-height: 1.8; }
-                        h2 { color: #be123c; margin: 0; }
-                        .header { border-bottom: 2px solid #e11d48; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
-                        .footer { margin-top: 40px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; }
-                        @media print { button { display: none; } }
-                    </style>
-                </head>
-                <body>
-                    <div class="header">
-                        <div>
-                            <h2>บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด</h2>
-                            <div style="font-size: 13px; color: #64748b;">รายงานสรุปผลระบบ ERP (POP STAR AI)</div>
-                        </div>
-                        <div style="text-align: right; font-size: 12px; color: #64748b;">
-                            <div>วันที่: <strong>${dateStr} ${timeStr} น.</strong></div>
-                        </div>
-                    </div>
-                    <div>${el.innerHTML}</div>
-                    <div class="footer">พิมพ์จากระบบ PopCentral ERP</div>
-                    <script>window.onload = function() { window.print(); }<\/script>
-                </body>
-                </html>
-            `);
-            printWin.document.close();
         }
     }));
 });
