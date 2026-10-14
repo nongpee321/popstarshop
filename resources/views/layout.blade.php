@@ -2395,7 +2395,7 @@
 
 
 @if(!request()->routeIs('ai.assistant'))
-<div x-data="aiChatWidget()" class="ai-widget-container" style="position: fixed; bottom: 22px; right: 22px; z-index: 9999; font-family: 'IBM Plex Sans Thai', sans-serif;">
+<div x-data="aiChatWidget()" style="font-family: 'IBM Plex Sans Thai', sans-serif;">
     <style>
         .ai-float-pill {
             display: inline-flex;
@@ -2411,6 +2411,10 @@
             transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
             text-decoration: none;
             user-select: none;
+            position: fixed;
+            bottom: 22px;
+            right: 22px;
+            z-index: 9999;
         }
         .ai-float-pill:hover {
             transform: translateY(-3px) scale(1.04);
@@ -2442,10 +2446,9 @@
         }
     </style>
 
-    <!-- Chat Floating Trigger Pill (ซ่อนอัตโนมัติเมื่อเปิดหน้าต่างแชท เพื่อไม่ให้บังช่องพิมพ์) -->
+    <!-- Chat Floating Trigger Pill (ซ่อนทันทีเมื่อเปิดแชท) -->
     <div x-show="!open" x-transition.opacity.duration.150ms 
-         class="ai-float-pill" @click="toggleChat()" title="คลิกเพื่อเปิดผู้ช่วย AI อัจฉริยะ"
-         style="position: fixed; bottom: 22px; right: 22px; z-index: 9999;">
+         class="ai-float-pill" @click="toggleChat()" title="คลิกเพื่อเปิดผู้ช่วย AI อัจฉริยะ">
         <div class="ai-float-avatar">
             <i class="bi bi-robot text-danger"></i>
         </div>
@@ -2455,9 +2458,9 @@
         </div>
     </div>
 
-    <!-- Chat Box Modal (วางตำแหน่ง Bottom 20px ชิดขอบจอ ไม่มีปุ่มแดงมาทับบังช่องพิมพ์ 100%) -->
+    <!-- Chat Box Modal (ตรึงบนหน้าจอ ความสูง 72vh พร้อมช่องพิมพ์คำถามด้านล่างตลอดเวลา) -->
     <div x-show="open" x-transition.opacity.duration.200ms
-         style="display: none; position: fixed; bottom: 20px; right: 20px; width: 440px; max-width: calc(100vw - 30px); height: min(620px, calc(100vh - 40px)); background: #ffffff; border-radius: 20px; box-shadow: 0 25px 60px rgba(15, 23, 42, 0.35); overflow: hidden; display: flex; flex-direction: column; border: 1px solid #cbd5e1; z-index: 10000;">
+         style="display: none; position: fixed; bottom: 20px; right: 20px; width: 440px; max-width: calc(100vw - 32px); height: min(600px, 78vh); background: #ffffff; border-radius: 20px; box-shadow: 0 25px 60px rgba(15, 23, 42, 0.35); overflow: hidden; display: flex; flex-direction: column; border: 1px solid #cbd5e1; z-index: 10000;">
         
         <!-- Header (กะทัดรัด สวยหรู) -->
         <div style="background: linear-gradient(135deg, #e11d48, #9f1239); color: white; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;">
