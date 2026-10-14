@@ -237,10 +237,6 @@
                     </div>
                 </template>
 
-                <div x-show="loading" style="display: none;" class="msg-bubble-ai d-flex align-items-center gap-2 text-muted">
-                    <div class="spinner-border spinner-border-sm text-danger" role="status"></div>
-                    <span>AI กำลังประมวลผลข้อมูลและคำนวณ Token...</span>
-                </div>
             </div>
 
             <!-- Quick Action Pills -->
@@ -269,8 +265,13 @@
                        class="form-control rounded-pill px-4 py-2" style="font-size:14px; border-color: #cbd5e1;">
                 <button type="button" @click="sendMessage()" :disabled="loading || inputText.trim() === ''"
                         class="btn btn-danger rounded-circle d-flex align-items-center justify-content-center shadow-sm"
-                        style="width: 44px; height: 44px; flex-shrink: 0;" :style="(loading || inputText.trim() === '') ? 'opacity: 0.5;' : 'opacity: 1;'">
-                    <i class="bi bi-send-fill"></i>
+                        style="width: 44px; height: 44px; flex-shrink: 0;" :style="(loading || inputText.trim() === '') ? 'opacity: 0.6;' : 'opacity: 1;'">
+                    <template x-if="!loading">
+                        <i class="bi bi-send-fill"></i>
+                    </template>
+                    <template x-if="loading">
+                        <div class="spinner-border spinner-border-sm text-white" role="status" style="width: 16px; height: 16px; border-width: 2px;"></div>
+                    </template>
                 </button>
             </div>
         </main>
