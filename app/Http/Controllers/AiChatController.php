@@ -128,61 +128,66 @@ class AiChatController extends Controller
             ];
         }
 
-        try {
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'x-goog-api-key' => $apiKey,
-            ])
-                ->timeout(20)
-                ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', [
-                    'systemInstruction' => [
-                        'parts' => [
-                            ['text' => 'คุณคือ POP STAR AI ผู้ช่วยอัจฉริยะประจำระบบ ERP ของ บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด (ธุรกิจอาหารแช่แข็ง ชาบู หมูกระทะ ขยายสาขา ค้าส่งและปลีก) 
+        $modelsToTry = ['gemini-3.5-flash', 'gemini-3.8-flash'];
+        $lastError = null;
+
+        foreach ($modelsToTry as $model) {
+            try {
+                $response = Http::withHeaders([
+                    'Content-Type' => 'application/json',
+                    'x-goog-api-key' => $apiKey,
+                ])
+                    ->timeout(20)
+                    ->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent", [
+                        'systemInstruction' => [
+                            'parts' => [
+                                ['text' => 'คุณคือ POP STAR AI ผู้ช่วยอัจฉริยะประจำระบบ ERP ของ บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด (ธุรกิจอาหารแช่แข็ง ชาบู หมูกระทะ ขยายสาขา ค้าส่งและปลีก) 
 กฎสำคัญในการตอบ:
 1. ตอบอ้างอิงจากข้อมูลจริงของระบบเท่านั้น ห้ามเดาหรือสมมติตัวเลขเองเด็ดขาด
 2. ตอบสั้น กระชับ สุภาพ เป็นมิตร และตรงประเด็นที่สุด
 3. บริบทข้อมูลจริงเรียลไทม์ในระบบตอนนี้คือ: ' . $sysContext]
+                            ]
+                        ],
+                        'contents' => $contents
+                    ]);
+
+                if ($response->successful()) {
+                    $data = $response->json();
+                    $reply = $data['candidates'][0]['content']['parts'][0]['text'] ?? 'ไม่มีคำตอบจากระบบ';
+                    
+                    // สกัดข้อมูล Token Usage จาก Google Gemini
+                    $usageMetadata = $data['usageMetadata'] ?? [];
+                    $promptTokens = $usageMetadata['promptTokenCount'] ?? 0;
+                    $candidatesTokens = $usageMetadata['candidatesTokenCount'] ?? 0;
+                    $totalTokens = $usageMetadata['totalTokens'] ?? ($promptTokens + $candidatesTokens);
+                    
+                    // เพดานโควตา Context Window คือ 1,000,000 Tokens
+                    $quotaLimit = 1000000;
+                    $remainingTokens = max(0, $quotaLimit - $totalTokens);
+
+                    return response()->json([
+                        'reply' => $reply,
+                        'tokens' => [
+                            'prompt_tokens' => $promptTokens,
+                            'completion_tokens' => $candidatesTokens,
+                            'total_tokens' => $totalTokens,
+                            'quota_limit' => $quotaLimit,
+                            'remaining_tokens' => $remainingTokens
                         ]
-                    ],
-                    'contents' => $contents
-                ]);
+                    ]);
+                }
 
-            if ($response->successful()) {
-                $data = $response->json();
-                $reply = $data['candidates'][0]['content']['parts'][0]['text'] ?? 'ไม่มีคำตอบจากระบบ';
-                
-                // สกัดข้อมูล Token Usage จาก Google Gemini
-                $usageMetadata = $data['usageMetadata'] ?? [];
-                $promptTokens = $usageMetadata['promptTokenCount'] ?? 0;
-                $candidatesTokens = $usageMetadata['candidatesTokenCount'] ?? 0;
-                $totalTokens = $usageMetadata['totalTokens'] ?? ($promptTokens + $candidatesTokens);
-                
-                // สำหรับโมเดล Gemini 2.5 Flash เพดานโควตา Context Window คือ 1,000,000 Tokens
-                $quotaLimit = 1000000;
-                $remainingTokens = max(0, $quotaLimit - $totalTokens);
-
-                return response()->json([
-                    'reply' => $reply,
-                    'tokens' => [
-                        'prompt_tokens' => $promptTokens,
-                        'completion_tokens' => $candidatesTokens,
-                        'total_tokens' => $totalTokens,
-                        'quota_limit' => $quotaLimit,
-                        'remaining_tokens' => $remainingTokens
-                    ]
-                ]);
+                $lastError = $response->body();
+                \Log::warning("Gemini API Error with model {$model}: " . $lastError);
+            } catch (\Exception $e) {
+                $lastError = $e->getMessage();
+                \Log::warning("Gemini Connection Exception with model {$model}: " . $lastError);
             }
-
-            \Log::error('Gemini API Error: ' . $response->body());
-            return response()->json([
-                'reply' => 'ขออภัย ระบบ AI ขัดข้องชั่วคราว ไม่สามารถประมวลผลคำตอบได้ กรุณาลองใหม่อีกครั้ง'
-            ], 500);
-
-        } catch (\Exception $e) {
-            \Log::error('Gemini Connection Exception: ' . $e->getMessage());
-            return response()->json([
-                'reply' => 'ขออภัย ระบบเครือข่ายขัดข้อง ไม่สามารถเชื่อมต่อกับ AI Server ได้ กรุณาลองใหม่อีกครั้ง'
-            ], 500);
         }
+
+        \Log::error('All Gemini Models Failed. Last Error: ' . $lastError);
+        return response()->json([
+            'reply' => 'ขออภัย ระบบ AI ขัดข้องชั่วคราว ไม่สามารถประมวลผลคำตอบได้ กรุณาลองใหม่อีกครั้ง'
+        ], 500);
     }
 }
