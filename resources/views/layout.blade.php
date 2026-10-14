@@ -2390,13 +2390,56 @@
 
 
 
-<div x-data="aiChatWidget()" class="ai-widget-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; font-family: 'IBM Plex Sans Thai', sans-serif;">
-    <!-- Chat Floating Trigger Button -->
-    <button @click="toggleChat()" 
-            style="width: 58px; height: 58px; border-radius: 50%; background: linear-gradient(135deg, #e11d48, #be123c); color: white; border: none; box-shadow: 0 8px 24px rgba(225, 29, 72, 0.4); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.25s ease;"
-            :style="open ? 'transform: rotate(90deg);' : 'transform: scale(1);'">
-        <i class="bi" :class="open ? 'bi-x-lg' : 'bi-robot'" style="font-size: 26px;"></i>
-    </button>
+<div x-data="aiChatWidget()" class="ai-widget-container" style="position: fixed; bottom: 22px; right: 22px; z-index: 9999; font-family: 'IBM Plex Sans Thai', sans-serif;">
+    <style>
+        .ai-float-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 18px 10px 12px;
+            border-radius: 9999px;
+            background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+            color: #ffffff !important;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 10px 25px -3px rgba(225, 29, 72, 0.5), 0 4px 6px -2px rgba(225, 29, 72, 0.25);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            text-decoration: none;
+            user-select: none;
+        }
+        .ai-float-pill:hover {
+            transform: translateY(-3px) scale(1.04);
+            box-shadow: 0 16px 32px -4px rgba(225, 29, 72, 0.65);
+            border-color: rgba(255, 255, 255, 0.8);
+        }
+        .ai-float-avatar {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: #ffffff;
+            color: #e11d48;
+            display: grid;
+            place-items: center;
+            font-size: 21px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            animation: pulse-avatar 2.4s infinite;
+        }
+        @keyframes pulse-avatar {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+        }
+    </style>
+
+    <!-- Chat Floating Trigger Pill (เห็นชัดเจน โดดเด่น สวยงาม) -->
+    <div class="ai-float-pill" @click="toggleChat()" title="คลิกเพื่อเปิดผู้ช่วย AI อัจฉริยะ">
+        <div class="ai-float-avatar">
+            <i class="bi" :class="open ? 'bi-x-lg text-danger' : 'bi-robot text-danger'"></i>
+        </div>
+        <div style="display: flex; flex-direction: column; text-align: left; line-height: 1.15;">
+            <span style="font-size: 13.5px; font-weight: 800; letter-spacing: 0.2px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">แชท AI</span>
+            <span style="font-size: 10.5px; opacity: 0.9; font-weight: 500;">ถามสต๊อก/ยอดขาย</span>
+        </div>
+    </div>
 
     <!-- Chat Box Modal -->
     <div x-show="open" x-transition.opacity.duration.250ms
