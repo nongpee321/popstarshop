@@ -2453,9 +2453,9 @@
         </div>
     </div>
 
-    <!-- Chat Box Modal -->
+    <!-- Chat Box Modal (Fixed เหนือปุ่มลอยชัดเจน ไม่โดนปุ่มหรือหน้าจอบัง) -->
     <div x-show="open" x-transition.opacity.duration.250ms
-         style="display: none; position: absolute; bottom: 58px; right: 0; width: 440px; max-width: calc(100vw - 32px); height: 540px; max-height: calc(100vh - 100px); background: #ffffff; border-radius: 20px; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.28); overflow: hidden; display: flex; flex-direction: column; border: 1px solid #cbd5e1; z-index: 10000;">
+         style="display: none; position: fixed; bottom: 85px; right: 22px; width: 440px; max-width: calc(100vw - 32px); height: min(560px, calc(100vh - 110px)); background: #ffffff; border-radius: 20px; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.28); overflow: hidden; display: flex; flex-direction: column; border: 1px solid #cbd5e1; z-index: 10005;">
         
         <!-- Header (กะทัดรัด สวยหรู ไม่กินที่) -->
         <div style="background: linear-gradient(135deg, #e11d48, #9f1239); color: white; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;">
