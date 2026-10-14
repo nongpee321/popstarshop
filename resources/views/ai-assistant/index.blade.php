@@ -199,9 +199,9 @@
                         <div class="d-flex align-items-center gap-2">
                             <h2 class="h5 fw-bold mb-0">POP STAR AI Assistant</h2>
                             <span class="badge bg-success-subtle text-success border border-success-subtle">Online</span>
-                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Gemini 2.5 Flash</span>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Gemini 3.5 Flash</span>
                         </div>
-                        <div class="text-muted small">เชื่อมต่อฐานข้อมูล MySQL ระบบ ERP แบบเรียลไทม์</div>
+                        <div class="text-muted small">เชื่อมต่อฐานข้อมูลระบบ ERP แบบเรียลไทม์</div>
                     </div>
                 </div>
 
