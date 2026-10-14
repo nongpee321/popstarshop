@@ -1645,7 +1645,10 @@
 
 
 
-<link rel="manifest" href="{{ asset('erp-manifest.webmanifest') }}"></head>
+<link rel="manifest" href="{{ asset('erp-manifest.webmanifest') }}">    <!-- PDF & Excel Export Libraries for AI Assistant & ERP Reports -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
 <body class="layout-fixed sidebar-expand-lg {{ request()->boolean('popup') ? 'erp-popup-page' : '' }} {{ request()->routeIs(['bookings.*','cash-sales.*','sales.*','purchases.*','purchase-orders.*','sale-returns.*','credit-debit-notes.*','stock-issues.*','stock-transfers.*','stock-transforms.*','stock-adjustments.*','stock-counts.*']) ? 'erp-classic-document-page' : '' }}">
     <div class="app-wrapper">
         @php

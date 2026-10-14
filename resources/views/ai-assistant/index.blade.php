@@ -108,6 +108,44 @@
             line-height: 1.65;
             box-shadow: 0 4px 12px rgba(0,0,0,0.04);
         }
+        .msg-export-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 1px dashed var(--erp-border, #e2e8f0);
+            flex-wrap: wrap;
+        }
+        .msg-export-btn {
+            font-size: 11.5px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #475569;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            text-decoration: none;
+        }
+        .msg-export-btn:hover {
+            background: #f1f5f9;
+            color: #0f172a;
+            border-color: #94a3b8;
+        }
+        .msg-export-btn.btn-pdf:hover {
+            background: #fef2f2;
+            color: #dc2626;
+            border-color: #fca5a5;
+        }
+        .msg-export-btn.btn-excel:hover {
+            background: #f0fdf4;
+            color: #16a34a;
+            border-color: #86efac;
+        }
         .ai-quick-bar {
             padding: 10px 18px;
             background: var(--erp-surface, #ffffff);
@@ -239,29 +277,47 @@
             <div id="fullpage-chat-box" class="ai-messages-canvas">
                 <template x-for="(msg, index) in messages" :key="index">
                     <div :class="msg.role === 'user' ? 'msg-bubble-user' : 'msg-bubble-ai'">
-                        <div x-html="formatMessage(msg.content)"></div>
+                        <div :id="'msg-content-' + index" x-html="formatMessage(msg.content)"></div>
+                        
+                        <!-- แถบเครื่องมือส่งออกไฟล์สำหรับข้อความตอบกลับของ AI -->
+                        <template x-if="msg.role === 'ai'">
+                            <div class="msg-export-toolbar">
+                                <span class="text-muted" style="font-size:11px;"><i class="bi bi-file-earmark-arrow-down"></i> ส่งออก:</span>
+                                <button type="button" @click="exportToPdf(index)" class="msg-export-btn btn-pdf" title="บันทึกรายงานนี้เป็นไฟล์ PDF">
+                                    <i class="bi bi-filetype-pdf text-danger"></i> ดาวน์โหลด PDF
+                                </button>
+                                <button type="button" @click="exportToExcel(index)" class="msg-export-btn btn-excel" title="ส่งออกข้อมูลเป็นไฟล์ Excel (.xlsx)">
+                                    <i class="bi bi-filetype-xlsx text-success"></i> ส่งออก Excel
+                                </button>
+                                <button type="button" @click="copyMessage(msg.content)" class="msg-export-btn" title="คัดลอกข้อความ">
+                                    <i class="bi bi-clipboard"></i> คัดลอก
+                                </button>
+                                <button type="button" @click="printReport(index)" class="msg-export-btn" title="พิมพ์รายงาน">
+                                    <i class="bi bi-printer"></i> พิมพ์
+                                </button>
+                            </div>
+                        </template>
                     </div>
                 </template>
-
             </div>
 
             <!-- Quick Action Pills -->
             <div class="ai-quick-bar">
                 <span class="small text-muted align-self-center me-1"><i class="bi bi-lightning-charge-fill text-warning"></i> คำสั่งด่วน:</span>
-                <button type="button" @click="askQuick('ตอนนี้มีสินค้าสต๊อกติดลบไหม?')" class="btn btn-sm btn-outline-danger rounded-pill">
-                    🔥 เช็กสต๊อกติดลบทั้งหมด
+                <button type="button" @click="askQuick('ขอรายงานสรุปยอดขาย 20 วันย้อนหลัง พร้อมกำไรขั้นต้น และสินค้าขายดี สำหรับจัดทำรายงาน')" class="btn btn-sm btn-outline-danger rounded-pill fw-semibold">
+                    📄 สรุปยอดขาย & กำไร 20 วัน
+                </button>
+                <button type="button" @click="askQuick('ตอนนี้มีสินค้าสต๊อกติดลบไหม?')" class="btn btn-sm btn-outline-secondary rounded-pill">
+                    🔥 เช็กสต๊อกติดลบ
                 </button>
                 <button type="button" @click="askQuick('สรุปยอดขายหน้าร้านวันนี้')" class="btn btn-sm btn-outline-primary rounded-pill">
-                    📊 สรุปยอดขายวันนี้
+                    📊 ยอดขายวันนี้
                 </button>
                 <button type="button" @click="askQuick('มีใบสั่งซื้อ PO อะไรค้างส่งบ้าง?')" class="btn btn-sm btn-outline-success rounded-pill">
-                    🚚 เช็ก PO รอรับของ
+                    🚚 PO รอรับของ
                 </button>
-                <button type="button" @click="askQuick('สูตรคำนวณต้นทุน Moving Average')" class="btn btn-sm btn-outline-warning rounded-pill">
-                    🧮 สูตรคำนวณต้นทุน
-                </button>
-                <button type="button" @click="askQuick('อธิบายขั้นตอนการโอนย้ายสต็อกข้ามสาขา')" class="btn btn-sm btn-outline-secondary rounded-pill">
-                    📦 ขั้นตอนโอนสต็อก
+                <button type="button" @click="askQuick('สินค้าขายดี 5 อันดับแรกตลอดกาล')" class="btn btn-sm btn-outline-warning rounded-pill">
+                    ⭐ 5 สินค้าขายดี
                 </button>
             </div>
 
@@ -440,6 +496,152 @@ document.addEventListener('alpine:init', () => {
                 this.loading = false;
                 this.scrollToBottom();
             }
+        },
+        copyMessage(content) {
+            if (!content) return;
+            navigator.clipboard.writeText(content).then(() => {
+                alert('คัดลอกข้อความรายงานเรียบร้อยแล้วครับ');
+            }).catch(() => {
+                const ta = document.createElement('textarea');
+                ta.value = content;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                alert('คัดลอกข้อความรายงานเรียบร้อยแล้วครับ');
+            });
+        },
+        exportToPdf(index) {
+            const el = document.getElementById('msg-content-' + index);
+            if (!el) return;
+
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
+            const timeStr = now.toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' });
+
+            const printWrapper = document.createElement('div');
+            printWrapper.style.padding = '24px 30px';
+            printWrapper.style.fontFamily = "'IBM Plex Sans Thai', sans-serif";
+            printWrapper.style.color = '#0f172a';
+            printWrapper.style.background = '#ffffff';
+
+            printWrapper.innerHTML = `
+                <div style="border-bottom: 2px solid #e11d48; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
+                    <div>
+                        <h2 style="margin: 0; color: #be123c; font-size: 20px; font-weight: bold;">บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด</h2>
+                        <div style="font-size: 13px; color: #64748b; margin-top: 4px;">รายงานบทวิเคราะห์อัจฉริยะ (POP STAR AI ERP Assistant)</div>
+                    </div>
+                    <div style="text-align: right; font-size: 11px; color: #64748b;">
+                        <div>วันที่ออกเอกสาร: <strong>${dateStr} ${timeStr} น.</strong></div>
+                        <div>พิมพ์โดย: ผู้ใช้งานระบบ ERP</div>
+                    </div>
+                </div>
+                <div style="font-size: 14px; line-height: 1.8; color: #1e293b;">
+                    ${el.innerHTML}
+                </div>
+                <div style="margin-top: 35px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; display: flex; justify-content: space-between;">
+                    <span>เอกสารรายงานภายในระบบ PopCentral ERP</span>
+                    <span>หน้าที่ 1/1</span>
+                </div>
+            `;
+
+            const opt = {
+                margin:       [10, 10, 10, 10],
+                filename:     `รายงาน_POPSTAR_AI_${now.toISOString().slice(0,10)}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            if (typeof html2pdf !== 'undefined') {
+                html2pdf().set(opt).from(printWrapper).save();
+            } else {
+                this.printReport(index);
+            }
+        },
+        exportToExcel(index) {
+            const msg = this.messages[index];
+            if (!msg || !msg.content) return;
+
+            const lines = msg.content.split('\n');
+            const dataRows = [];
+            dataRows.push(['รายงานบทวิเคราะห์ POP STAR AI', 'บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด']);
+            dataRows.push(['วันที่ออกรายงาน', new Date().toLocaleString('th-TH')]);
+            dataRows.push([]); // blank line
+            dataRows.push(['หัวข้อ / รายละเอียดเนื้อหา', 'ข้อมูลที่บันทึก']);
+
+            lines.forEach(line => {
+                const trimmed = line.trim();
+                if (trimmed === '') return;
+
+                if (trimmed.includes(':')) {
+                    const parts = trimmed.split(/:(.+)/);
+                    const cleanKey = parts[0].replace(/^[\*\-\#\s]+/, '').replace(/[\*]+/g, '').trim();
+                    const cleanVal = (parts[1] || '').replace(/[\*]+/g, '').trim();
+                    dataRows.push([cleanKey, cleanVal]);
+                } else {
+                    const cleanLine = trimmed.replace(/^[\*\-\#\s]+/, '').replace(/[\*]+/g, '').trim();
+                    dataRows.push([cleanLine, '']);
+                }
+            });
+
+            if (typeof XLSX !== 'undefined') {
+                const ws = XLSX.utils.aoa_to_sheet(dataRows);
+                ws['!cols'] = [{ wch: 40 }, { wch: 50 }];
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "AI Report");
+                const dateStr = new Date().toISOString().slice(0,10);
+                XLSX.writeFile(wb, `รายงาน_POPSTAR_AI_${dateStr}.xlsx`);
+            } else {
+                alert('ไม่พบไลบรารี Excel กำลังส่งออกแบบ CSV แทน...');
+                let csvContent = "\uFEFF" + dataRows.map(e => e.map(cell => `"${(cell||'').replace(/"/g, '""')}"`).join(",")).join("\n");
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.setAttribute("download", `รายงาน_POPSTAR_AI_${new Date().toISOString().slice(0,10)}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        },
+        printReport(index) {
+            const el = document.getElementById('msg-content-' + index);
+            if (!el) return;
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
+            const timeStr = now.toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' });
+
+            const printWin = window.open('', '_blank');
+            printWin.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>รายงาน POP STAR AI ERP</title>
+                    <style>
+                        body { font-family: 'IBM Plex Sans Thai', sans-serif; padding: 30px; color: #0f172a; line-height: 1.8; }
+                        h2 { color: #be123c; margin: 0; }
+                        .header { border-bottom: 2px solid #e11d48; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+                        .footer { margin-top: 40px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; }
+                        @media print { button { display: none; } }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div>
+                            <h2>บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด</h2>
+                            <div style="font-size: 13px; color: #64748b;">รายงานสรุปผลระบบ ERP (POP STAR AI)</div>
+                        </div>
+                        <div style="text-align: right; font-size: 12px; color: #64748b;">
+                            <div>วันที่: <strong>${dateStr} ${timeStr} น.</strong></div>
+                        </div>
+                    </div>
+                    <div>${el.innerHTML}</div>
+                    <div class="footer">พิมพ์จากระบบ PopCentral ERP</div>
+                    <script>window.onload = function() { window.print(); }<\/script>
+                </body>
+                </html>
+            `);
+            printWin.document.close();
         }
     }));
 });
