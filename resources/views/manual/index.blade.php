@@ -987,6 +987,10 @@
                     <i class="bi bi-chat-dots-fill text-success"></i>
                     <span>8.1 เชื่อมต่อภายนอก (LINE Notify)</span>
                 </a>
+                <a href="#guide-ai-chat" class="nav-link-item" onclick="openManualReader('ai_chat'); setActiveNav(this);">
+                    <i class="bi bi-robot text-danger"></i>
+                    <span>8.2 แชท AI อัจฉริยะ (Gemini Assistant)</span>
+                </a>
             </div>
 
             <div>
@@ -1258,7 +1262,7 @@
                         </div>
                     </div>
 
-                    <!-- บทที่ 8: การเชื่อมต่อภายนอกและการดูแลระบบ (Integrations & Operations) -->
+                    <!-- บทที่ 8.1: เชื่อมต่อภายนอก (LINE Integration) -->
                     <div class="vg-card" onclick="openManualReader('integrations')">
                         <div class="vg-thumb">
                             <img src="{{ asset('images/manual/integrations_main.png') }}" alt="เชื่อมต่อภายนอก LINE">
@@ -1271,6 +1275,23 @@
                             </div>
                             <button type="button" class="vg-btn-action" style="background:#dcfce7; color:#166534; border-color:#bbf7d0;">
                                 <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 8.1 (1 ฟังก์ชัน)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- บทที่ 8.2: แชท AI อัจฉริยะ (Gemini Assistant) -->
+                    <div class="vg-card" onclick="openManualReader('ai_chat')">
+                        <div class="vg-thumb">
+                            <img src="{{ asset('images/manual/ai_chat_main.png') }}" alt="แชท AI อัจฉริยะ Gemini">
+                            <span class="vg-badge-step" style="background:#d32f2f;"><i class="bi bi-robot me-1"></i> บทที่ 8.2: 4 ฟังก์ชันพร้อมรูปจริง</span>
+                        </div>
+                        <div class="vg-body">
+                            <div>
+                                <h4 class="vg-title"><i class="bi bi-robot text-danger"></i> 8.2 แชท AI อัจฉริยะ (Gemini Assistant)</h4>
+                                <p class="vg-desc">คู่มือการใช้งานผู้ช่วย AI ประจำระบบ ERP: เช็กสต๊อกติดลบเรียลไทม์, แนะนำขั้นตอนการใช้งานระบบ, ตอบข้อสงสัยระเบียบภาษี/บัญชี/สูตรคำนวณ พร้อมวิธีการตั้งค่า GEMINI_API_KEY</p>
+                            </div>
+                            <button type="button" class="vg-btn-action" style="background:#fee2e2; color:#991b1b; border-color:#fca5a5;">
+                                <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 8.2 (4 ฟังก์ชัน)
                             </button>
                         </div>
                     </div>
@@ -2822,6 +2843,47 @@ flowchart TD
 <div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>ตารางคำสั่งซื้อที่นำเข้าแล้ว:</strong> แสดงรายการออเดอร์ออนไลน์ทั้งหมด พร้อมสถานะการตัดสต็อก และความพร้อมในการจัดส่งสินค้าถึงมือลูกค้า</div></div>`,
                         img: '{{ asset('images/manual/overview_step9.png') }}',
                         tip: 'แท็บ Monitoring ช่วยให้ผู้บริหารและฝ่ายไอทีตรวจสอบเหตุการณ์ผิดปกติ (Event Severity) ได้ทันทีเมื่อเกิดข้อผิดพลาดในการเชื่อมต่อ'
+                    }
+                ]
+            },
+            ai_chat: {
+                title: 'คู่มือการใช้งานแชท AI อัจฉริยะ (Gemini Assistant v2.5)',
+                steps: [
+                    {
+                        badge: 'ขั้นตอนที่ 1',
+                        title: 'เปิดหน้าต่างแชท AI (Floating AI Widget)',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ปุ่มไอคอน AI สีแดง (มุมขวาล่าง):</strong> ปรากฏอยู่ทุกหน้าจอของระบบ ERP เพียงคลิกปุ่มไอคอนหุ่นยนต์เพื่อเปิดหน้าต่างสนทนา</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>หน้าต่างสนทนาแบบ Pop-up:</strong> เปิดขึ้นมาทันทีโดยไม่ต้องเปลี่ยนหน้าจอหรือออกจากงานที่กำลังทำอยู่</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>ปุ่มย่อ/ปิด:</strong> สามารถคลิกปุ่มเดิมอีกครั้ง (สัญลักษณ์ X) เพื่อพับเก็บหน้าต่างแชทได้ตลอดเวลา</div></div>`,
+                        img: '{{ asset('images/manual/ai_chat_step1.png') }}',
+                        tip: 'ประวัติการพูดคุยจะถูกบันทึกไว้ในเครื่องของคุณอัตโนมัติ ทำให้สามารถเปิดกลับมาอ่านคำตอบเดิมได้เสมอ'
+                    },
+                    {
+                        badge: 'ขั้นตอนที่ 2',
+                        title: 'การสอบถามข้อมูลสต๊อกจริง (Real-Time Stock Query)',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>พิมพ์คำถามภาษาไทยที่เป็นธรรมชาติ:</strong> เช่น <em>"ตอนนี้มีสินค้าสต๊อกติดลบไหม?"</em> หรือ <em>"สินค้าตัวไหนใกล้หมด?"</em></div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>AI ดึงข้อมูลจริงจากระบบ ERP:</strong> ฝั่งเซิร์ฟเวอร์จะคิวรี่ตาราง <code>stock_balances</code> มาประกอบคำตอบทันที</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>คำตอบตรงจุด ไม่เดาตัวเลข:</strong> AI ถูกตั้งกฎ System Instruction ป้องกันการมโนข้อมูล รายงานตัวเลขจริงจากฐานข้อมูลเท่านั้น</div></div>`,
+                        img: '{{ asset('images/manual/ai_chat_step2.png') }}',
+                        tip: 'หากมีสินค้าสต๊อกติดลบ AI จะระบุชื่อสินค้า จำนวนที่ติดลบ และสาขา/ตำแหน่งจัดเก็บให้ทราบทันที'
+                    },
+                    {
+                        badge: 'ขั้นตอนที่ 3',
+                        title: 'ความสามารถและขอบเขตคำถามที่ AI ช่วยเหลือได้ (Capabilities)',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>คำถามด้านสต๊อกและคลังสินค้า:</strong> ถามสถานะสต๊อกติดลบ, สินค้าใกล้หมด, ขั้นตอนการโอนย้าย และการตรวจนับ</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>คำถามขั้นตอนระบบ POS & จัดการร้าน:</strong> วิธีการเปิดกะ, ปิดกะ Z-Report, การขายออฟไลน์เมื่อเน็ตหลุด, การชั่งน้ำหนัก</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>คำถามการเงิน บัญชี และภาษีสรรพากร:</strong> สูตร Moving Average, การคำนวณ VAT 7%, การกระทบยอดเงินสด และผังบัญชี GL</div></div>`,
+                        img: '{{ asset('images/manual/ai_chat_step3.png') }}',
+                        tip: 'สามารถพิมพ์ถามเป็นภาษาพูดทั่วไปได้เลย AI เข้าใจบริบทของธุรกิจอาหารแช่แข็ง ชาบู หมูกระทะ เป็นอย่างดี'
+                    },
+                    {
+                        badge: 'ขั้นตอนที่ 4',
+                        title: 'สถาปัตยกรรมความปลอดภัยและการตั้งค่า (Architecture & Setup)',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ความปลอดภัยระดับสูง (Zero Leak):</strong> กุญแจ <code>GEMINI_API_KEY</code> เก็บรักษาฝั่งเซิร์ฟเวอร์ ป้องกันไม่ให้บุคคลภายนอกเข้าถึงได้</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>การตั้งค่าไฟล์ .env:</strong> กำหนดค่า <code>GEMINI_API_KEY=your_key_here</code> พร้อมระบบ Fallback ดึงค่าได้แม้มีการแคชคอนฟิก</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>โมเดลประมวลผลเร็ว (Gemini Flash):</strong> ใช้เวลาตอบคำถามเพียง 1-2 วินาที รองรับการสนทนาต่อเนื่องแบบ Multi-Turn</div></div>`,
+                        img: '{{ asset('images/manual/ai_chat_step4.png') }}',
+                        tip: 'สามารถขอรับ API Key ฟรีได้จาก Google AI Studio เพื่อเปิดใช้งานฟังก์ชัน AI ในระบบได้ทันที'
                     }
                 ]
             }
