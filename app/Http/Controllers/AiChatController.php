@@ -159,68 +159,59 @@ class AiChatController extends Controller
 {$sysContext}
 EOT;
 
-        $modelsToTry = ['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.7-flash'];
+        // จัดลำดับโมเดลที่ตอบสนองเร็วและเสถียรที่สุดขึ้นก่อน (เช่น gemini-3.5-flash-lite ใช้เวลาเพียง ~1 วิ)
+        $modelsToTry = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.6-flash'];
         $lastError = null;
 
         foreach ($modelsToTry as $model) {
-            for ($attempt = 1; $attempt <= 2; $attempt++) {
-                try {
-                    $response = Http::withHeaders([
-                        'Content-Type' => 'application/json',
-                        'x-goog-api-key' => $apiKey,
-                    ])
-                        ->timeout(20)
-                        ->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent", [
-                            'systemInstruction' => [
-                                'parts' => [
-                                    ['text' => $systemInstructionText]
-                                ]
-                            ],
-                            'contents' => $contents
-                        ]);
-
-                    if ($response->successful()) {
-                        $data = $response->json();
-                        $reply = $data['candidates'][0]['content']['parts'][0]['text'] ?? 'ไม่มีคำตอบจากระบบ';
-                        
-                        // สกัดข้อมูล Token Usage จาก Google Gemini
-                        $usageMetadata = $data['usageMetadata'] ?? [];
-                        $promptTokens = $usageMetadata['promptTokenCount'] ?? 0;
-                        $candidatesTokens = $usageMetadata['candidatesTokenCount'] ?? 0;
-                        $totalTokens = $usageMetadata['totalTokens'] ?? ($promptTokens + $candidatesTokens);
-                        
-                        // เพดานโควตา Context Window คือ 1,000,000 Tokens
-                        $quotaLimit = 1000000;
-                        $remainingTokens = max(0, $quotaLimit - $totalTokens);
-
-                        return response()->json([
-                            'reply' => $reply,
-                            'tokens' => [
-                                'prompt_tokens' => $promptTokens,
-                                'completion_tokens' => $candidatesTokens,
-                                'total_tokens' => $totalTokens,
-                                'quota_limit' => $quotaLimit,
-                                'remaining_tokens' => $remainingTokens
+            try {
+                $response = Http::withHeaders([
+                    'Content-Type' => 'application/json',
+                    'x-goog-api-key' => $apiKey,
+                ])
+                    ->timeout(8)
+                    ->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent", [
+                        'systemInstruction' => [
+                            'parts' => [
+                                ['text' => $systemInstructionText]
                             ]
-                        ]);
-                    }
+                        ],
+                        'contents' => $contents
+                    ]);
 
-                    $lastError = $response->body();
-                    $statusCode = $response->status();
-                    // If 503 (high demand) or 429, wait briefly before retrying
-                    if ($statusCode === 503 || $statusCode === 429) {
-                        usleep(300000); // 300ms
-                    } else {
-                        break; // don't retry if 400 or other fatal error
-                    }
-                } catch (\Exception $e) {
-                    $lastError = $e->getMessage();
-                    usleep(300000);
+                if ($response->successful()) {
+                    $data = $response->json();
+                    $reply = $data['candidates'][0]['content']['parts'][0]['text'] ?? 'ไม่มีคำตอบจากระบบ';
+                    
+                    // สกัดข้อมูล Token Usage จาก Google Gemini
+                    $usageMetadata = $data['usageMetadata'] ?? [];
+                    $promptTokens = $usageMetadata['promptTokenCount'] ?? 0;
+                    $candidatesTokens = $usageMetadata['candidatesTokenCount'] ?? 0;
+                    $totalTokens = $usageMetadata['totalTokens'] ?? ($promptTokens + $candidatesTokens);
+                    
+                    // เพดานโควตา Context Window คือ 1,000,000 Tokens
+                    $quotaLimit = 1000000;
+                    $remainingTokens = max(0, $quotaLimit - $totalTokens);
+
+                    return response()->json([
+                        'reply' => $reply,
+                        'tokens' => [
+                            'prompt_tokens' => $promptTokens,
+                            'completion_tokens' => $candidatesTokens,
+                            'total_tokens' => $totalTokens,
+                            'quota_limit' => $quotaLimit,
+                            'remaining_tokens' => $remainingTokens
+                        ]
+                    ]);
                 }
+
+                $lastError = $response->body();
+                \Log::warning("Gemini model {$model} returned status {$response->status()}: {$lastError}");
+            } catch (\Exception $e) {
+                $lastError = $e->getMessage();
+                \Log::warning("Gemini model {$model} exception: {$lastError}");
             }
         }
-
-
 
         \Log::error('All Gemini Models Failed. Last Error: ' . $lastError);
         return response()->json([
