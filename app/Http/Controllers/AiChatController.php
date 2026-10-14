@@ -124,25 +124,35 @@ class AiChatController extends Controller
         }
         // ----------------------------------------------------------------
 
-        // Build contents array for Gemini
+        // Build contents array for Gemini (เอาเฉพาะ 6 ข้อความล่าสุด เพื่อความเร็วและป้องกัน payload ใหญ่เกินไป)
         $contents = [];
         if ($request->has('messages') && is_array($request->messages)) {
-            foreach ($request->messages as $msg) {
+            $rawMessages = array_slice($request->messages, -6);
+            foreach ($rawMessages as $msg) {
+                $text = trim($msg['content'] ?? '');
+                if ($text === '') continue;
                 // Map frontend roles to Gemini roles
                 $role = (isset($msg['role']) && $msg['role'] === 'ai') ? 'model' : 'user';
                 $contents[] = [
                     'role' => $role,
                     'parts' => [
-                        ['text' => $msg['content'] ?? '']
+                        ['text' => $text]
                     ]
                 ];
             }
-        } else {
-            // Fallback if only 'message' is sent
+
+            // กฎของ Gemini: ข้อความแรกใน contents ต้องเป็น role 'user'
+            while (!empty($contents) && $contents[0]['role'] !== 'user') {
+                array_shift($contents);
+            }
+        }
+
+        // Fallback if empty or only 'message' is sent
+        if (empty($contents)) {
             $contents[] = [
                 'role' => 'user',
                 'parts' => [
-                    ['text' => $request->message ?? '']
+                    ['text' => $request->message ?: 'สวัสดี']
                 ]
             ];
         }

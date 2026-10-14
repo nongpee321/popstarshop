@@ -391,6 +391,9 @@ document.addEventListener('alpine:init', () => {
             this.loading = true;
             this.scrollToBottom();
 
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 12000);
+
             try {
                 const response = await fetch('/api/ai-chat', {
                     method: 'POST',
@@ -398,18 +401,25 @@ document.addEventListener('alpine:init', () => {
                         'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                     },
-                    body: JSON.stringify({ messages: this.messages })
+                    body: JSON.stringify({ messages: this.messages }),
+                    signal: controller.signal
                 });
+                clearTimeout(timeoutId);
 
                 const data = await response.json();
-                this.messages.push({ role: 'ai', content: data.reply });
+                this.messages.push({ role: 'ai', content: data.reply || 'ขออภัยครับ ไม่ได้รับคำตอบจากระบบ' });
 
                 if (data.tokens) {
                     this.tokenInfo.total = data.tokens.total_tokens || 0;
                     this.tokenInfo.remaining = data.tokens.remaining_tokens || 1000000;
                 }
             } catch (e) {
-                this.messages.push({ role: 'ai', content: 'ขออภัยครับ ไม่สามารถเชื่อมต่อระบบเครือข่ายได้ กรุณาลองใหม่อีกครั้ง' });
+                clearTimeout(timeoutId);
+                if (e.name === 'AbortError') {
+                    this.messages.push({ role: 'ai', content: 'ขออภัยครับ ระบบ AI ตอบกลับช้ากว่าปกติ กรุณาลองกดถามใหม่อีกครั้งครับ' });
+                } else {
+                    this.messages.push({ role: 'ai', content: 'ขออภัยครับ ไม่สามารถเชื่อมต่อระบบเครือข่ายได้ กรุณาลองใหม่อีกครั้ง' });
+                }
             }
 
             this.loading = false;
