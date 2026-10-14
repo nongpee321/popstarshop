@@ -2430,6 +2430,15 @@
 
             <!-- Header Quick Actions -->
             <div style="display: flex; align-items: center; gap: 6px;">
+                <!-- Open Dedicated Full Dashboard Page -->
+                <a href="{{ route('ai.assistant') }}" 
+                   title="เปิดหน้าศูนย์รวม AI เต็มจอ (Full Dashboard)"
+                   style="background: rgba(255,255,255,0.18); border: none; color: white; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; font-size: 14px; text-decoration: none; transition: background 0.2s;"
+                   onmouseover="this.style.background='rgba(255,255,255,0.3)';" 
+                   onmouseout="this.style.background='rgba(255,255,255,0.18)';">
+                    <i class="bi bi-arrows-fullscreen"></i>
+                </a>
+
                 <!-- History Drawer Button -->
                 <button @click="showHistory = !showHistory" 
                         title="ดูคำถามและประวัติการสนทนาย้อนหลัง"
