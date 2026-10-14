@@ -92,11 +92,16 @@ class AiChatController extends Controller
                 }
             }
 
-            // 1.3 ยอดรวมสินค้าและหมวดหมู่ทั้งหมด
+            // 1.3 ยอดรวมสินค้าและมูลค่าสต๊อกสินค้าทั้งหมด
             $totalProductsCount = DB::table('products')->count();
-            $sysContext .= " | จำนวนรายการสินค้าทั้งหมดในระบบ: {$totalProductsCount} รายการ ";
+            $inventoryValuation = DB::table('stock_balances as sb')
+                ->join('products as p', 'p.id', '=', 'sb.product_id')
+                ->where('sb.on_hand_qty', '>', 0)
+                ->sum(DB::raw('sb.on_hand_qty * COALESCE(p.cost_price, 0)'));
+            $totalStockQty = DB::table('stock_balances')->where('on_hand_qty', '>', 0)->sum('on_hand_qty');
+            $sysContext .= " | สินค้าทั้งหมดในระบบ: {$totalProductsCount} รายการ | สต๊อกคงเหลือรวม: " . number_format($totalStockQty, 0) . " ชิ้น (มูลค่าต้นทุนสินค้าในคลังรวม: ฿" . number_format($inventoryValuation, 2) . ") ";
 
-            // 2. ข้อมูลสรุปภาพรวมวันนี้ (ยอดขาย, เอกสารรออนุมัติ, สินค้าขายดี)
+            // 2. ข้อมูลสรุปยอดขายหน้าร้าน (วันนี้, 7 วันล่าสุด, 30 วันล่าสุด พร้อมประวัติย้อนหลังแต่ละวัน)
             $today = date('Y-m-d');
             $salesToday = DB::table('pos_orders')
                 ->whereDate('created_at', $today)
@@ -104,13 +109,67 @@ class AiChatController extends Controller
             $ordersTodayCount = DB::table('pos_orders')
                 ->whereDate('created_at', $today)
                 ->count();
-            $sysContext .= " | สรุปยอดขายหน้าร้านวันนี้ ({$today}): ฿" . number_format($salesToday, 2) . " จากจำนวน {$ordersTodayCount} บิล ";
+            $sysContext .= " | สรุปยอดขายหน้าร้านวันนี้ ({$today}): ฿" . number_format($salesToday, 2) . " ({$ordersTodayCount} บิล) ";
 
-            // 3. ใบสั่งซื้อ PO ล่าสุด
+            // ยอดขาย 7 วันล่าสุด
+            $sevenDaysAgo = date('Y-m-d', strtotime('-7 days'));
+            $sales7Days = DB::table('pos_orders')->where('created_at', '>=', $sevenDaysAgo)->sum('net_amount');
+            $orders7DaysCount = DB::table('pos_orders')->where('created_at', '>=', $sevenDaysAgo)->count();
+            $sysContext .= " | ยอดขายรวม 7 วันล่าสุด: ฿" . number_format($sales7Days, 2) . " ({$orders7DaysCount} บิล) ";
+
+            // ประวัติยอดขายรายวันย้อนหลัง 30 วัน (Daily Sales History)
+            $thirtyDaysAgo = date('Y-m-d 00:00:00', strtotime('-30 days'));
+            $dailySales = DB::table('pos_orders')
+                ->select(DB::raw('DATE(created_at) as sale_date'), DB::raw('SUM(net_amount) as total_sales'), DB::raw('COUNT(*) as total_bills'))
+                ->where('created_at', '>=', $thirtyDaysAgo)
+                ->groupBy(DB::raw('DATE(created_at)'))
+                ->orderBy('sale_date', 'desc')
+                ->get();
+
+            if ($dailySales->count() > 0) {
+                $sysContext .= " | ประวัติยอดขายรายวัน (ย้อนหลัง 30 วันล่าสุด): ";
+                $salesList = [];
+                $total30Days = 0;
+                $bills30Days = 0;
+                foreach ($dailySales as $row) {
+                    $salesList[] = "{$row->sale_date}: ฿" . number_format($row->total_sales, 2) . " ({$row->total_bills} บิล)";
+                    $total30Days += $row->total_sales;
+                    $bills30Days += $row->total_bills;
+                }
+                $sysContext .= implode(", ", $salesList) . " [รวม 30 วัน: ฿" . number_format($total30Days, 2) . " ({$bills30Days} บิล)] ";
+            } else {
+                $sysContext .= " | ยังไม่มีประวัติบิลขายในช่วง 30 วันที่ผ่านมา ";
+            }
+
+            // 3. สินค้าขายดีที่สุด 5 อันดับแรก (Top 5 Best-Selling Products)
+            $topSelling = DB::table('pos_order_items as poi')
+                ->join('products as p', 'p.id', '=', 'poi.product_id')
+                ->select('p.name_th', DB::raw('SUM(poi.qty) as total_qty'), DB::raw('SUM(poi.subtotal) as total_revenue'))
+                ->groupBy('poi.product_id', 'p.name_th')
+                ->orderByDesc('total_qty')
+                ->limit(5)
+                ->get();
+            if ($topSelling->count() > 0) {
+                $sysContext .= " | สินค้าขายดี 5 อันดับแรกตลอดกาล: ";
+                $topList = [];
+                foreach ($topSelling as $idx => $item) {
+                    $rank = $idx + 1;
+                    $topList[] = "อันดับ {$rank}. {$item->name_th} (ขายได้ " . number_format($item->total_qty) . " ชิ้น, ยอดรวม ฿" . number_format($item->total_revenue, 2) . ")";
+                }
+                $sysContext .= implode(", ", $topList) . " ";
+            }
+
+            // 4. สรุปสาขา (Branches)
+            $branches = DB::table('branches')->select('id', 'name')->limit(10)->get();
+            if ($branches->count() > 0) {
+                $sysContext .= " | สาขาในระบบ: " . $branches->pluck('name')->implode(', ') . " ";
+            }
+
+            // 5. ใบสั่งซื้อ PO ล่าสุด
             $pendingPo = DB::table('purchase_orders')
                 ->whereIn('status', ['draft', 'pending', 'approved'])
                 ->orderBy('id', 'desc')
-                ->limit(3)
+                ->limit(5)
                 ->get(['id', 'po_number', 'supplier_name', 'total_amount', 'status']);
             if ($pendingPo->count() > 0) {
                 $sysContext .= " | เอกสาร PO ล่าสุด: ";
@@ -120,7 +179,7 @@ class AiChatController extends Controller
             }
 
         } catch (\Exception $e) {
-            $sysContext .= "(ดึงข้อมูลสรุปเบื้องต้นได้บางส่วน) ";
+            $sysContext .= "(ดึงข้อมูลสรุปเบื้องต้นได้บางส่วน: " . $e->getMessage() . ") ";
         }
         // ----------------------------------------------------------------
 
@@ -158,12 +217,19 @@ class AiChatController extends Controller
         }
 
         $systemInstructionText = <<<EOT
-คุณคือ "POP STAR AI" ผู้ช่วยอัจฉริยะประจำระบบ ERP ของ บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด (ดำเนินธุรกิจอาหารแช่แข็ง ชาบู หมูกระทะ วัตถุดิบขยายสาขา ค้าส่งและปลีก)
+คุณคือ "POP STAR AI" ผู้ช่วยอัจฉริยะประจำระบบ ERP ของ บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด (ธุรกิจอาหารแช่แข็ง ชาบู หมูกระทะ วัตถุดิบขยายสาขา ค้าส่งและปลีก)
+
+ขีดความสามารถและความฉลาดของคุณ (ตอบได้ครอบคลุมทุกเรื่อง):
+1. **วิเคราะห์ยอดขายและประวัติย้อนหลัง**: คุณมีข้อมูลยอดขายจริงย้อนหลังถึง 30 วัน (รวมทั้ง 7 วัน, 20 วัน, 30 วัน), สินค้าขายดี 5 อันดับแรก, ยอดขายวันนี้ ให้สรุป ตัวเลข เปรียบเทียบแนวโน้ม และคำนวณกำไร/การเติบโตให้ผู้ใช้ได้ทันที อย่าปฏิเสธว่าไม่มีข้อมูล
+2. **วิเคราะห์สต๊อกสินค้าและต้นทุน**: คุณมีข้อมูลสต๊อกคงเหลือรวม, มูลค่าต้นทุนสินค้าในคลังรวม, สินค้าสต๊อกติดลบ, สินค้าสต๊อกเหลือน้อย พร้อมให้คำแนะนำเรื่องการสั่งซื้อ (Reorder Point), การกระจายสต๊อกไปยังสาขาต่างๆ
+3. **จัดซื้อ (Purchasing & POs)**: ดูสถานะใบสั่งซื้อ PO ล่าสุด แนะนำการวางแผนสั่งซื้อกับซัพพลายเออร์
+4. **การบริหารจัดการและการใช้งานระบบ ERP**: ให้คำปรึกษาได้ทุกฟังก์ชัน ทั้งระบบ POS, การรับเข้า/เบิกออกสินค้า, การปรับปรุงสต๊อก, การโอนย้ายสินค้าระหว่างคลัง, การคำนวณต้นทุน FIFO/Moving Average
+5. **วิเคราะห์และแนะนำเชิงธุรกิจ (Business Consultant)**: ช่วยคิดโปรโมชั่น จัดเซ็ตหมูกระทะ ชาบู วางแผนเพิ่มยอดขาย และลดการสูญเสียของอาหารแช่แข็ง
 
 แนวทางการตอบ:
-1. หากผู้ใช้ถามถึงข้อมูลจริงในระบบ (เช่น สต๊อกติดลบ, สต๊อกน้อยสุด, ยอดขายวันนี้, ใบสั่งซื้อ PO): ให้ตอบอ้างอิงจาก "บริบทข้อมูลจริงเรียลไทม์" ด้านล่างนี้เป็นหลัก
-2. หากผู้ใช้ถามเรื่องขั้นตอนการทำงาน การโอนย้ายสต็อก การสร้างเอกสาร สูตรคำนวณต้นทุน (เช่น Moving Average หรือ FIFO) การใช้งานระบบ ERP หรือความรู้ทางธุรกิจ: สามารถอธิบาย แนะนำขั้นตอน และให้คำปรึกษาได้อย่างละเอียด ครบถ้วน และชัดเจนทันที โดยไม่ต้องปฏิเสธ
-3. ตอบสั้น กระชับ สุภาพ เป็นมิตร จัดฟอร์แมตให้อ่านง่าย มีหัวข้อย่อยหรือ bullet points เมื่อเหมาะสม
+- ตอบด้วยภาษาที่สุภาพ กระตือรือร้น เป็นมืออาชีพ (แทนตัวเองว่า "POP STAR AI" หรือ "ผม" ได้อย่างเป็นกันเอง)
+- จัดรูปแบบด้วย Bullet points, ตัวหนา, และเว้นบรรทัดให้อ่านง่าย สบายตา
+- นำข้อมูลจาก "บริบทข้อมูลจริงเรียลไทม์ในระบบ" ด้านล่างมาวิเคราะห์ตอบตรงประเด็นเสมอ
 
 บริบทข้อมูลจริงเรียลไทม์ในระบบตอนนี้:
 {$sysContext}
