@@ -304,19 +304,19 @@
             <!-- Quick Action Pills -->
             <div class="ai-quick-bar">
                 <span class="small text-muted align-self-center me-1"><i class="bi bi-lightning-charge-fill text-warning"></i> คำสั่งด่วน:</span>
-                <button type="button" @click="askQuick('ขอรายงานสรุปยอดขาย 20 วันย้อนหลัง พร้อมกำไรขั้นต้น และสินค้าขายดี สำหรับจัดทำรายงาน')" class="btn btn-sm btn-outline-danger rounded-pill fw-semibold">
+                <button type="button" @click="askQuick('ขอรายงานสรุปยอดขาย 20 วันย้อนหลัง พร้อมตารางตัวเลขและบทวิเคราะห์สำหรับจัดทำรายงานทางการ')" class="btn btn-sm btn-outline-danger rounded-pill fw-semibold">
                     📄 สรุปยอดขาย & กำไร 20 วัน
                 </button>
-                <button type="button" @click="askQuick('ตอนนี้มีสินค้าสต๊อกติดลบไหม?')" class="btn btn-sm btn-outline-secondary rounded-pill">
+                <button type="button" @click="askQuick('ขอรายงานตรวจสอบสินค้าสต๊อกติดลบและสต๊อกวิกฤต พร้อมข้อเสนอแนะ')" class="btn btn-sm btn-outline-secondary rounded-pill">
                     🔥 เช็กสต๊อกติดลบ
                 </button>
-                <button type="button" @click="askQuick('สรุปยอดขายหน้าร้านวันนี้')" class="btn btn-sm btn-outline-primary rounded-pill">
+                <button type="button" @click="askQuick('ขอรายงานสรุปยอดขายหน้าร้านวันนี้ ประจำวัน')" class="btn btn-sm btn-outline-primary rounded-pill">
                     📊 ยอดขายวันนี้
                 </button>
-                <button type="button" @click="askQuick('มีใบสั่งซื้อ PO อะไรค้างส่งบ้าง?')" class="btn btn-sm btn-outline-success rounded-pill">
+                <button type="button" @click="askQuick('ขอรายงานสถานะใบสั่งซื้อ PO ค้างส่งและกำหนดการรับสินค้า')" class="btn btn-sm btn-outline-success rounded-pill">
                     🚚 PO รอรับของ
                 </button>
-                <button type="button" @click="askQuick('สินค้าขายดี 5 อันดับแรกตลอดกาล')" class="btn btn-sm btn-outline-warning rounded-pill">
+                <button type="button" @click="askQuick('ขอรายงานสินค้าขายดี 5 อันดับแรก พร้อมตารางสัดส่วนยอดขาย')" class="btn btn-sm btn-outline-warning rounded-pill">
                     ⭐ 5 สินค้าขายดี
                 </button>
             </div>
@@ -347,6 +347,14 @@ document.addEventListener('alpine:init', () => {
         loading: false,
         messages: [],
         questionHistory: [],
+        currentUser: @json(auth()->user()?->name ?? 'ผู้ดูแลระบบ'),
+        company: {
+            nameTh: @json(\App\Models\AppSetting::company('name_th') ?: 'บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด'),
+            nameEn: @json(\App\Models\AppSetting::company('name_en') ?: 'POP STAR FOOD TRADING CO., LTD.'),
+            taxId: @json(\App\Models\AppSetting::company('tax_id') ?: '0345566003246'),
+            address: @json(\App\Models\AppSetting::company('address') ?: '480 หมู่ที่ 1 ตำบลแสนสุข อำเภอวารินชำราบ จังหวัดอุบลราชธานี 34190'),
+            logo: @json(asset('images/popstar-brand-logo.png')),
+        },
         tokenInfo: {
             total: 0,
             remaining: 1000000
@@ -434,11 +442,144 @@ document.addEventListener('alpine:init', () => {
         },
         formatMessage(text) {
             if (!text) return '';
-            return text
+
+            // 1. เก็บ Code block ไว้ก่อนเพื่อความปลอดภัย
+            const codeBlocks = [];
+            let processed = text.replace(/```([\s\S]*?)```/g, (match, code) => {
+                const id = `__CODE_BLOCK_${codeBlocks.length}__`;
+                codeBlocks.push(`<pre style="background:#1e293b; color:#f8fafc; padding:10px 14px; border-radius:8px; font-size:12.5px; overflow-x:auto; margin:8px 0; font-family:monospace;"><code>${this.escapeHtml(code.trim())}</code></pre>`);
+                return id;
+            });
+
+            // 2. Parse Markdown Table เป็นตารางทางการ
+            const lines = processed.split('\n');
+            const outputLines = [];
+            let tableLines = [];
+            let inTable = false;
+            const tableBlocks = [];
+
+            const isTableLine = (l) => {
+                const t = l.trim();
+                return t.startsWith('|') && t.endsWith('|') && t.length > 2;
+            };
+
+            const isDivider = (l) => {
+                const t = l.trim();
+                return t.startsWith('|') && t.endsWith('|') && /^[\s|:-]+$/.test(t);
+            };
+
+            const convertTableToHtml = (tLines) => {
+                if (tLines.length < 2) return tLines.join('<br>');
+                const headerLine = tLines[0];
+                let startIndex = 1;
+                let aligns = [];
+
+                if (tLines.length > 1 && isDivider(tLines[1])) {
+                    const divCells = tLines[1].split('|').slice(1, -1);
+                    aligns = divCells.map(c => {
+                        const s = c.trim();
+                        if (s.startsWith(':') && s.endsWith(':')) return 'center';
+                        if (s.endsWith(':')) return 'right';
+                        return 'left';
+                    });
+                    startIndex = 2;
+                }
+
+                const headers = headerLine.split('|').slice(1, -1).map(c => c.trim());
+                let html = '<div style="overflow-x:auto; margin:12px 0 16px; border:1px solid #cbd5e1; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
+                html += '<table class="report-table" style="width:100%; border-collapse:collapse; font-size:12.5px; background:#fff; text-align:left;">';
+                
+                // Thead
+                html += '<thead style="background:#0f172a; color:#ffffff;"><tr>';
+                headers.forEach((h, i) => {
+                    const align = aligns[i] || 'left';
+                    html += `<th style="padding:10px 12px; border:1px solid #334155; font-weight:700; text-align:${align}; white-space:nowrap;">${this.parseInline(h)}</th>`;
+                });
+                html += '</tr></thead><tbody>';
+
+                // Tbody
+                let rowCount = 0;
+                for (let r = startIndex; r < tLines.length; r++) {
+                    if (isDivider(tLines[r])) continue;
+                    const cells = tLines[r].split('|').slice(1, -1).map(c => c.trim());
+                    const bg = (rowCount % 2 === 0) ? '#ffffff' : '#f8fafc';
+                    rowCount++;
+                    html += `<tr style="background:${bg};">`;
+                    cells.forEach((cell, i) => {
+                        const cleanNum = cell.replace(/[,%฿\-]/g, '').trim();
+                        const isNum = cleanNum !== '' && !isNaN(cleanNum);
+                        const align = aligns[i] || (isNum ? 'right' : 'left');
+                        html += `<td style="padding:8px 12px; border:1px solid #e2e8f0; text-align:${align}; color:#1e293b; ${isNum ? 'font-variant-numeric: tabular-nums; font-weight:500;' : ''}">${this.parseInline(cell)}</td>`;
+                    });
+                    html += '</tr>';
+                }
+
+                html += '</tbody></table></div>';
+                return html;
+            };
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (isTableLine(line)) {
+                    tableLines.push(line);
+                    inTable = true;
+                } else {
+                    if (inTable) {
+                        const tblId = `__TABLE_BLOCK_${tableBlocks.length}__`;
+                        tableBlocks.push(convertTableToHtml(tableLines));
+                        outputLines.push(tblId);
+                        tableLines = [];
+                        inTable = false;
+                    }
+                    outputLines.push(line);
+                }
+            }
+            if (inTable && tableLines.length > 0) {
+                const tblId = `__TABLE_BLOCK_${tableBlocks.length}__`;
+                tableBlocks.push(convertTableToHtml(tableLines));
+                outputLines.push(tblId);
+            }
+
+            processed = outputLines.join('\n');
+
+            // 3. หัวข้อระดับต่างๆ แบบทางการ
+            processed = processed
+                .replace(/^### (.*$)/gim, '<div style="font-size:14px; font-weight:700; color:#0f172a; margin-top:14px; margin-bottom:5px; padding-left:10px; border-left:3.5px solid #be123c;">$1</div>')
+                .replace(/^## (.*$)/gim, '<div style="font-size:15px; font-weight:700; color:#0f172a; margin-top:16px; margin-bottom:6px; padding:6px 12px; background:#fff1f2; border-left:4px solid #be123c; border-radius:0 4px 4px 0;">$1</div>')
+                .replace(/^# (.*$)/gim, '<div style="font-size:16.5px; font-weight:800; color:#9f1239; margin-top:18px; margin-bottom:8px; border-bottom:2px solid #fecdd3; padding-bottom:5px;">$1</div>');
+
+            // 4. บูลเล็ต
+            processed = processed
+                .replace(/^\s*[\-\*]\s+(.*$)/gim, '<div style="display:flex; gap:8px; margin:3px 0;"><span style="color:#be123c; font-weight:bold;">•</span><span>$1</span></div>');
+
+            // 5. ตัวหนา ตัวเอียง โค้ดอินไลน์
+            processed = this.parseInline(processed);
+
+            // 6. ขึ้นบรรทัดใหม่
+            processed = processed.replace(/\n/g, '<br>');
+
+            // 7. คืนค่า Table Blocks
+            tableBlocks.forEach((tbl, idx) => {
+                processed = processed.replace(`__TABLE_BLOCK_${idx}__`, tbl);
+            });
+
+            // 8. คืนค่า Code Blocks
+            codeBlocks.forEach((code, idx) => {
+                processed = processed.replace(`__CODE_BLOCK_${idx}__`, code);
+            });
+
+            return processed;
+        },
+        parseInline(str) {
+            if (!str) return '';
+            return str
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                 .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                .replace(/`(.*?)`/g, '<code style="background:rgba(0,0,0,0.06); padding:2px 6px; border-radius:4px; font-size:12px;">$1</code>')
-                .replace(/\n/g, '<br>');
+                .replace(/`(.*?)`/g, '<code style="background:rgba(0,0,0,0.06); padding:2px 6px; border-radius:4px; font-size:12px; font-family:monospace;">$1</code>');
+        },
+        escapeHtml(text) {
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return text.replace(/[&<>"']/g, m => map[m]);
         },
         scrollToBottom() {
             setTimeout(() => {
@@ -511,51 +652,138 @@ document.addEventListener('alpine:init', () => {
                 alert('คัดลอกข้อความรายงานเรียบร้อยแล้วครับ');
             });
         },
-        exportToPdf(index) {
-            const el = document.getElementById('msg-content-' + index);
-            if (!el) return;
-
+        buildOfficialReportHtml(contentHtml, index) {
             const now = new Date();
             const dateStr = now.toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
             const timeStr = now.toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' });
+            const docId = now.getFullYear().toString() + 
+                          String(now.getMonth() + 1).padStart(2, '0') + 
+                          String(now.getDate()).padStart(2, '0') + '-' + 
+                          String(index + 1).padStart(3, '0');
+            const authHash = 'ERP-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+            return `
+                <div style="font-family: 'IBM Plex Sans Thai', 'Noto Sans Thai', sans-serif; color: #0f172a; line-height: 1.6; font-size: 13px;">
+                    <!-- Official Header -->
+                    <div style="border-bottom: 2.5px solid #0f172a; padding-bottom: 14px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div style="display: flex; gap: 14px; align-items: center;">
+                            <img src="${this.company.logo}" style="height: 52px; max-width: 140px; object-fit: contain;" onerror="this.style.display='none'">
+                            <div>
+                                <div style="font-size: 17px; font-weight: 800; color: #0f172a; line-height: 1.2;">
+                                    ${this.company.nameTh}
+                                </div>
+                                <div style="font-size: 11px; font-weight: 700; color: #475569; letter-spacing: 0.5px; margin-top: 1px;">
+                                    ${this.company.nameEn}
+                                </div>
+                                <div style="font-size: 10.5px; color: #64748b; margin-top: 3px; line-height: 1.4;">
+                                    สำนักงานใหญ่: ${this.company.address}<br>
+                                    เลขประจำตัวผู้เสียภาษีอากร: <strong style="color: #0f172a;">${this.company.taxId}</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="display: inline-block; padding: 4px 10px; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 10px; font-weight: 800; border-radius: 4px; margin-bottom: 6px; letter-spacing: 0.3px;">
+                                เอกสารภายในองค์กร (STRICTLY CONFIDENTIAL)
+                            </div>
+                            <div style="font-size: 11px; color: #334155; line-height: 1.45;">
+                                <div>เลขที่เอกสาร: <strong style="font-family: monospace; font-size: 11.5px; color: #0f172a;">AI-RPT-${docId}</strong></div>
+                                <div>วันที่ออกเอกสาร: <strong>${dateStr}</strong></div>
+                                <div>เวลาประมวลผล: <strong>${timeStr} น.</strong></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Title Banner -->
+                    <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff; padding: 10px 16px; border-radius: 6px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-size: 15px; font-weight: 700; letter-spacing: 0.3px;">
+                                รายงานสรุปผลการดำเนินงานและการวิเคราะห์ข้อมูลเชิงบริหาร
+                            </div>
+                            <div style="font-size: 10.5px; color: #94a3b8; margin-top: 2px;">
+                                EXECUTIVE MANAGEMENT & BUSINESS INTELLIGENCE REPORT
+                            </div>
+                        </div>
+                        <div style="text-align: right; font-size: 11px; color: #cbd5e1;">
+                            ผู้ขอรายงาน: <strong style="color: #ffffff;">${this.currentUser}</strong><br>
+                            <span style="font-size: 10px; color: #94a3b8;">ระบบสารสนเทศ PopCentral ERP</span>
+                        </div>
+                    </div>
+
+                    <!-- Content Body -->
+                    <div class="official-content" style="font-size: 13px; line-height: 1.75; color: #1e293b; min-height: 280px;">
+                        ${contentHtml}
+                    </div>
+
+                    <!-- 3-Party Corporate Approval Signatures (ช่องลงนามอนุมัติ 3 ฝ่าย) -->
+                    <div style="margin-top: 40px; page-break-inside: avoid; border-top: 1.5px solid #cbd5e1; padding-top: 18px;">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; text-align: center;">
+                            <!-- 1. ผู้จัดทำรายงาน -->
+                            <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px 8px; background: #f8fafc;">
+                                <div style="font-size: 11px; font-weight: 700; color: #334155; margin-bottom: 35px;">ผู้จัดทำรายงาน (Prepared By)</div>
+                                <div style="border-bottom: 1px dotted #94a3b8; width: 85%; margin: 0 auto 6px;"></div>
+                                <div style="font-size: 11.5px; font-weight: 700; color: #0f172a;">( ${this.currentUser} )</div>
+                                <div style="font-size: 10px; color: #64748b;">เจ้าหน้าที่ฝ่ายปฏิบัติการ / ประจำระบบ</div>
+                                <div style="font-size: 9.5px; color: #94a3b8; margin-top: 3px;">วันที่: ...... / ...... / ..........</div>
+                            </div>
+
+                            <!-- 2. ผู้ตรวจสอบข้อมูล -->
+                            <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px 8px; background: #f8fafc;">
+                                <div style="font-size: 11px; font-weight: 700; color: #334155; margin-bottom: 35px;">ผู้ตรวจสอบข้อมูล (Verified By)</div>
+                                <div style="border-bottom: 1px dotted #94a3b8; width: 85%; margin: 0 auto 6px;"></div>
+                                <div style="font-size: 11.5px; font-weight: 700; color: #0f172a;">( .................................................... )</div>
+                                <div style="font-size: 10px; color: #64748b;">หัวหน้าฝ่ายบัญชีและการเงิน / คลังสินค้า</div>
+                                <div style="font-size: 9.5px; color: #94a3b8; margin-top: 3px;">วันที่: ...... / ...... / ..........</div>
+                            </div>
+
+                            <!-- 3. ผู้อนุมัติ / ฝ่ายบริหาร -->
+                            <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px 8px; background: #f8fafc;">
+                                <div style="font-size: 11px; font-weight: 700; color: #334155; margin-bottom: 35px;">ผู้อนุมัติ (Approved By)</div>
+                                <div style="border-bottom: 1px dotted #94a3b8; width: 85%; margin: 0 auto 6px;"></div>
+                                <div style="font-size: 11.5px; font-weight: 700; color: #0f172a;">( .................................................... )</div>
+                                <div style="font-size: 10px; color: #64748b;">กรรมการผู้จัดการ / ผู้มีอำนาจลงนาม</div>
+                                <div style="font-size: 9.5px; color: #94a3b8; margin-top: 3px;">วันที่: ...... / ...... / ..........</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Formal Footer -->
+                    <div style="margin-top: 25px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span>เอกสารทางการออกโดยระบบสารสนเทศ PopCentral ERP &middot; ${this.company.nameTh}</span><br>
+                            <span style="color: #94a3b8;">รหัสตรวจสอบความถูกต้องดิจิทัล: <strong style="font-family: monospace;">${authHash}</strong></span>
+                        </div>
+                        <div style="text-align: right; color: #64748b; font-weight: 600;">
+                            หน้า 1 / 1
+                        </div>
+                    </div>
+                </div>
+            `;
+        },
+        exportToPdf(index) {
+            const el = document.getElementById('msg-content-' + index);
+            if (!el) return;
 
             const printWrapper = document.createElement('div');
             printWrapper.style.position = 'fixed';
             printWrapper.style.top = '0';
             printWrapper.style.left = '0';
-            printWrapper.style.width = '750px';
-            printWrapper.style.padding = '24px 30px';
+            printWrapper.style.width = '780px';
+            printWrapper.style.padding = '25px 30px';
             printWrapper.style.fontFamily = "'IBM Plex Sans Thai', sans-serif";
             printWrapper.style.color = '#0f172a';
             printWrapper.style.background = '#ffffff';
             printWrapper.style.zIndex = '-99999';
             printWrapper.style.pointerEvents = 'none';
+            printWrapper.style.boxSizing = 'border-box';
 
-            printWrapper.innerHTML = `
-                <div style="border-bottom: 2px solid #e11d48; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
-                    <div>
-                        <h2 style="margin: 0; color: #be123c; font-size: 20px; font-weight: bold;">บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด</h2>
-                        <div style="font-size: 13px; color: #64748b; margin-top: 4px;">รายงานบทวิเคราะห์อัจฉริยะ (POP STAR AI ERP Assistant)</div>
-                    </div>
-                    <div style="text-align: right; font-size: 11px; color: #64748b;">
-                        <div>วันที่ออกเอกสาร: <strong>${dateStr} ${timeStr} น.</strong></div>
-                        <div>พิมพ์โดย: ผู้ใช้งานระบบ ERP</div>
-                    </div>
-                </div>
-                <div style="font-size: 14px; line-height: 1.8; color: #1e293b;">
-                    ${el.innerHTML}
-                </div>
-                <div style="margin-top: 35px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; display: flex; justify-content: space-between;">
-                    <span>เอกสารรายงานภายในระบบ PopCentral ERP</span>
-                    <span>หน้าที่ 1/1</span>
-                </div>
-            `;
-
+            printWrapper.innerHTML = this.buildOfficialReportHtml(el.innerHTML, index);
             document.body.appendChild(printWrapper);
 
+            const now = new Date();
+            const fileDateStr = now.toISOString().slice(0,10);
             const opt = {
-                margin:       [10, 10, 10, 10],
-                filename:     `POPSTAR_AI_Report_${now.toISOString().slice(0,10)}.pdf`,
+                margin:       [8, 10, 8, 10],
+                filename:     `POPSTAR_AI_Executive_Report_${fileDateStr}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
                 html2canvas:  { scale: 2, useCORS: true, logging: false },
                 jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -580,14 +808,23 @@ document.addEventListener('alpine:init', () => {
 
             const lines = msg.content.split('\n');
             const dataRows = [];
-            dataRows.push(['รายงานบทวิเคราะห์ POP STAR AI', 'บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด']);
-            dataRows.push(['วันที่ออกรายงาน', new Date().toLocaleString('th-TH')]);
+            dataRows.push(['รายงานทางการ (Official Executive Report)', this.company.nameTh]);
+            dataRows.push(['เลขประจำตัวผู้เสียภาษี', this.company.taxId]);
+            dataRows.push(['วันที่ออกเอกสาร', new Date().toLocaleString('th-TH')]);
+            dataRows.push(['ผู้จัดทำ', this.currentUser]);
             dataRows.push([]); // blank line
-            dataRows.push(['หัวข้อ / รายละเอียดเนื้อหา', 'ข้อมูลที่บันทึก']);
 
             lines.forEach(line => {
                 const trimmed = line.trim();
                 if (trimmed === '') return;
+
+                // ตรวจสอบว่าเป็น Table Row หรือไม่
+                if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+                    if (/^[\s|:-]+$/.test(trimmed)) return; // ข้าม Divider line
+                    const cells = trimmed.split('|').slice(1, -1).map(c => c.trim().replace(/[\*`]/g, ''));
+                    dataRows.push(cells);
+                    return;
+                }
 
                 if (trimmed.includes(':')) {
                     const parts = trimmed.split(/:(.+)/);
@@ -596,13 +833,13 @@ document.addEventListener('alpine:init', () => {
                     dataRows.push([cleanKey, cleanVal]);
                 } else {
                     const cleanLine = trimmed.replace(/^[\*\-\#\s]+/, '').replace(/[\*]+/g, '').trim();
-                    dataRows.push([cleanLine, '']);
+                    dataRows.push([cleanLine]);
                 }
             });
 
             if (typeof XLSX !== 'undefined') {
                 const ws = XLSX.utils.aoa_to_sheet(dataRows);
-                ws['!cols'] = [{ wch: 40 }, { wch: 50 }];
+                ws['!cols'] = [{ wch: 35 }, { wch: 45 }, { wch: 25 }, { wch: 25 }];
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, "AI Report");
                 const dateStr = new Date().toISOString().slice(0,10);
@@ -622,37 +859,45 @@ document.addEventListener('alpine:init', () => {
         printReport(index) {
             const el = document.getElementById('msg-content-' + index);
             if (!el) return;
-            const now = new Date();
-            const dateStr = now.toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
-            const timeStr = now.toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' });
 
             const printWin = window.open('', '_blank');
+            if (!printWin) {
+                alert('กรุณาอนุญาตให้เปิดหน้าต่างป๊อปอัปเพื่อพิมพ์รายงานหรือบันทึกเป็น PDF');
+                return;
+            }
+
+            const reportHtml = this.buildOfficialReportHtml(el.innerHTML, index);
+
             printWin.document.write(`
                 <!DOCTYPE html>
-                <html>
+                <html lang="th">
                 <head>
-                    <title>รายงาน POP STAR AI ERP</title>
+                    <title>รายงานทางการ - ${this.company.nameTh}</title>
+                    <meta charset="utf-8">
+                    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
                     <style>
-                        body { font-family: 'IBM Plex Sans Thai', sans-serif; padding: 30px; color: #0f172a; line-height: 1.8; }
-                        h2 { color: #be123c; margin: 0; }
-                        .header { border-bottom: 2px solid #e11d48; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
-                        .footer { margin-top: 40px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; }
-                        @media print { button { display: none; } }
+                        @page { size: A4 portrait; margin: 12mm 15mm; }
+                        * { box-sizing: border-box; }
+                        body { 
+                            font-family: 'IBM Plex Sans Thai', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+                            padding: 20px 25px; 
+                            color: #0f172a; 
+                            background: #ffffff;
+                            margin: 0;
+                        }
+                        @media print { 
+                            body { padding: 0; }
+                            button { display: none; } 
+                        }
                     </style>
                 </head>
                 <body>
-                    <div class="header">
-                        <div>
-                            <h2>บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด</h2>
-                            <div style="font-size: 13px; color: #64748b;">รายงานสรุปผลระบบ ERP (POP STAR AI)</div>
-                        </div>
-                        <div style="text-align: right; font-size: 12px; color: #64748b;">
-                            <div>วันที่: <strong>${dateStr} ${timeStr} น.</strong></div>
-                        </div>
-                    </div>
-                    <div>${el.innerHTML}</div>
-                    <div class="footer">พิมพ์จากระบบ PopCentral ERP</div>
-                    <script>window.onload = function() { window.print(); }<\/script>
+                    ${reportHtml}
+                    <script>
+                        window.onload = function() { 
+                            setTimeout(function() { window.print(); }, 300); 
+                        };
+                    <\/script>
                 </body>
                 </html>
             `);
