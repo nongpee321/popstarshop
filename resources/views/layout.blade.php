@@ -2433,6 +2433,13 @@
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.08); }
         }
+        .ai-scrollbar-hidden::-webkit-scrollbar {
+            display: none;
+        }
+        .ai-scrollbar-hidden {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
     </style>
 
     <!-- Chat Floating Trigger Pill (เห็นชัดเจน โดดเด่น สวยงาม) -->
@@ -2448,7 +2455,7 @@
 
     <!-- Chat Box Modal -->
     <div x-show="open" x-transition.opacity.duration.250ms
-         style="display: none; position: absolute; bottom: 74px; right: 0; width: 420px; max-width: calc(100vw - 32px); height: 580px; max-height: calc(100vh - 120px); background: #ffffff; border-radius: 18px; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25); overflow: hidden; display: flex; flex-direction: column; border: 1px solid #e2e8f0;">
+         style="display: none; position: absolute; bottom: 74px; right: 0; width: 440px; max-width: calc(100vw - 32px); height: 590px; max-height: calc(100vh - 120px); background: #ffffff; border-radius: 20px; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25); overflow: hidden; display: flex; flex-direction: column; border: 1px solid #e2e8f0;">
         
         <!-- Header -->
         <div style="background: linear-gradient(135deg, #e11d48, #9f1239); color: white; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1);">
@@ -2459,7 +2466,7 @@
                 <div>
                     <div style="display: flex; align-items: center; gap: 6px;">
                         <strong style="font-size: 14.5px; letter-spacing: -0.2px;">POP STAR AI</strong>
-                        <span style="font-size: 10px; background: rgba(255,255,255,0.25); padding: 2px 6px; border-radius: 9999px; font-weight: 700;">Gemini 2.5</span>
+                        <span style="font-size: 10px; background: rgba(255,255,255,0.25); padding: 2px 7px; border-radius: 9999px; font-weight: 700;">Gemini 3.5</span>
                     </div>
                     <span style="font-size: 11px; opacity: 0.85;">ผู้ช่วยประจำ ERP • ข้อมูลจริงจากระบบ</span>
                 </div>
@@ -2549,36 +2556,55 @@
             </div>
         </div>
 
-        <!-- Quick Prompt Pills (ถามด่วนทันใจ) -->
-        <div style="padding: 6px 10px; background: #ffffff; border-top: 1px solid #f1f5f9; display: flex; gap: 6px; overflow-x: auto; white-space: nowrap;">
+        <!-- Quick Prompt Pills (แถบคำสั่งด่วน ซ่อน scrollbar สวยงาม) -->
+        <div class="ai-scrollbar-hidden" style="padding: 7px 12px; background: #ffffff; border-top: 1px solid #f1f5f9; display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; scroll-behavior: smooth;">
+            <button type="button" @click="askQuick('ขอสรุปยอดขาย 20 วันย้อนหลัง พร้อมกำไร')" 
+                    style="padding: 4px 11px; border-radius: 9999px; font-size: 11px; font-weight: 700; border: 1px solid #fecdd3; background: #fff1f2; color: #be123c; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;">
+                <span>📄</span> สรุปยอดขาย & กำไร 20 วัน
+            </button>
+            <button type="button" @click="askQuick('สินค้าขายดี 5 อันดับแรก')" 
+                    style="padding: 4px 11px; border-radius: 9999px; font-size: 11px; font-weight: 600; border: 1px solid #fed7aa; background: #fff7ed; color: #c2410c; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;">
+                <span>⭐</span> 5 สินค้าขายดี
+            </button>
             <button type="button" @click="askQuick('ตอนนี้มีสินค้าสต๊อกติดลบไหม?')" 
-                    style="padding: 4px 10px; border-radius: 9999px; font-size: 11.5px; font-weight: 600; border: 1px solid #fee2e2; background: #fff1f2; color: #be123c; cursor: pointer; flex-shrink: 0;">
-                🔥 เช็กสต๊อกติดลบ
+                    style="padding: 4px 11px; border-radius: 9999px; font-size: 11px; font-weight: 600; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;">
+                <span>🔥</span> เช็กสต๊อกติดลบ
             </button>
             <button type="button" @click="askQuick('สรุปยอดขายหน้าร้านวันนี้')" 
-                    style="padding: 4px 10px; border-radius: 9999px; font-size: 11.5px; font-weight: 600; border: 1px solid #dbeafe; background: #eff6ff; color: #1d4ed8; cursor: pointer; flex-shrink: 0;">
-                📊 ยอดขายวันนี้
+                    style="padding: 4px 11px; border-radius: 9999px; font-size: 11px; font-weight: 600; border: 1px solid #dbeafe; background: #eff6ff; color: #1d4ed8; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;">
+                <span>📊</span> ยอดขายวันนี้
             </button>
             <button type="button" @click="askQuick('มีใบสั่งซื้อ PO อะไรค้างส่งบ้าง?')" 
-                    style="padding: 4px 10px; border-radius: 9999px; font-size: 11.5px; font-weight: 600; border: 1px solid #d1fae5; background: #ecfdf5; color: #047857; cursor: pointer; flex-shrink: 0;">
-                🚚 PO ล่าสุด
-            </button>
-            <button type="button" @click="askQuick('สูตรคำนวณต้นทุน Moving Average')" 
-                    style="padding: 4px 10px; border-radius: 9999px; font-size: 11.5px; font-weight: 600; border: 1px solid #fef3c7; background: #fffbeb; color: #b45309; cursor: pointer; flex-shrink: 0;">
-                🧮 สูตรคำนวณ
+                    style="padding: 4px 11px; border-radius: 9999px; font-size: 11px; font-weight: 600; border: 1px solid #d1fae5; background: #ecfdf5; color: #047857; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;">
+                <span>🚚</span> PO ค้างส่ง
             </button>
         </div>
 
-        <!-- Input Area -->
-        <div style="padding: 10px 12px; background: #ffffff; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; align-items: center;">
-            <input type="text" x-model="inputText" @keydown.enter="sendMessage()" placeholder="พิมพ์คำถาม... (กด Enter เพื่อส่ง)" 
-                   style="flex: 1; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 24px; outline: none; font-size: 13.5px; transition: border-color 0.2s;"
-                   onfocus="this.style.borderColor='#e11d48';" onblur="this.style.borderColor='#cbd5e1';">
-            <button @click="sendMessage()" :disabled="loading || inputText.trim() === ''"
-                    style="background: linear-gradient(135deg, #e11d48, #be123c); color: white; border: none; border-radius: 50%; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(225, 29, 72, 0.3);"
-                    :style="(loading || inputText.trim() === '') ? 'opacity: 0.5; cursor: not-allowed;' : 'opacity: 1;'">
-                <i class="bi bi-send-fill" style="font-size: 14px;"></i>
-            </button>
+        <!-- Input Area (ช่องพิมพ์คำถาม ดีไซน์ทันสมัย เต็มตา พร้อมไอคอนแนะนำคำถาม) -->
+        <div style="padding: 10px 14px 12px 14px; background: #ffffff; border-top: 1px solid #e2e8f0;">
+            <div style="display: flex; align-items: center; gap: 8px; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 26px; padding: 3px 5px 3px 14px; transition: all 0.2s;"
+                 onfocusin="this.style.borderColor='#e11d48'; this.style.boxShadow='0 0 0 3px rgba(225, 29, 72, 0.12)'; this.style.background='#ffffff';"
+                 onfocusout="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'; this.style.background='#f8fafc';">
+                <i class="bi bi-chat-dots-fill text-muted" style="font-size: 14px; opacity: 0.6;"></i>
+                <input type="text" x-model="inputText" @keydown.enter="sendMessage()" 
+                       placeholder="พิมพ์คำถาม เช่น ยอดขาย 20 วัน, สินค้าขายดี, สต๊อกคงเหลือ..." 
+                       style="flex: 1; border: none; background: transparent; outline: none; font-size: 13px; color: #1e293b; padding: 8px 0; font-family: inherit;">
+                <button @click="sendMessage()" :disabled="loading || inputText.trim() === ''"
+                        style="background: linear-gradient(135deg, #e11d48, #be123c); color: white; border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 8px rgba(225, 29, 72, 0.35); flex-shrink: 0;"
+                        :style="(loading || inputText.trim() === '') ? 'opacity: 0.45; cursor: not-allowed;' : 'opacity: 1; transform: scale(1.02);'"
+                        title="ส่งคำถาม">
+                    <template x-if="!loading">
+                        <i class="bi bi-send-fill" style="font-size: 13px; margin-left: 2px;"></i>
+                    </template>
+                    <template x-if="loading">
+                        <div class="spinner-border spinner-border-sm text-white" role="status" style="width: 13px; height: 13px; border-width: 2px;"></div>
+                    </template>
+                </button>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; padding: 0 4px; font-size: 10.5px; color: #94a3b8;">
+                <span>💡 ถามได้ทั้ง ยอดขาย, กำไร, สต๊อก, PO, สูตรต้นทุน</span>
+                <span>กด <strong>Enter</strong> เพื่อส่ง</span>
+            </div>
         </div>
     </div>
 </div>
