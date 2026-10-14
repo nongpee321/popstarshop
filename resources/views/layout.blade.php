@@ -2579,6 +2579,7 @@
         </div>
     </div>
 </div>
+@endif
 
 <script>
 document.addEventListener('alpine:init', () => {
@@ -2740,6 +2741,5 @@ document.addEventListener('alpine:init', () => {
     }));
 });
 </script>
-@endif
 </body>
 </html>
