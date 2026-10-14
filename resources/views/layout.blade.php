@@ -1925,13 +1925,12 @@
                     </button>
                 @endforeach
 
-                {{-- ปุ่มลัด AI อัจฉริยะบนแท็บบาร์ด้านซ้าย --}}
+                {{-- ปุ่มลัด AI อัจฉริยะบนแท็บบาร์ด้านซ้าย (สไตล์เดียวกับเมนูอื่น 100%) --}}
                 <a href="{{ route('ai.assistant') }}" class="fa-rail-btn {{ request()->routeIs('ai.assistant') ? 'active' : '' }}" 
-                   data-label="AI อัจฉริยะ" 
-                   title="ระบบวิเคราะห์ & แชท AI อัจฉริยะ"
-                   style="margin-top: auto; background: linear-gradient(135deg, rgba(225,29,72,0.15), rgba(159,18,57,0.25)); border: 1px solid rgba(225,29,72,0.3); color: #f43f5e;">
-                    <i class="bi bi-robot" style="font-size: 22px;"></i>
-                    <span class="fa-rail-btn-label" style="font-weight: 700;">แชท AI</span>
+                   data-label="แชท AI" 
+                   title="ระบบวิเคราะห์ & แชท AI อัจฉริยะ">
+                    <i class="bi bi-robot"></i>
+                    <span class="fa-rail-btn-label">แชท AI</span>
                 </a>
             </div>
 
