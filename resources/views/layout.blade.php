@@ -1743,8 +1743,9 @@
                                 <i class="bi" :class="getIcon()"></i>
                             </button>
                             <ul x-show="open" @click.outside="open = false" x-cloak 
-                                class="dropdown-menu dropdown-menu-end shadow border-0 show" 
-                                style="position: absolute; right: 0; top: 100%; min-width: 150px; z-index: 1000; margin-top: .5rem;">
+                                class="dropdown-menu dropdown-menu-end shadow border-0" 
+                                style="position: absolute; right: 0; top: 100%; min-width: 150px; z-index: 1000; margin-top: .5rem;"
+                                :class="open ? 'show' : ''">
                                 <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" @click.prevent="setTheme('light'); open = false" :class="currentTheme === 'light' ? 'bg-light' : ''"><i class="bi bi-sun-fill text-warning"></i> สว่าง (ปกติ)</a></li>
                                 <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" @click.prevent="setTheme('sepia'); open = false" :class="currentTheme === 'sepia' ? 'bg-light text-dark' : ''"><i class="bi bi-eye-fill text-success"></i> สบายตา</a></li>
                                 <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" @click.prevent="setTheme('night'); open = false" :class="currentTheme === 'night' ? 'bg-secondary' : ''"><i class="bi bi-moon-stars-fill text-primary"></i> กลางคืน</a></li>
