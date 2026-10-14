@@ -176,18 +176,24 @@
                     <span class="fw-bold" style="font-size:12.5px;">
                         <i class="bi bi-cpu-fill text-primary me-1"></i> โควตา Token (Gemini 3.5)
                     </span>
-                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size:11px;" x-text="tokenInfo.total.toLocaleString() + ' Tokens'"></span>
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold" style="font-size:11px;" 
+                          x-text="((tokenInfo.total / 1000000) * 100).toFixed(2) + '% (' + tokenInfo.total.toLocaleString() + ')'"></span>
                 </div>
 
                 <!-- Progress Bar -->
-                <div class="progress mb-2" style="height: 7px; background: #e2e8f0; border-radius: 999px;">
+                <div class="progress mb-2" style="height: 8px; background: #e2e8f0; border-radius: 999px;">
                     <div class="progress-bar bg-danger" role="progressbar" 
-                         :style="'width: ' + Math.min(100, Math.max(1, (tokenInfo.total / 1000000) * 100)) + '%;'"></div>
+                         :style="'width: ' + Math.min(100, Math.max(0.5, (tokenInfo.total / 1000000) * 100)) + '%;'"></div>
                 </div>
 
                 <div class="d-flex justify-content-between text-muted" style="font-size:11.5px;">
-                    <span>ใช้ไป: <strong class="text-dark" x-text="tokenInfo.total.toLocaleString()"></strong></span>
-                    <span>คงเหลือ: <strong class="text-success" x-text="tokenInfo.remaining.toLocaleString()"></strong></span>
+                    <span>ใช้ไป: <strong class="text-danger" x-text="((tokenInfo.total / 1000000) * 100).toFixed(2) + '%'"></strong></span>
+                    <span>คงเหลือ: <strong class="text-success" x-text="((tokenInfo.remaining / 1000000) * 100).toFixed(2) + '%'"></strong></span>
+                </div>
+
+                <div class="d-flex justify-content-between text-muted mt-1" style="font-size:10.5px; opacity: 0.85;">
+                    <span x-text="tokenInfo.total.toLocaleString() + ' Tokens'"></span>
+                    <span x-text="tokenInfo.remaining.toLocaleString() + ' Tokens'"></span>
                 </div>
 
                 <!-- นับถอยหลังรีเซ็ต Token (RPM / RPD) -->
