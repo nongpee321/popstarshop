@@ -1283,15 +1283,15 @@
                     <div class="vg-card" onclick="openManualReader('ai_chat')">
                         <div class="vg-thumb">
                             <img src="{{ asset('images/manual/ai_chat_main.png') }}" alt="แชท AI อัจฉริยะ Gemini">
-                            <span class="vg-badge-step" style="background:#d32f2f;"><i class="bi bi-robot me-1"></i> บทที่ 8.2: 4 ฟังก์ชันพร้อมรูปจริง</span>
+                            <span class="vg-badge-step" style="background:#d32f2f;"><i class="bi bi-robot me-1"></i> บทที่ 8.2: 6 ฟังก์ชันเชิงลึกพร้อมรูปจริง</span>
                         </div>
                         <div class="vg-body">
                             <div>
                                 <h4 class="vg-title"><i class="bi bi-robot text-danger"></i> 8.2 แชท AI อัจฉริยะ (Gemini Assistant)</h4>
-                                <p class="vg-desc">คู่มือการใช้งานผู้ช่วย AI ประจำระบบ ERP: เช็กสต๊อกติดลบเรียลไทม์, แนะนำขั้นตอนการใช้งานระบบ, ตอบข้อสงสัยระเบียบภาษี/บัญชี/สูตรคำนวณ พร้อมวิธีการตั้งค่า GEMINI_API_KEY</p>
+                                <p class="vg-desc">คู่มือการใช้งานผู้ช่วย AI ประจำระบบ ERP ครบวงจร: เช็กสต๊อกติดลบเรียลไทม์, แนะนำขั้นตอน ERP/POS, ถามสูตรคำนวณและภาษี, คุยต่อเนื่อง Multi-Turn, สถาปัตยกรรมความปลอดภัย และวิธีแก้ปัญหาพบบ่อย</p>
                             </div>
                             <button type="button" class="vg-btn-action" style="background:#fee2e2; color:#991b1b; border-color:#fca5a5;">
-                                <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 8.2 (4 ฟังก์ชัน)
+                                <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 8.2 (6 ฟังก์ชัน)
                             </button>
                         </div>
                     </div>
@@ -2884,6 +2884,24 @@ flowchart TD
 <div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>โมเดลประมวลผลเร็ว (Gemini Flash):</strong> ใช้เวลาตอบคำถามเพียง 1-2 วินาที รองรับการสนทนาต่อเนื่องแบบ Multi-Turn</div></div>`,
                         img: '{{ asset('images/manual/ai_chat_step4.png') }}',
                         tip: 'สามารถขอรับ API Key ฟรีได้จาก Google AI Studio เพื่อเปิดใช้งานฟังก์ชัน AI ในระบบได้ทันที'
+                    },
+                    {
+                        badge: 'ขั้นตอนที่ 5',
+                        title: 'ระบบสนทนาต่อเนื่อง & จดจำบริบท (Multi-Turn Chat & Context Memory)',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>สนทนาต่อเนื่องโดยไม่ต้องพิมพ์ชื่อสินค้าซ้ำ:</strong> เช่น ถาม <em>"หมูสามชั้นเหลือเท่าไร?"</em> แล้วถามต่อว่า <em>"แล้วมีสั่งซื้อรอส่งเข้ามาไหม?"</em> AI จะจำได้ว่าคุยเรื่องหมูสามชั้นอยู่</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>ส่ง Payload แบบ History Array:</strong> เบราว์เซอร์ส่งประวัติทั้งบทสนทนา <code>[{role, content}]</code> ไปยัง Controller เพื่อให้ Gemini วิเคราะห์บริบทก่อนหน้าได้อย่างแม่นยำ</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>บันทึกลง LocalStorage อัตโนมัติ:</strong> แม้จะเปลี่ยนหน้าเว็บ ปิดคอมพิวเตอร์ หรือรีเฟรชหน้าจอ ประวัติการคุยจะยังคงอยู่ครบถ้วน พร้อมใช้งานต่อได้ทันที</div></div>`,
+                        img: '{{ asset('images/manual/ai_chat_step5.png') }}',
+                        tip: 'ฟังก์ชันนี้ช่วยให้คุณถามเจาะลึกคำแนะนำทางธุรกิจหรือวิเคราะห์ข้อมูลเป็นขั้นตอนได้อย่างลื่นไหล'
+                    },
+                    {
+                        badge: 'ขั้นตอนที่ 6',
+                        title: 'การแก้ไขปัญหาที่พบบ่อย & คำถามยอดฮิต (Troubleshooting & FAQ)',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>แจ้งเตือน "ยังไม่ได้ตั้งค่า GEMINI_API_KEY":</strong> ตรวจสอบไฟล์ <code>.env</code> ของโปรเจกต์ ระบุคีย์ให้ถูกต้อง หรือรัน <code>php artisan config:clear</code></div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>แจ้งเตือน "เครือข่ายขัดข้อง / i/o timeout":</strong> ตรวจสอบสัญญาณอินเทอร์เน็ตของเครื่อง หรือตั้ง DNS ของระบบเป็น <code>8.8.8.8</code> เพื่อให้เชื่อมต่อ Google API ได้เสถียร</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>วิธีล้างประวัติการคุยเพื่อเริ่มใหม่:</strong> กดปุ่ม F12 บนคีย์บอร์ด ➔ ไปที่แท็บ Application ➔ LocalStorage ➔ คลิกขวาที่คีย์ <code>ai_chat_history</code> แล้วกด Clear</div></div>`,
+                        img: '{{ asset('images/manual/ai_chat_step6.png') }}',
+                        tip: 'ระบบ Controller มีการตั้งค่า Timeout 15 วินาที เพื่อป้องกันหน้าจอค้างหากเน็ตเวิร์กต่างประเทศสะดุด'
                     }
                 ]
             }
