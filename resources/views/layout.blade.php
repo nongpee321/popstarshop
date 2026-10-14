@@ -2455,29 +2455,29 @@
 
     <!-- Chat Box Modal -->
     <div x-show="open" x-transition.opacity.duration.250ms
-         style="display: none; position: absolute; bottom: 74px; right: 0; width: 440px; max-width: calc(100vw - 32px); height: 660px; max-height: calc(100vh - 100px); background: #ffffff; border-radius: 20px; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25); overflow: hidden; display: flex; flex-direction: column; border: 1px solid #e2e8f0;">
+         style="display: none; position: absolute; bottom: 74px; right: 0; width: 450px; max-width: calc(100vw - 28px); height: 80vh; min-height: 520px; max-height: 740px; background: #ffffff; border-radius: 20px; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25); overflow: hidden; display: flex; flex-direction: column; border: 1px solid #e2e8f0;">
         
-        <!-- Header -->
-        <div style="background: linear-gradient(135deg, #e11d48, #9f1239); color: white; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,0.18); display: grid; place-items: center; font-size: 19px;">
+        <!-- Header (กะทัดรัด สวยหรู ไม่กินที่) -->
+        <div style="background: linear-gradient(135deg, #e11d48, #9f1239); color: white; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="width: 32px; height: 32px; border-radius: 9px; background: rgba(255,255,255,0.18); display: grid; place-items: center; font-size: 17px;">
                     <i class="bi bi-robot"></i>
                 </div>
                 <div>
                     <div style="display: flex; align-items: center; gap: 6px;">
-                        <strong style="font-size: 14.5px; letter-spacing: -0.2px;">POP STAR AI</strong>
-                        <span style="font-size: 10px; background: rgba(255,255,255,0.25); padding: 2px 7px; border-radius: 9999px; font-weight: 700;">Gemini 3.5</span>
+                        <strong style="font-size: 14px; letter-spacing: -0.2px;">POP STAR AI</strong>
+                        <span style="font-size: 9.5px; background: rgba(255,255,255,0.25); padding: 1px 6px; border-radius: 9999px; font-weight: 700;">Gemini 3.5</span>
                     </div>
-                    <span style="font-size: 11px; opacity: 0.85;">ผู้ช่วยประจำ ERP • ข้อมูลจริงจากระบบ</span>
+                    <span style="font-size: 10.5px; opacity: 0.85;">ผู้ช่วยประจำ ERP • ข้อมูลจริงจากระบบ</span>
                 </div>
             </div>
 
             <!-- Header Quick Actions -->
-            <div style="display: flex; align-items: center; gap: 6px;">
+            <div style="display: flex; align-items: center; gap: 5px;">
                 <!-- Open Dedicated Full Dashboard Page -->
                 <a href="{{ route('ai.assistant') }}" 
                    title="เปิดหน้าศูนย์รวม AI เต็มจอ (Full Dashboard)"
-                   style="background: rgba(255,255,255,0.18); border: none; color: white; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; font-size: 14px; text-decoration: none; transition: background 0.2s;"
+                   style="background: rgba(255,255,255,0.18); border: none; color: white; width: 30px; height: 30px; border-radius: 7px; display: grid; place-items: center; font-size: 13px; text-decoration: none; transition: background 0.2s;"
                    onmouseover="this.style.background='rgba(255,255,255,0.3)';" 
                    onmouseout="this.style.background='rgba(255,255,255,0.18)';">
                     <i class="bi bi-arrows-fullscreen"></i>
@@ -2486,42 +2486,42 @@
                 <!-- History Drawer Button -->
                 <button @click="showHistory = !showHistory" 
                         title="ดูคำถามและประวัติการสนทนาย้อนหลัง"
-                        style="background: rgba(255,255,255,0.18); border: none; color: white; width: 32px; height: 32px; border-radius: 8px; cursor: pointer; display: grid; place-items: center; font-size: 14px; transition: background 0.2s;">
+                        style="background: rgba(255,255,255,0.18); border: none; color: white; width: 30px; height: 30px; border-radius: 7px; cursor: pointer; display: grid; place-items: center; font-size: 13px; transition: background 0.2s;">
                     <i class="bi bi-clock-history"></i>
                 </button>
 
                 <!-- Clear Chat Button -->
                 <button @click="clearCurrentChat()" 
                         title="เริ่มบทสนทนาใหม่"
-                        style="background: rgba(255,255,255,0.18); border: none; color: white; width: 32px; height: 32px; border-radius: 8px; cursor: pointer; display: grid; place-items: center; font-size: 14px; transition: background 0.2s;">
+                        style="background: rgba(255,255,255,0.18); border: none; color: white; width: 30px; height: 30px; border-radius: 7px; cursor: pointer; display: grid; place-items: center; font-size: 13px; transition: background 0.2s;">
                     <i class="bi bi-arrow-counterclockwise"></i>
                 </button>
 
                 <!-- Close Button -->
                 <button @click="open = false" 
                         title="ปิดหน้าต่าง"
-                        style="background: transparent; border: none; color: white; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: grid; place-items: center; font-size: 16px;">
+                        style="background: transparent; border: none; color: white; width: 26px; height: 26px; border-radius: 6px; cursor: pointer; display: grid; place-items: center; font-size: 15px;">
                     <i class="bi bi-x-lg"></i>
                 </button>
             </div>
         </div>
 
-        <!-- Token Usage Bar -->
-        <div style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 5px 14px; display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: #64748b; flex-shrink: 0;">
+        <!-- Token Usage Bar (บางเฉียบ) -->
+        <div style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 4px 14px; display: flex; align-items: center; justify-content: space-between; font-size: 10.5px; color: #64748b; flex-shrink: 0;">
             <div style="display: flex; align-items: center; gap: 5px;">
                 <i class="bi bi-cpu text-primary"></i>
-                <span>Token ที่ใช้: <strong x-text="tokenInfo.total.toLocaleString()" class="text-dark">0</strong></span>
+                <span>Token: <strong x-text="tokenInfo.total.toLocaleString()" class="text-dark">0</strong></span>
             </div>
             <div style="display: flex; align-items: center; gap: 4px;">
-                <span class="badge" style="background: #dbeafe; color: #1e40af; font-weight: 700; font-size: 10.5px;">
-                    โควตาคงเหลือ: <span x-text="tokenInfo.remaining.toLocaleString()">1,000,000</span>
+                <span class="badge" style="background: #dbeafe; color: #1e40af; font-weight: 700; font-size: 10px; padding: 2px 6px;">
+                    คงเหลือ: <span x-text="tokenInfo.remaining.toLocaleString()">1,000,000</span>
                 </span>
             </div>
         </div>
 
         <!-- History Drawer (Overlay View) -->
         <div x-show="showHistory" x-transition.opacity.duration.200ms
-             style="display: none; position: absolute; top: 88px; left: 0; right: 0; bottom: 0; background: #ffffff; z-index: 10; display: flex; flex-direction: column;">
+             style="display: none; position: absolute; top: 76px; left: 0; right: 0; bottom: 0; background: #ffffff; z-index: 10; display: flex; flex-direction: column;">
             <div style="padding: 10px 14px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between;">
                 <span style="font-size: 12.5px; font-weight: 700; color: #334155;"><i class="bi bi-clock-history me-1 text-danger"></i> คำถามย้อนหลัง (Prompt History)</span>
                 <button @click="showHistory = false" style="background: none; border: none; font-size: 12px; color: #0284c7; cursor: pointer; font-weight: 600;">กลับไปที่แชท ➔</button>
@@ -2543,8 +2543,8 @@
             </div>
         </div>
 
-        <!-- Messages Area (พื้นที่แชทหลัก กว้างและโปร่งขึ้นอย่างเห็นได้ชัด) -->
-        <div id="ai-chat-box" style="flex: 1; min-height: 0; overflow-y: auto; padding: 16px; background: #f8fafc; display: flex; flex-direction: column; gap: 12px;">
+        <!-- Messages Area (พื้นที่แชทหลัก ขยายเต็มพื้นที่อย่างสูงสุด) -->
+        <div id="ai-chat-box" style="flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 16px; background: #f8fafc; display: flex; flex-direction: column; gap: 12px;">
             <template x-for="(msg, index) in messages" :key="index">
                 <div :style="msg.role === 'user' ? 'align-self: flex-end; background: #fee2e2; color: #991b1b; border-radius: 14px 14px 2px 14px; padding: 10px 14px; max-width: 86%; font-size: 13.5px; line-height: 1.5; box-shadow: 0 2px 6px rgba(0,0,0,0.03);' : 'align-self: flex-start; background: #ffffff; border: 1px solid #e2e8f0; color: #1e293b; border-radius: 14px 14px 14px 2px; padding: 12px 16px; max-width: 88%; font-size: 13.5px; line-height: 1.6; box-shadow: 0 2px 8px rgba(0,0,0,0.04);'">
                     <span x-html="formatMessage(msg.content)"></span>
@@ -2556,48 +2556,48 @@
             </div>
         </div>
 
-        <!-- Quick Prompt Pills (แถบคำสั่งด่วน ซ่อน scrollbar สวยงาม แนบชิดด้านล่าง) -->
-        <div class="ai-scrollbar-hidden" style="padding: 6px 12px; background: #ffffff; border-top: 1px solid #f1f5f9; display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; scroll-behavior: smooth; flex-shrink: 0;">
+        <!-- Quick Prompt Pills (ปุ่มคำสั่งด่วนแนวนอน ปรับขนาดเล็กลงแนบชิด ไม่เบียดแชท) -->
+        <div class="ai-scrollbar-hidden" style="padding: 5px 12px; background: #ffffff; border-top: 1px solid #f1f5f9; display: flex; gap: 5px; overflow-x: auto; white-space: nowrap; scroll-behavior: smooth; flex-shrink: 0;">
             <button type="button" @click="askQuick('ขอสรุปยอดขาย 20 วันย้อนหลัง พร้อมกำไร')" 
-                    style="padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; border: 1px solid #fecdd3; background: #fff1f2; color: #be123c; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;">
-                <span>📄</span> สรุปยอดขาย & กำไร 20 วัน
+                    style="padding: 3px 9px; border-radius: 9999px; font-size: 10.5px; font-weight: 700; border: 1px solid #fecdd3; background: #fff1f2; color: #be123c; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;">
+                <span>📄</span> ยอดขาย & กำไร 20 วัน
             </button>
             <button type="button" @click="askQuick('สินค้าขายดี 5 อันดับแรก')" 
-                    style="padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; border: 1px solid #fed7aa; background: #fff7ed; color: #c2410c; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;">
+                    style="padding: 3px 9px; border-radius: 9999px; font-size: 10.5px; font-weight: 600; border: 1px solid #fed7aa; background: #fff7ed; color: #c2410c; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;">
                 <span>⭐</span> 5 สินค้าขายดี
             </button>
             <button type="button" @click="askQuick('ตอนนี้มีสินค้าสต๊อกติดลบไหม?')" 
-                    style="padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;">
-                <span>🔥</span> เช็กสต๊อกติดลบ
+                    style="padding: 3px 9px; border-radius: 9999px; font-size: 10.5px; font-weight: 600; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;">
+                <span>🔥</span> สต๊อกติดลบ
             </button>
             <button type="button" @click="askQuick('สรุปยอดขายหน้าร้านวันนี้')" 
-                    style="padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; border: 1px solid #dbeafe; background: #eff6ff; color: #1d4ed8; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;">
+                    style="padding: 3px 9px; border-radius: 9999px; font-size: 10.5px; font-weight: 600; border: 1px solid #dbeafe; background: #eff6ff; color: #1d4ed8; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;">
                 <span>📊</span> ยอดขายวันนี้
             </button>
             <button type="button" @click="askQuick('มีใบสั่งซื้อ PO อะไรค้างส่งบ้าง?')" 
-                    style="padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; border: 1px solid #d1fae5; background: #ecfdf5; color: #047857; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;">
+                    style="padding: 3px 9px; border-radius: 9999px; font-size: 10.5px; font-weight: 600; border: 1px solid #d1fae5; background: #ecfdf5; color: #047857; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;">
                 <span>🚚</span> PO ค้างส่ง
             </button>
         </div>
 
-        <!-- Input Area (ตรึงช่องพิมพ์คำถามลงล่างสุด กะทัดรัด สวยงาม) -->
-        <div style="padding: 8px 12px 10px 12px; background: #ffffff; border-top: 1px solid #e2e8f0; flex-shrink: 0;">
-            <div style="display: flex; align-items: center; gap: 8px; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 24px; padding: 2px 4px 2px 12px; transition: all 0.2s;"
-                 onfocusin="this.style.borderColor='#e11d48'; this.style.boxShadow='0 0 0 3px rgba(225, 29, 72, 0.12)'; this.style.background='#ffffff';"
+        <!-- Input Area (ช่องพิมพ์คำถาม ตรึงลงล่างสุด แนบสนิทฐานกล่องแชท) -->
+        <div style="padding: 6px 10px 8px 10px; background: #ffffff; border-top: 1px solid #e2e8f0; flex-shrink: 0;">
+            <div style="display: flex; align-items: center; gap: 6px; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 22px; padding: 1px 3px 1px 10px; transition: all 0.2s;"
+                 onfocusin="this.style.borderColor='#e11d48'; this.style.boxShadow='0 0 0 2px rgba(225, 29, 72, 0.12)'; this.style.background='#ffffff';"
                  onfocusout="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'; this.style.background='#f8fafc';">
-                <i class="bi bi-chat-dots-fill text-muted" style="font-size: 13px; opacity: 0.6;"></i>
+                <i class="bi bi-chat-dots-fill text-muted" style="font-size: 12px; opacity: 0.5;"></i>
                 <input type="text" x-model="inputText" @keydown.enter="sendMessage()" 
                        placeholder="พิมพ์คำถาม... (กด Enter เพื่อส่ง)" 
-                       style="flex: 1; border: none; background: transparent; outline: none; font-size: 13px; color: #1e293b; padding: 7px 0; font-family: inherit;">
+                       style="flex: 1; border: none; background: transparent; outline: none; font-size: 12.5px; color: #1e293b; padding: 6px 0; font-family: inherit;">
                 <button @click="sendMessage()" :disabled="loading || inputText.trim() === ''"
-                        style="background: linear-gradient(135deg, #e11d48, #be123c); color: white; border: none; border-radius: 50%; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 8px rgba(225, 29, 72, 0.35); flex-shrink: 0;"
+                        style="background: linear-gradient(135deg, #e11d48, #be123c); color: white; border: none; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 6px rgba(225, 29, 72, 0.35); flex-shrink: 0;"
                         :style="(loading || inputText.trim() === '') ? 'opacity: 0.45; cursor: not-allowed;' : 'opacity: 1; transform: scale(1.02);'"
                         title="ส่งคำถาม">
                     <template x-if="!loading">
-                        <i class="bi bi-send-fill" style="font-size: 12px; margin-left: 2px;"></i>
+                        <i class="bi bi-send-fill" style="font-size: 11px; margin-left: 2px;"></i>
                     </template>
                     <template x-if="loading">
-                        <div class="spinner-border spinner-border-sm text-white" role="status" style="width: 12px; height: 12px; border-width: 2px;"></div>
+                        <div class="spinner-border spinner-border-sm text-white" role="status" style="width: 11px; height: 11px; border-width: 2px;"></div>
                     </template>
                 </button>
             </div>
