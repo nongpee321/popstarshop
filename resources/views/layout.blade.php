@@ -2390,6 +2390,7 @@
 
 
 
+@if(!request()->routeIs('ai.assistant'))
 <div x-data="aiChatWidget()" class="ai-widget-container" style="position: fixed; bottom: 22px; right: 22px; z-index: 9999; font-family: 'IBM Plex Sans Thai', sans-serif;">
     <style>
         .ai-float-pill {
@@ -2738,6 +2739,6 @@ document.addEventListener('alpine:init', () => {
     }));
 });
 </script>
-</script>
+@endif
 </body>
 </html>

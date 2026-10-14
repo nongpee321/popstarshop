@@ -237,7 +237,7 @@
                     </div>
                 </template>
 
-                <div x-show="loading" class="msg-bubble-ai d-flex align-items-center gap-2 text-muted">
+                <div x-show="loading" style="display: none;" class="msg-bubble-ai d-flex align-items-center gap-2 text-muted">
                     <div class="spinner-border spinner-border-sm text-danger" role="status"></div>
                     <span>AI กำลังประมวลผลข้อมูลและคำนวณ Token...</span>
                 </div>
@@ -291,10 +291,15 @@ document.addEventListener('alpine:init', () => {
         resetCountdownText: '-- ชม. -- นาที',
         timerInterval: null,
         init() {
+            this.loading = false;
             // โหลดแชทเดิม
             const saved = localStorage.getItem('ai_chat_history');
             if (saved) {
-                try { this.messages = JSON.parse(saved); } catch(e) {}
+                try { 
+                    this.messages = JSON.parse(saved); 
+                    // ถ้าข้อความสุดท้ายมีคำว่ากำลังประมวลผลให้เอาออก
+                    this.messages = this.messages.filter(m => m && m.content && !m.content.includes('กำลังประมวลผล'));
+                } catch(e) {}
             }
             if (!this.messages.length) {
                 this.messages = [{ role: 'ai', content: 'สวัสดีครับ ยินดีต้อนรับสู่ **ศูนย์กลางแชท AI อัจฉริยะ (POP STAR AI)** ท่านสามารถตรวจสอบสต๊อกเรียลไทม์, ยอดขายหน้าร้าน, เอกสารค้างส่ง หรือเลือกดูคำถามเก่าในแถบประวัติด้านซ้ายมือได้ทันทีครับ!' }];
