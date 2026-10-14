@@ -97,32 +97,59 @@ class AiChatController extends Controller
             $inventoryValuation = DB::table('stock_balances as sb')
                 ->join('products as p', 'p.id', '=', 'sb.product_id')
                 ->where('sb.on_hand_qty', '>', 0)
-                ->sum(DB::raw('sb.on_hand_qty * COALESCE(p.cost_price, 0)'));
+                ->sum(DB::raw('sb.on_hand_qty * CASE WHEN p.average_cost > 0 THEN p.average_cost ELSE COALESCE(p.last_purchase_cost, 0) END'));
             $totalStockQty = DB::table('stock_balances')->where('on_hand_qty', '>', 0)->sum('on_hand_qty');
             $sysContext .= " | สินค้าทั้งหมดในระบบ: {$totalProductsCount} รายการ | สต๊อกคงเหลือรวม: " . number_format($totalStockQty, 0) . " ชิ้น (มูลค่าต้นทุนสินค้าในคลังรวม: ฿" . number_format($inventoryValuation, 2) . ") ";
 
-            // 2. ข้อมูลสรุปยอดขายหน้าร้าน (วันนี้, 7 วันล่าสุด, 30 วันล่าสุด พร้อมประวัติย้อนหลังแต่ละวัน)
+            // 2. ข้อมูลสรุปยอดขายหน้าร้าน (วันนี้, 7 วัน, 20 วัน, 30 วัน พร้อมต้นทุนและกำไรจริง)
             $today = date('Y-m-d');
-            $salesToday = DB::table('pos_orders')
-                ->whereDate('created_at', $today)
-                ->sum('net_amount');
-            $ordersTodayCount = DB::table('pos_orders')
-                ->whereDate('created_at', $today)
+            $salesToday = DB::table('pos_receipts')
+                ->where('status', 'completed')
+                ->whereDate('receipt_date', $today)
+                ->sum('net_sales');
+            $ordersTodayCount = DB::table('pos_receipts')
+                ->where('status', 'completed')
+                ->whereDate('receipt_date', $today)
                 ->count();
             $sysContext .= " | สรุปยอดขายหน้าร้านวันนี้ ({$today}): ฿" . number_format($salesToday, 2) . " ({$ordersTodayCount} บิล) ";
 
             // ยอดขาย 7 วันล่าสุด
-            $sevenDaysAgo = date('Y-m-d', strtotime('-7 days'));
-            $sales7Days = DB::table('pos_orders')->where('created_at', '>=', $sevenDaysAgo)->sum('net_amount');
-            $orders7DaysCount = DB::table('pos_orders')->where('created_at', '>=', $sevenDaysAgo)->count();
+            $sevenDaysAgo = date('Y-m-d 00:00:00', strtotime('-7 days'));
+            $sales7Days = DB::table('pos_receipts')
+                ->where('status', 'completed')
+                ->where('receipt_date', '>=', $sevenDaysAgo)
+                ->sum('net_sales');
+            $orders7DaysCount = DB::table('pos_receipts')
+                ->where('status', 'completed')
+                ->where('receipt_date', '>=', $sevenDaysAgo)
+                ->count();
             $sysContext .= " | ยอดขายรวม 7 วันล่าสุด: ฿" . number_format($sales7Days, 2) . " ({$orders7DaysCount} บิล) ";
+
+            // ยอดขายและต้นทุน/กำไร ย้อนหลัง 20 วันล่าสุด
+            $twentyDaysAgo = date('Y-m-d 00:00:00', strtotime('-20 days'));
+            $costProfit20 = DB::table('pos_receipt_items as pri')
+                ->join('pos_receipts as pr', 'pr.id', '=', 'pri.pos_receipt_id')
+                ->leftJoin('products as p', 'p.id', '=', 'pri.product_id')
+                ->where('pr.status', 'completed')
+                ->where('pr.receipt_date', '>=', $twentyDaysAgo)
+                ->select(
+                    DB::raw('SUM(pri.net_amount) as total_revenue'),
+                    DB::raw('COUNT(DISTINCT pr.id) as total_bills'),
+                    DB::raw('SUM(pri.qty * CASE WHEN p.average_cost > 0 THEN p.average_cost ELSE COALESCE(p.last_purchase_cost, 0) END) as total_cost')
+                )->first();
+            $rev20 = (float)($costProfit20->total_revenue ?? 0);
+            $cost20 = (float)($costProfit20->total_cost ?? 0);
+            $profit20 = $rev20 - $cost20;
+            $bills20 = (int)($costProfit20->total_bills ?? 0);
+            $sysContext .= " | [สรุปยอดขาย 20 วันย้อนหลัง]: ยอดขายรวม ฿" . number_format($rev20, 2) . " ({$bills20} บิล), ต้นทุนสินค้าขาย (COGS): ฿" . number_format($cost20, 2) . ", กำไรขั้นต้น (Gross Profit): ฿" . number_format($profit20, 2) . " ";
 
             // ประวัติยอดขายรายวันย้อนหลัง 30 วัน (Daily Sales History)
             $thirtyDaysAgo = date('Y-m-d 00:00:00', strtotime('-30 days'));
-            $dailySales = DB::table('pos_orders')
-                ->select(DB::raw('DATE(created_at) as sale_date'), DB::raw('SUM(net_amount) as total_sales'), DB::raw('COUNT(*) as total_bills'))
-                ->where('created_at', '>=', $thirtyDaysAgo)
-                ->groupBy(DB::raw('DATE(created_at)'))
+            $dailySales = DB::table('pos_receipts')
+                ->select(DB::raw('DATE(receipt_date) as sale_date'), DB::raw('SUM(net_sales) as total_sales'), DB::raw('COUNT(*) as total_bills'))
+                ->where('status', 'completed')
+                ->where('receipt_date', '>=', $thirtyDaysAgo)
+                ->groupBy(DB::raw('DATE(receipt_date)'))
                 ->orderBy('sale_date', 'desc')
                 ->get();
 
@@ -142,10 +169,10 @@ class AiChatController extends Controller
             }
 
             // 3. สินค้าขายดีที่สุด 5 อันดับแรก (Top 5 Best-Selling Products)
-            $topSelling = DB::table('pos_order_items as poi')
-                ->join('products as p', 'p.id', '=', 'poi.product_id')
-                ->select('p.name_th', DB::raw('SUM(poi.qty) as total_qty'), DB::raw('SUM(poi.subtotal) as total_revenue'))
-                ->groupBy('poi.product_id', 'p.name_th')
+            $topSelling = DB::table('pos_receipt_items as pri')
+                ->join('products as p', 'p.id', '=', 'pri.product_id')
+                ->select('p.name_th', DB::raw('SUM(pri.qty) as total_qty'), DB::raw('SUM(pri.net_amount) as total_revenue'))
+                ->groupBy('pri.product_id', 'p.name_th')
                 ->orderByDesc('total_qty')
                 ->limit(5)
                 ->get();
