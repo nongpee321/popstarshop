@@ -520,10 +520,16 @@ document.addEventListener('alpine:init', () => {
             const timeStr = now.toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' });
 
             const printWrapper = document.createElement('div');
+            printWrapper.style.position = 'fixed';
+            printWrapper.style.top = '0';
+            printWrapper.style.left = '0';
+            printWrapper.style.width = '750px';
             printWrapper.style.padding = '24px 30px';
             printWrapper.style.fontFamily = "'IBM Plex Sans Thai', sans-serif";
             printWrapper.style.color = '#0f172a';
             printWrapper.style.background = '#ffffff';
+            printWrapper.style.zIndex = '-99999';
+            printWrapper.style.pointerEvents = 'none';
 
             printWrapper.innerHTML = `
                 <div style="border-bottom: 2px solid #e11d48; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
@@ -545,17 +551,26 @@ document.addEventListener('alpine:init', () => {
                 </div>
             `;
 
+            document.body.appendChild(printWrapper);
+
             const opt = {
                 margin:       [10, 10, 10, 10],
-                filename:     `รายงาน_POPSTAR_AI_${now.toISOString().slice(0,10)}.pdf`,
+                filename:     `POPSTAR_AI_Report_${now.toISOString().slice(0,10)}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
                 jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
 
             if (typeof html2pdf !== 'undefined') {
-                html2pdf().set(opt).from(printWrapper).save();
+                html2pdf().set(opt).from(printWrapper).save().then(() => {
+                    if (printWrapper.parentNode) printWrapper.parentNode.removeChild(printWrapper);
+                }).catch(err => {
+                    console.error('html2pdf failed:', err);
+                    if (printWrapper.parentNode) printWrapper.parentNode.removeChild(printWrapper);
+                    this.printReport(index);
+                });
             } else {
+                if (printWrapper.parentNode) printWrapper.parentNode.removeChild(printWrapper);
                 this.printReport(index);
             }
         },

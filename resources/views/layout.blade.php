@@ -2431,9 +2431,10 @@
                     <div :id="'chat-msg-' + index" x-html="formatMessage(msg.content)"></div>
                     <template x-if="msg.role === 'ai'">
                         <div style="display: flex; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed #eee; font-size: 11px; flex-wrap: wrap;">
-                            <button type="button" @click="copyMessage(msg.content)" style="background:none; border:1px solid #ddd; border-radius:4px; padding:1px 6px; cursor:pointer; color:#666;"><i class="bi bi-clipboard"></i> คัดลอก</button>
-                            <button type="button" @click="exportToPdf(index)" style="background:none; border:1px solid #fca5a5; border-radius:4px; padding:1px 6px; cursor:pointer; color:#dc2626;"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
-                            <button type="button" @click="exportToExcel(index)" style="background:none; border:1px solid #86efac; border-radius:4px; padding:1px 6px; cursor:pointer; color:#16a34a;"><i class="bi bi-file-earmark-excel"></i> Excel</button>
+                            <button type="button" @click="copyMessage(msg.content)" style="background:none; border:1px solid #ddd; border-radius:4px; padding:2px 7px; cursor:pointer; color:#666;"><i class="bi bi-clipboard"></i> คัดลอก</button>
+                            <button type="button" @click="exportToPdf(index)" style="background:none; border:1px solid #fca5a5; border-radius:4px; padding:2px 7px; cursor:pointer; color:#dc2626;" title="ดาวน์โหลดไฟล์ PDF"><i class="bi bi-file-earmark-pdf"></i> โหลด PDF</button>
+                            <button type="button" @click="printReport(index)" style="background:none; border:1px solid #93c5fd; border-radius:4px; padding:2px 7px; cursor:pointer; color:#1d4ed8;" title="เปิดหน้าต่างพิมพ์ หรือบันทึกเป็น PDF"><i class="bi bi-printer"></i> พิมพ์ / PDF</button>
+                            <button type="button" @click="exportToExcel(index)" style="background:none; border:1px solid #86efac; border-radius:4px; padding:2px 7px; cursor:pointer; color:#16a34a;" title="ส่งออกไฟล์ Excel"><i class="bi bi-file-earmark-excel"></i> Excel</button>
                         </div>
                     </template>
                 </div>
@@ -2595,10 +2596,16 @@ document.addEventListener('alpine:init', () => {
             const timeStr = now.toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' });
 
             const printWrapper = document.createElement('div');
+            printWrapper.style.position = 'fixed';
+            printWrapper.style.top = '0';
+            printWrapper.style.left = '0';
+            printWrapper.style.width = '750px';
             printWrapper.style.padding = '24px 30px';
             printWrapper.style.fontFamily = "'IBM Plex Sans Thai', sans-serif";
             printWrapper.style.color = '#0f172a';
             printWrapper.style.background = '#ffffff';
+            printWrapper.style.zIndex = '-99999';
+            printWrapper.style.pointerEvents = 'none';
 
             printWrapper.innerHTML = `
                 <div style="border-bottom: 2px solid #d32f2f; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
@@ -2608,24 +2615,98 @@ document.addEventListener('alpine:init', () => {
                     </div>
                     <div style="text-align: right; font-size: 11px; color: #64748b;">
                         <div>วันที่ออกเอกสาร: <strong>${dateStr} ${timeStr} น.</strong></div>
+                        <div>พิมพ์โดย: ผู้ใช้งานระบบ ERP</div>
                     </div>
                 </div>
                 <div style="font-size: 14px; line-height: 1.8; color: #1e293b;">
                     ${el.innerHTML}
                 </div>
+                <div style="margin-top: 35px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; display: flex; justify-content: space-between;">
+                    <span>เอกสารรายงานภายในระบบ PopCentral ERP</span>
+                    <span>หน้าที่ 1/1</span>
+                </div>
             `;
+
+            document.body.appendChild(printWrapper);
 
             const opt = {
                 margin:       [10, 10, 10, 10],
-                filename:     `รายงาน_POPSTAR_AI_${now.toISOString().slice(0,10)}.pdf`,
+                filename:     `POPSTAR_AI_Report_${now.toISOString().slice(0,10)}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
                 jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
 
             if (typeof html2pdf !== 'undefined') {
-                html2pdf().set(opt).from(printWrapper).save();
+                html2pdf().set(opt).from(printWrapper).save().then(() => {
+                    if (printWrapper.parentNode) printWrapper.parentNode.removeChild(printWrapper);
+                }).catch(err => {
+                    console.error('html2pdf failed:', err);
+                    if (printWrapper.parentNode) printWrapper.parentNode.removeChild(printWrapper);
+                    this.printReport(index);
+                });
+            } else {
+                if (printWrapper.parentNode) printWrapper.parentNode.removeChild(printWrapper);
+                this.printReport(index);
             }
+        },
+        printReport(index) {
+            const el = document.getElementById('chat-msg-' + index);
+            if (!el) return;
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
+            const timeStr = now.toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' });
+
+            const printWin = window.open('', '_blank');
+            if (!printWin) {
+                alert('กรุณาอนุญาตให้เปิดหน้าต่างป๊อปอัปเพื่อพิมพ์รายงานหรือบันทึกเป็น PDF');
+                return;
+            }
+            printWin.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>รายงาน POP STAR AI ERP</title>
+                    <meta charset="utf-8">
+                    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
+                    <style>
+                        body { font-family: 'IBM Plex Sans Thai', sans-serif; padding: 30px; color: #0f172a; line-height: 1.8; }
+                        h2 { color: #b71c1c; margin: 0; font-size: 20px; }
+                        .header { border-bottom: 2px solid #d32f2f; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+                        .footer { margin-top: 40px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; display: flex; justify-content: space-between; }
+                        @media print { 
+                            body { padding: 0; }
+                            button { display: none; } 
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div>
+                            <h2>บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด</h2>
+                            <div style="font-size: 13px; color: #64748b; margin-top: 4px;">รายงานบทวิเคราะห์อัจฉริยะ (POP STAR AI ERP Assistant)</div>
+                        </div>
+                        <div style="text-align: right; font-size: 11px; color: #64748b;">
+                            <div>วันที่ออกเอกสาร: <strong>${dateStr} ${timeStr} น.</strong></div>
+                            <div>พิมพ์โดย: ผู้ใช้งานระบบ ERP</div>
+                        </div>
+                    </div>
+                    <div style="font-size: 14px; line-height: 1.8; color: #1e293b;">
+                        ${el.innerHTML}
+                    </div>
+                    <div class="footer">
+                        <span>เอกสารรายงานภายในระบบ PopCentral ERP</span>
+                        <span>พิมพ์จากระบบอัจฉริยะ POP STAR AI</span>
+                    </div>
+                    <script>
+                        window.onload = function() { 
+                            setTimeout(function() { window.print(); }, 250); 
+                        };
+                    <\/script>
+                </body>
+                </html>
+            `);
+            printWin.document.close();
         },
         exportToExcel(index) {
             const msg = this.messages[index];
