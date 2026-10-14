@@ -2742,9 +2742,11 @@ document.addEventListener('alpine:init', () => {
                     <!-- Official Header -->
                     <div style="border-bottom: 2.5px solid #0f172a; padding-bottom: 14px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
                         <div style="display: flex; gap: 14px; align-items: center;">
-                            <img src="${this.company.logo}" style="height: 52px; max-width: 140px; object-fit: contain;" onerror="this.style.display='none'">
+                            <div style="width: 52px; height: 52px; border-radius: 12px; background: linear-gradient(135deg, #b71c1c, #d32f2f); display: flex; align-items: center; justify-content: center; color: white; font-size: 26px; font-weight: bold; flex-shrink: 0; box-shadow: 0 2px 8px rgba(183, 28, 28, 0.3);">
+                                ★
+                            </div>
                             <div>
-                                <div style="font-size: 17px; font-weight: 800; color: #0f172a; line-height: 1.2;">
+                                <div style="font-size: 18px; font-weight: 800; color: #0f172a; line-height: 1.2;">
                                     ${this.company.nameTh}
                                 </div>
                                 <div style="font-size: 11px; font-weight: 700; color: #475569; letter-spacing: 0.5px; margin-top: 1px;">
@@ -2834,25 +2836,66 @@ document.addEventListener('alpine:init', () => {
                 </div>
             `;
         },
-        exportToPdf(index) {
+        async exportToPdf(index) {
             const el = document.getElementById('chat-msg-' + index);
             if (!el) return;
 
-            const printWrapper = document.createElement('div');
-            printWrapper.style.position = 'fixed';
-            printWrapper.style.top = '0';
-            printWrapper.style.left = '0';
-            printWrapper.style.width = '780px';
-            printWrapper.style.padding = '25px 30px';
-            printWrapper.style.fontFamily = "'IBM Plex Sans Thai', sans-serif";
-            printWrapper.style.color = '#0f172a';
-            printWrapper.style.background = '#ffffff';
-            printWrapper.style.zIndex = '-99999';
-            printWrapper.style.pointerEvents = 'none';
-            printWrapper.style.boxSizing = 'border-box';
+            // 1. สร้าง Overlay Loading & Preview สวยงามระดับมืออาชีพ
+            const overlay = document.createElement('div');
+            overlay.id = 'ai-pdf-export-overlay';
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100vw';
+            overlay.style.height = '100vh';
+            overlay.style.background = 'rgba(15, 23, 42, 0.75)';
+            overlay.style.backdropFilter = 'blur(4px)';
+            overlay.style.zIndex = '999999';
+            overlay.style.display = 'flex';
+            overlay.style.flexDirection = 'column';
+            overlay.style.alignItems = 'center';
+            overlay.style.justifyContent = 'flex-start';
+            overlay.style.padding = '30px 16px';
+            overlay.style.overflow = 'auto';
 
-            printWrapper.innerHTML = this.buildOfficialReportHtml(el.innerHTML, index);
-            document.body.appendChild(printWrapper);
+            // แถบสถานะด้านบน
+            const statusBanner = document.createElement('div');
+            statusBanner.style.background = '#0f172a';
+            statusBanner.style.color = '#ffffff';
+            statusBanner.style.padding = '10px 22px';
+            statusBanner.style.borderRadius = '30px';
+            statusBanner.style.fontSize = '13.5px';
+            statusBanner.style.fontWeight = '600';
+            statusBanner.style.marginBottom = '20px';
+            statusBanner.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
+            statusBanner.style.display = 'flex';
+            statusBanner.style.alignItems = 'center';
+            statusBanner.style.gap = '10px';
+            statusBanner.innerHTML = `
+                <div class="spinner-border spinner-border-sm text-danger" style="width:16px; height:16px; border-width:2.5px;" role="status"></div>
+                <span>กำลังประมวลผลและสร้างไฟล์ PDF ทางการ... กรุณารอสักครู่</span>
+            `;
+            overlay.appendChild(statusBanner);
+
+            // เอกสาร Card A4 วางใน normal block flow เพื่อให้ html2canvas เรนเดอร์ได้ 100% ครบถ้วน ไม่ว่างเปล่า
+            const card = document.createElement('div');
+            card.style.width = '780px';
+            card.style.maxWidth = '100%';
+            card.style.background = '#ffffff';
+            card.style.padding = '35px 40px';
+            card.style.boxSizing = 'border-box';
+            card.style.boxShadow = '0 10px 40px rgba(0,0,0,0.4)';
+            card.style.borderRadius = '6px';
+            card.style.fontFamily = "'IBM Plex Sans Thai', sans-serif";
+            card.style.color = '#0f172a';
+            card.innerHTML = this.buildOfficialReportHtml(el.innerHTML, index);
+
+            overlay.appendChild(card);
+            document.body.appendChild(overlay);
+
+            // บังคับ Reflow และหน่วงเวลาสั้นๆ ให้เบราว์เซอร์ Render ครบถ้วน
+            void card.offsetHeight;
+            await new Promise(resolve => setTimeout(resolve, 250));
 
             const now = new Date();
             const fileDateStr = now.toISOString().slice(0,10);
@@ -2860,21 +2903,30 @@ document.addEventListener('alpine:init', () => {
                 margin:       [8, 10, 8, 10],
                 filename:     `POPSTAR_AI_Executive_Report_${fileDateStr}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                html2canvas:  { 
+                    scale: 2, 
+                    useCORS: true, 
+                    scrollY: 0, 
+                    scrollX: 0, 
+                    logging: false 
+                },
                 jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
 
-            if (typeof html2pdf !== 'undefined') {
-                html2pdf().set(opt).from(printWrapper).save().then(() => {
-                    if (printWrapper.parentNode) printWrapper.parentNode.removeChild(printWrapper);
-                }).catch(err => {
-                    console.error('html2pdf failed:', err);
-                    if (printWrapper.parentNode) printWrapper.parentNode.removeChild(printWrapper);
+            try {
+                if (typeof html2pdf !== 'undefined') {
+                    await html2pdf().set(opt).from(card).save();
+                } else {
                     this.printReport(index);
-                });
-            } else {
-                if (printWrapper.parentNode) printWrapper.parentNode.removeChild(printWrapper);
+                }
+            } catch (err) {
+                console.error('html2pdf failed:', err);
                 this.printReport(index);
+            } finally {
+                // ลบ overlay ออกหลังเสร็จสิ้น
+                if (overlay.parentNode) {
+                    overlay.parentNode.removeChild(overlay);
+                }
             }
         },
         printReport(index) {
