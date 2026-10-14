@@ -911,3 +911,4 @@ Route::prefix('bplus')->name('bplus.')->group(function () {
 });
 
 Route::post('/api/ai-chat', [\App\Http\Controllers\AiChatController::class, 'chat'])->name('ai.chat');
+Route::get('/ai-assistant', [\App\Http\Controllers\AiChatController::class, 'index'])->name('ai.assistant');

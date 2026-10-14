@@ -1734,6 +1734,16 @@
                 </div>
 @endif
                 <ul class="navbar-nav ms-auto align-items-center gap-3">
+                    {{-- AI Assistant Button in Top Bar --}}
+                    <li class="nav-item">
+                        <a href="{{ route('ai.assistant') }}" class="btn btn-light border rounded-pill d-flex align-items-center gap-2 px-3 py-1 shadow-sm" 
+                           style="height: 42px; font-weight: 600; color: #e11d48; border-color: rgba(225,29,72,0.3)!important; background: #fff1f2;" 
+                           title="ระบบผู้ช่วย AI อัจฉริยะ (ดูคำถามเก่าและประวัติ Token)">
+                            <i class="bi bi-robot" style="font-size: 18px;"></i>
+                            <span class="d-none d-lg-inline" style="font-size: 13.5px;">แชท AI</span>
+                        </a>
+                    </li>
+
                     {{-- Theme Toggle --}}
                     <li class="nav-item" x-data="themeToggle()" x-init="initTheme()">
                         <div class="position-relative">
@@ -1924,6 +1934,15 @@
                         <span class="fa-rail-btn-label">{{ $railShort[$section['label']] ?? $section['label'] }}</span>
                     </button>
                 @endforeach
+
+                {{-- ปุ่มลัด AI อัจฉริยะบนแท็บบาร์ด้านซ้าย --}}
+                <a href="{{ route('ai.assistant') }}" class="fa-rail-btn {{ request()->routeIs('ai.assistant') ? 'active' : '' }}" 
+                   data-label="AI อัจฉริยะ" 
+                   title="ระบบวิเคราะห์ & แชท AI อัจฉริยะ"
+                   style="margin-top: auto; background: linear-gradient(135deg, rgba(225,29,72,0.15), rgba(159,18,57,0.25)); border: 1px solid rgba(225,29,72,0.3); color: #f43f5e;">
+                    <i class="bi bi-robot" style="font-size: 22px;"></i>
+                    <span class="fa-rail-btn-label" style="font-weight: 700;">แชท AI</span>
+                </a>
             </div>
 
             {{-- ชั้น 2: แผงเมนูย่อยของโมดูลที่เลือก --}}

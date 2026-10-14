@@ -8,6 +8,26 @@ use Illuminate\Support\Facades\DB;
 
 class AiChatController extends Controller
 {
+    public function index()
+    {
+        // สรุปข้อมูลภาพรวมเบื้องต้นสำหรับหน้าแดชบอร์ด AI
+        $lowStockCount = 0;
+        try {
+            $lowStockCount = DB::table('stock_balances')->where('on_hand_qty', '<', 0)->count();
+        } catch (\Exception $e) {}
+
+        $today = date('Y-m-d');
+        $salesToday = 0;
+        try {
+            $salesToday = DB::table('pos_orders')->whereDate('created_at', $today)->sum('net_amount');
+        } catch (\Exception $e) {}
+
+        return view('ai-assistant.index', [
+            'lowStockCount' => $lowStockCount,
+            'salesToday' => $salesToday
+        ]);
+    }
+
     public function chat(Request $request)
     {
         // Support both old 'message' and new 'messages' format
