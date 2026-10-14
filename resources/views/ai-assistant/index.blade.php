@@ -354,7 +354,9 @@ document.addEventListener('alpine:init', () => {
         },
         resetConversation() {
             if (confirm('ต้องการเริ่มบทสนทนาใหม่ใช่หรือไม่? (ประวัติคำถามยังคงอยู่ในแถบซ้ายมือ)')) {
+                this.loading = false;
                 this.messages = [{ role: 'ai', content: 'เริ่มต้นการสนทนาใหม่เรียบร้อยครับ มีข้อมูลส่วนใดให้ POP STAR AI ช่วยเหลือไหมครับ?' }];
+                localStorage.removeItem('ai_chat_history');
             }
         },
         clearPromptHistory() {
@@ -415,15 +417,17 @@ document.addEventListener('alpine:init', () => {
                 }
             } catch (e) {
                 clearTimeout(timeoutId);
+                console.error('AI Chat Error:', e);
                 if (e.name === 'AbortError') {
                     this.messages.push({ role: 'ai', content: 'ขออภัยครับ ระบบ AI ตอบกลับช้ากว่าปกติ กรุณาลองกดถามใหม่อีกครั้งครับ' });
                 } else {
-                    this.messages.push({ role: 'ai', content: 'ขออภัยครับ ไม่สามารถเชื่อมต่อระบบเครือข่ายได้ กรุณาลองใหม่อีกครั้ง' });
+                    this.messages.push({ role: 'ai', content: 'ขออภัยครับ ไม่สามารถเชื่อมต่อระบบเครือข่ายได้ กรุณาลองใหม่อีกครั้ง (' + (e.message || 'error') + ')' });
                 }
+            } finally {
+                clearTimeout(timeoutId);
+                this.loading = false;
+                this.scrollToBottom();
             }
-
-            this.loading = false;
-            this.scrollToBottom();
         }
     }));
 });
