@@ -125,6 +125,14 @@
             gap: 10px;
             align-items: center;
         }
+        .spin-slow {
+            animation: spin 3s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
     </style>
 
     <div class="ai-shell">
@@ -162,11 +170,11 @@
                 </div>
             </div>
 
-            <!-- Token Counter & Quota Monitor -->
+            <!-- Token Counter & Quota Monitor พร้อมตัวนับเวลาถอยหลังรีเซ็ตโควตา -->
             <div class="ai-token-card">
                 <div class="d-flex align-items-center justify-content-between mb-2">
                     <span class="fw-bold" style="font-size:12.5px;">
-                        <i class="bi bi-cpu-fill text-primary me-1"></i> โควตา Token (Gemini 2.5)
+                        <i class="bi bi-cpu-fill text-primary me-1"></i> โควตา Token (Gemini 3.5)
                     </span>
                     <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size:11px;" x-text="tokenInfo.total.toLocaleString() + ' Tokens'"></span>
                 </div>
@@ -181,8 +189,17 @@
                     <span>ใช้ไป: <strong class="text-dark" x-text="tokenInfo.total.toLocaleString()"></strong></span>
                     <span>คงเหลือ: <strong class="text-success" x-text="tokenInfo.remaining.toLocaleString()"></strong></span>
                 </div>
+
+                <!-- นับถอยหลังรีเซ็ต Token (RPM / RPD) -->
+                <div class="mt-2 pt-2 border-top d-flex align-items-center justify-content-between" style="font-size:11px;">
+                    <span class="text-muted d-flex align-items-center gap-1">
+                        <i class="bi bi-arrow-repeat text-info spin-slow"></i> รีเซ็ตโควตารอบถัดไป:
+                    </span>
+                    <span class="fw-bold text-primary font-monospace" x-text="resetCountdownText"></span>
+                </div>
+
                 <div class="mt-2 text-muted" style="font-size:10.5px; line-height:1.4;">
-                    * โมเดล Gemini 2.5 Flash รองรับบริบทสูงสุด 1,000,000 Tokens ต่อรอบ
+                    * โมเดล Gemini 3.5 Flash รองรับสูงสุด 1,000,000 Tokens ต่อรอบ (รีเซ็ตรอบใหม่ทุกวันเวลาเที่ยงคืน)
                 </div>
             </div>
         </aside>
@@ -271,6 +288,8 @@ document.addEventListener('alpine:init', () => {
             total: 0,
             remaining: 1000000
         },
+        resetCountdownText: '-- ชม. -- นาที',
+        timerInterval: null,
         init() {
             // โหลดแชทเดิม
             const saved = localStorage.getItem('ai_chat_history');
@@ -297,7 +316,33 @@ document.addEventListener('alpine:init', () => {
             this.$watch('questionHistory', val => localStorage.setItem('ai_prompt_history', JSON.stringify(val)));
             this.$watch('tokenInfo', val => localStorage.setItem('ai_token_info', JSON.stringify(val)));
 
+            // เริ่มนับถอยหลังรีเซ็ต Token ทุกวินาที
+            this.updateCountdown();
+            this.timerInterval = setInterval(() => {
+                this.updateCountdown();
+            }, 1000);
+
             this.scrollToBottom();
+        },
+        updateCountdown() {
+            const now = new Date();
+            // รีเซ็ตโควตารอบวันถัดไปเวลา 00:00 น.
+            const midnight = new Date();
+            midnight.setHours(24, 0, 0, 0);
+
+            const diffMs = midnight - now;
+            if (diffMs <= 0) {
+                this.resetCountdownText = 'กำลังรีเซ็ต...';
+                return;
+            }
+
+            const diffSec = Math.floor(diffMs / 1000);
+            const hours = Math.floor(diffSec / 3600);
+            const minutes = Math.floor((diffSec % 3600) / 60);
+            const seconds = diffSec % 60;
+
+            const pad = (n) => String(n).padStart(2, '0');
+            this.resetCountdownText = `${hours} ชม. ${pad(minutes)} นาที ${pad(seconds)} วินาที`;
         },
         askAgain(text) {
             this.inputText = text;
