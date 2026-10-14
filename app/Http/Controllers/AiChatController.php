@@ -56,8 +56,32 @@ class AiChatController extends Controller
             } else {
                 $sysContext .= "สถานะปัจจุบันไม่มีสต๊อกติดลบเลย ";
             }
+
+            // 2. ข้อมูลสรุปภาพรวมวันนี้ (ยอดขาย, เอกสารรออนุมัติ, สินค้าขายดี)
+            $today = date('Y-m-d');
+            $salesToday = DB::table('pos_orders')
+                ->whereDate('created_at', $today)
+                ->sum('net_amount');
+            $ordersTodayCount = DB::table('pos_orders')
+                ->whereDate('created_at', $today)
+                ->count();
+            $sysContext .= " | สรุปยอดขายหน้าร้านวันนี้ ({$today}): ฿" . number_format($salesToday, 2) . " จากจำนวน {$ordersTodayCount} บิล ";
+
+            // 3. ใบสั่งซื้อ PO ล่าสุด
+            $pendingPo = DB::table('purchase_orders')
+                ->whereIn('status', ['draft', 'pending', 'approved'])
+                ->orderBy('id', 'desc')
+                ->limit(3)
+                ->get(['id', 'po_number', 'supplier_name', 'total_amount', 'status']);
+            if ($pendingPo->count() > 0) {
+                $sysContext .= " | เอกสาร PO ล่าสุด: ";
+                foreach ($pendingPo as $po) {
+                    $sysContext .= "PO #{$po->po_number} ({$po->supplier_name} ฿" . number_format($po->total_amount, 2) . " สถานะ: {$po->status}), ";
+                }
+            }
+
         } catch (\Exception $e) {
-            $sysContext .= "(ไม่สามารถดึงข้อมูลสต๊อกได้) ";
+            $sysContext .= "(ไม่สามารถดึงข้อมูลระบบเพิ่มเติมได้) ";
         }
         // ----------------------------------------------------------------
 
@@ -86,11 +110,15 @@ class AiChatController extends Controller
 
         try {
             $response = Http::withHeaders(['Content-Type' => 'application/json'])
-                ->timeout(15)
-                ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' . $apiKey, [
+                ->timeout(20)
+                ->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . $apiKey, [
                     'systemInstruction' => [
                         'parts' => [
-                            ['text' => 'คุณคือผู้ช่วย AI ประจำระบบ ERP ของ POP STAR SHOP (ขายส่งอาหารแช่แข็ง หมูกระทะ ชาบู) กฎสำคัญในการตอบ: 1. ตอบอ้างอิงจากข้อมูลจริงของระบบเท่านั้น ห้ามเดาหรือสมมติข้อมูลตัวเลขเองเด็ดขาด 2. ตอบสั้น กระชับ ตรงประเด็นที่สุด 3. ข้อมูลเรียลไทม์ในระบบตอนนี้คือ: ' . $sysContext]
+                            ['text' => 'คุณคือ POP STAR AI ผู้ช่วยอัจฉริยะประจำระบบ ERP ของ บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด (ธุรกิจอาหารแช่แข็ง ชาบู หมูกระทะ ขยายสาขา ค้าส่งและปลีก) 
+กฎสำคัญในการตอบ:
+1. ตอบอ้างอิงจากข้อมูลจริงของระบบเท่านั้น ห้ามเดาหรือสมมติตัวเลขเองเด็ดขาด
+2. ตอบสั้น กระชับ สุภาพ เป็นมิตร และตรงประเด็นที่สุด
+3. บริบทข้อมูลจริงเรียลไทม์ในระบบตอนนี้คือ: ' . $sysContext]
                         ]
                     ],
                     'contents' => $contents
@@ -99,7 +127,27 @@ class AiChatController extends Controller
             if ($response->successful()) {
                 $data = $response->json();
                 $reply = $data['candidates'][0]['content']['parts'][0]['text'] ?? 'ไม่มีคำตอบจากระบบ';
-                return response()->json(['reply' => $reply]);
+                
+                // สกัดข้อมูล Token Usage จาก Google Gemini
+                $usageMetadata = $data['usageMetadata'] ?? [];
+                $promptTokens = $usageMetadata['promptTokenCount'] ?? 0;
+                $candidatesTokens = $usageMetadata['candidatesTokenCount'] ?? 0;
+                $totalTokens = $usageMetadata['totalTokens'] ?? ($promptTokens + $candidatesTokens);
+                
+                // สำหรับโมเดล Gemini 2.5 Flash เพดานโควตา Context Window คือ 1,000,000 Tokens
+                $quotaLimit = 1000000;
+                $remainingTokens = max(0, $quotaLimit - $totalTokens);
+
+                return response()->json([
+                    'reply' => $reply,
+                    'tokens' => [
+                        'prompt_tokens' => $promptTokens,
+                        'completion_tokens' => $candidatesTokens,
+                        'total_tokens' => $totalTokens,
+                        'quota_limit' => $quotaLimit,
+                        'remaining_tokens' => $remainingTokens
+                    ]
+                ]);
             }
 
             return response()->json([
