@@ -3762,7 +3762,9 @@ function posApp() {
                     const oldMap = new Map((this.products || []).map(p => [p.id, p]));
                     for (const np of newProducts) {
                         const old = oldMap.get(np.id);
-                        if (old && (Number(old.price) !== Number(np.price) || old.name_th !== np.name_th)) {
+                        const npPrice = Number(np.pos_price ?? np.default_price ?? 0);
+                        const oldPrice = old ? Number(old.pos_price ?? old.default_price ?? 0) : null;
+                        if (old && (oldPrice !== npPrice || old.name_th !== np.name_th)) {
                             priceChangedCount++;
                         }
                     }
@@ -3774,9 +3776,12 @@ function posApp() {
                         let cartUpdated = false;
                         for (const item of this.cart) {
                             const updatedProd = newProducts.find(p => p.id === item.id);
-                            if (updatedProd && Number(updatedProd.price) !== Number(item.price)) {
-                                item.price = Number(updatedProd.price);
-                                cartUpdated = true;
+                            if (updatedProd) {
+                                const newUnitPrice = Number(updatedProd.pos_price ?? updatedProd.default_price ?? 0);
+                                if (Number(item.price) !== newUnitPrice) {
+                                    item.price = newUnitPrice;
+                                    cartUpdated = true;
+                                }
                             }
                         }
                         if (cartUpdated && typeof this.calcTotals === 'function') {
