@@ -151,8 +151,15 @@ class ProductController extends Controller
                 ->orderByDesc('effective_from'),
         ]);
 
-        // Load all price tables with this product's prices + which branches use each table
-        $priceTables = PriceTable::where('is_active', true)->where('is_default', true)->orderBy('code')->get();
+        // Load all active price tables with this product's prices + which branches use each table
+        $priceTables = PriceTable::where('is_active', true)->orderBy('code')->get();
+        if ($priceTables->isEmpty()) {
+            $defaultTable = PriceTable::firstOrCreate(
+                ['code' => 'DEFAULT'],
+                ['name' => 'ราคามาตรฐาน', 'is_default' => true, 'is_active' => true]
+            );
+            $priceTables = collect([$defaultTable]);
+        }
 
         $productPrices = ProductPrice::with(['unit', 'priceTable'])
             ->where('product_id', $product->id)
@@ -164,7 +171,7 @@ class ProductController extends Controller
             ->get(['id', 'code', 'name_th', 'price_table_id'])
             ->groupBy('price_table_id');
 
-        $defaultPriceTable = PriceTable::where('is_default', true)->first();
+        $defaultPriceTable = PriceTable::where('is_default', true)->first() ?? $priceTables->first();
         $currentVatRate = (float) (DB::table('vat_rates')
             ->where('effective_from', '<=', now()->toDateString())
             ->where(fn ($query) => $query->whereNull('effective_to')->orWhere('effective_to', '>=', now()->toDateString()))
@@ -238,15 +245,20 @@ class ProductController extends Controller
     public function upsertPrice(Request $request, Product $product): JsonResponse|RedirectResponse
     {
         $data = $request->validate([
-            'price_table_id' => ['required', 'integer', 'exists:price_tables,id'],
+            'price_table_id' => ['nullable', 'integer', 'exists:price_tables,id'],
             'unit_id' => ['nullable', 'integer', 'exists:product_units,id'],
             'price' => ['required', 'numeric', 'min:0'],
             'cost_price' => ['nullable', 'numeric', 'min:0'],
         ]);
 
+        $defaultTable = PriceTable::where('is_default', true)->first()
+            ?? PriceTable::firstOrCreate(['code' => 'DEFAULT'], ['name' => 'ราคามาตรฐาน', 'is_default' => true, 'is_active' => true]);
+
+        $priceTableId = $data['price_table_id'] ?? $defaultTable->id;
+
         $identity = [
             'product_id' => $product->id,
-            'price_table_id' => $data['price_table_id'],
+            'price_table_id' => $priceTableId,
             'unit_id' => $data['unit_id'] ?? null,
         ];
         $oldPrice = ProductPrice::where($identity)->value('price');
@@ -258,6 +270,11 @@ class ProductController extends Controller
                 'is_active' => true,
             ]
         );
+
+        // อัปเดตราคา default_price ในตาราง products ให้ตรงกันด้วย
+        $product->update([
+            'default_price' => $data['price']
+        ]);
         if ($oldPrice === null || DecimalMath::compare($oldPrice, $data['price']) !== 0) {
             PriceChange::create([
                 'product_id' => $product->id,
@@ -282,7 +299,48 @@ class ProductController extends Controller
     {
         $data = $this->validateProduct($request, $product->id);
 
+        // Convert empty string fields to null for decimal and nullable columns
+        $nullableFields = [
+            'name_en', 'note', 'product_category_id', 'product_department_id',
+            'product_brand_id', 'maximum_sale_price', 'minimum_margin_percent',
+            'reorder_point', 'minimum_stock', 'maximum_stock', 'shelf_life_days',
+            'default_price'
+        ];
+        foreach ($nullableFields as $field) {
+            if (array_key_exists($field, $data) && ($data[$field] === '' || $data[$field] === null)) {
+                $data[$field] = null;
+            }
+        }
+
+        $oldPrice = $product->default_price;
         $product->update($data);
+
+        // Sync to default price table if default_price is provided
+        if (isset($data['default_price']) && $data['default_price'] !== null) {
+            $defaultTable = PriceTable::where('is_default', true)->first()
+                ?? PriceTable::firstOrCreate(['code' => 'DEFAULT'], ['name' => 'ราคามาตรฐาน', 'is_default' => true, 'is_active' => true]);
+
+            ProductPrice::updateOrCreate(
+                [
+                    'product_id' => $product->id,
+                    'price_table_id' => $defaultTable->id,
+                    'unit_id' => null,
+                ],
+                [
+                    'price' => $data['default_price'],
+                ]
+            );
+
+            if ($oldPrice === null || DecimalMath::compare($oldPrice, $data['default_price']) !== 0) {
+                PriceChange::create([
+                    'product_id' => $product->id,
+                    'old_price' => $oldPrice,
+                    'new_price' => $data['default_price'],
+                    'effective_date' => now()->toDateString(),
+                    'changed_by' => auth()->id(),
+                ]);
+            }
+        }
 
         return redirect()->route('products.show', ['product' => $product, 'popup' => $request->boolean('popup') ? 1 : null])->with('success', 'บันทึกข้อมูลสินค้าแล้ว');
     }
@@ -655,13 +713,66 @@ class ProductController extends Controller
     public function quickStockIn(Request $request, Product $product, FifoStockService $stockService): RedirectResponse
     {
         $data = $request->validate([
-            'warehouse_location_id' => ['required', 'integer', 'exists:warehouse_locations,id'],
+            'warehouse_location_id' => ['required', 'string'],
             'qty'                   => ['required', 'numeric', 'min:0.0001'],
             'unit_cost'             => ['nullable', 'numeric', 'min:0'],
             'remark'                => ['nullable', 'string', 'max:500'],
         ]);
 
-        $location = \App\Models\WarehouseLocation::findOrFail($data['warehouse_location_id']);
+        $locInput = $data['warehouse_location_id'];
+
+        if ($locInput === 'all') {
+            // เพิ่มสต็อกให้กับคลังหลักของทุกสาขา
+            $locations = collect();
+            $branches = Branch::where('is_active', true)->with('warehouses.locations')->get();
+            foreach ($branches as $branch) {
+                // เลือกตำแหน่งเก็บแรกของคลังแรกในสาขานั้น
+                $primaryLoc = null;
+                if ($branch->default_warehouse_location_id) {
+                    $primaryLoc = \App\Models\WarehouseLocation::find($branch->default_warehouse_location_id);
+                }
+                if (! $primaryLoc) {
+                    foreach ($branch->warehouses as $wh) {
+                        if ($wh->locations->isNotEmpty()) {
+                            $primaryLoc = $wh->locations->first();
+                            break;
+                        }
+                    }
+                }
+                if ($primaryLoc) {
+                    $locations->push($primaryLoc);
+                }
+            }
+
+            if ($locations->isEmpty()) {
+                return back()->with('error', 'ไม่พบคลังสินค้าที่ใช้งานได้ในระบบ');
+            }
+
+            DB::transaction(function () use ($product, $data, $locations, $stockService) {
+                foreach ($locations as $location) {
+                    $stockService->receive(
+                        $product->id,
+                        $location->id,
+                        $data['qty'],
+                        null,
+                        'adjust_in',
+                        null,
+                        null,
+                        null,
+                        $data['unit_cost'] ?? $product->average_cost ?? 0,
+                        null,
+                        $data['remark'] ?? 'เพิ่มสต็อกด่วน (ทุกสาขา)',
+                    );
+                }
+            });
+
+            $branchCount = $locations->count();
+            return back()->with('success', "เพิ่มสต็อก {$data['qty']} ชิ้น เข้าสู่ทุกสาขา ({$branchCount} สาขา) ให้ \"{$product->name_th}\" เรียบร้อยแล้ว");
+        }
+
+        // กรณีเลือกสาขา/ตำแหน่งเก็บเฉพาะแห่ง
+        $locId = (int) $locInput;
+        $location = \App\Models\WarehouseLocation::findOrFail($locId);
 
         DB::transaction(function () use ($product, $data, $location, $stockService) {
             $stockService->receive(
@@ -679,6 +790,6 @@ class ProductController extends Controller
             );
         });
 
-        return back()->with('success', "เพิ่มสต็อก {$data['qty']} ชิ้น ให้ \"{$product->name}\" เรียบร้อยแล้ว");
+        return back()->with('success', "เพิ่มสต็อก {$data['qty']} ชิ้น ให้ \"{$product->name_th}\" เรียบร้อยแล้ว");
     }
 }

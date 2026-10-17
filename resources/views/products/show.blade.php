@@ -69,7 +69,18 @@
                 </form>
             </div>
             <div class="compact-body" x-show="compactTab==='price'">
-                <table class="compact-table compact-edit-table"><thead><tr><th>ตารางราคา</th><th>หน่วย</th><th class="num">ราคาขาย</th><th class="num">ทุน</th><th>สาขาที่ใช้</th><th></th></tr></thead><tbody>@forelse($allProductPrices as $price)<tr><td>{{ $price->priceTable?->name_th ?? $price->priceTable?->code }}</td><td>{{ $price->unit?->displayLabel() ?? 'ทั่วไป' }}</td><td><input form="price-{{ $price->id }}" class="num" type="number" step="0.01" min="0" name="price" value="{{ number_format((float) $price->price, 2, '.', '') }}" required></td><td><input form="price-{{ $price->id }}" class="num" type="number" step="0.01" min="0" name="cost_price" value="{{ number_format((float) $price->cost_price, 2, '.', '') }}"></td><td>-</td><td><form id="price-{{ $price->id }}" method="post" action="{{ route('products.prices.upsert', $product) }}">@csrf<input type="hidden" name="price_table_id" value="{{ $price->price_table_id }}"><input type="hidden" name="unit_id" value="{{ $price->unit_id }}"><input type="hidden" name="popup" value="1"><input type="hidden" name="compact_form" value="1"><button class="compact-row-save"><i class="bi bi-check-lg"></i> บันทึก</button></form></td></tr>@empty<tr><td colspan="6">ยังไม่มีราคาพิเศษ — ใช้ราคาเริ่มต้น {{ number_format($product->default_price,2) }}</td></tr>@endforelse</tbody></table>
+                <div class="compact-section-head mb-2 d-flex justify-content-between align-items-center">
+                    <strong>ราคาขายตามตารางราคา</strong>
+                    <form method="post" action="{{ route('products.prices.upsert', $product) }}" class="d-flex gap-2 align-items-center">
+                        @csrf
+                        <input type="hidden" name="popup" value="1">
+                        <input type="hidden" name="compact_form" value="1">
+                        <label class="small text-muted mb-0">ราคาเริ่มต้น:</label>
+                        <input type="number" step="0.01" min="0" name="price" value="{{ number_format((float) ($product->default_price ?? 0), 2, '.', '') }}" class="num form-control form-control-sm" style="width:110px;" required>
+                        <button class="compact-row-save btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> บันทึกราคาหลัก</button>
+                    </form>
+                </div>
+                <table class="compact-table compact-edit-table"><thead><tr><th>ตารางราคา</th><th>หน่วย</th><th class="num">ราคาขาย</th><th class="num">ทุน</th><th>สาขาที่ใช้</th><th></th></tr></thead><tbody>@forelse($allProductPrices as $price)<tr><td>{{ $price->priceTable?->name_th ?? $price->priceTable?->code }}</td><td>{{ $price->unit?->displayLabel() ?? 'ทั่วไป' }}</td><td><input form="price-{{ $price->id }}" class="num" type="number" step="0.01" min="0" name="price" value="{{ number_format((float) $price->price, 2, '.', '') }}" required></td><td><input form="price-{{ $price->id }}" class="num" type="number" step="0.01" min="0" name="cost_price" value="{{ number_format((float) $price->cost_price, 2, '.', '') }}"></td><td>-</td><td><form id="price-{{ $price->id }}" method="post" action="{{ route('products.prices.upsert', $product) }}">@csrf<input type="hidden" name="price_table_id" value="{{ $price->price_table_id }}"><input type="hidden" name="unit_id" value="{{ $price->unit_id }}"><input type="hidden" name="popup" value="1"><input type="hidden" name="compact_form" value="1"><button class="compact-row-save"><i class="bi bi-check-lg"></i> บันทึก</button></form></td></tr>@empty<tr><td colspan="6" class="text-center py-2 text-muted">ใช้ราคาเริ่มต้น ฿{{ number_format($product->default_price,2) }} (สามารถกำหนดราคาตารางราคาเพิ่มเติมได้)</td></tr>@endforelse</tbody></table>
             </div>
             <div class="compact-body" x-show="compactTab==='barcode'">
                 <div class="compact-section-head"><strong>รหัสสินค้า / บาร์โค้ด</strong><button @click="barcodeOpen=true">+ เพิ่มรหัส</button></div>
@@ -686,13 +697,16 @@
                         <label class="form-label fw-semibold">คลังสินค้า / ตำแหน่งเก็บ <span class="text-danger">*</span></label>
                         <select name="warehouse_location_id" class="form-select" required>
                             <option value="">-- เลือกตำแหน่งเก็บ --</option>
-                            @foreach($branches as $branch)
-                                @foreach($branch->warehouses as $wh)
-                                    @foreach($wh->locations as $loc)
-                                        <option value="{{ $loc->id }}">{{ $branch->name_th }} › {{ $wh->name }} › {{ $loc->name }}</option>
+                            <option value="all" class="fw-bold text-primary">🌐 รวมทุกสาขา (เพิ่มเข้าคลังหลักทุกสาขาพร้อมกัน)</option>
+                            <optgroup label="━━━━━━━━━━ แยกตามสาขาและตำแหน่งเก็บ ━━━━━━━━━━">
+                                @foreach($branches as $branch)
+                                    @foreach($branch->warehouses as $wh)
+                                        @foreach($wh->locations as $loc)
+                                            <option value="{{ $loc->id }}">{{ $branch->name_th }} › {{ $wh->name }} › {{ $loc->name }}</option>
+                                        @endforeach
                                     @endforeach
                                 @endforeach
-                            @endforeach
+                            </optgroup>
                         </select>
                     </div>
                     <div class="row g-3 mb-3">
@@ -1942,7 +1956,11 @@
                         this.saveMsg = `บันทึกราคา ${Number(data.price).toLocaleString('th-TH', {minimumFractionDigits:2})} บาท แล้ว ✓`;
                         this.priceOpen = false;
                         setTimeout(() => { this.saveMsg = ''; location.reload(); }, 600);
+                    } else {
+                        alert(data.message || 'ไม่สามารถบันทึกราคาได้');
                     }
+                } catch (e) {
+                    alert('เกิดข้อผิดพลาดในการบันทึกราคา: ' + e.message);
                 } finally {
                     this.saving = false;
                 }

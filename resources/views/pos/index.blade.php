@@ -7,12 +7,11 @@
     <meta name="theme-color" content="#bd2836">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="JET POS">
+    <meta name="apple-mobile-web-app-title" content="POP STAR POS">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>JET POS — {{ \App\Models\AppSetting::company('name_th') }}</title>
-    <link rel="icon" type="image/svg+xml" href="{{ asset('pos-icon.svg') }}">
-    <link rel="icon" href="{{ asset('images/logo-jet-j-red.png') }}?v={{ filemtime(public_path('images/logo-jet-j-red.png')) }}">
-    <link rel="apple-touch-icon" href="{{ asset('images/logo-jet-j-red.png') }}?v={{ filemtime(public_path('images/logo-jet-j-red.png')) }}">
+    <title>POP STAR POS — {{ \App\Models\AppSetting::company('name_th') }}</title>
+    <link rel="icon" type="image/png" href="{{ asset('images/logos/popstar-business.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/logos/popstar-business.png') }}">
     <link rel="stylesheet" href="{{ asset('vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
     @vite('resources/css/pos-shared.css')
     <script src="{{ asset('vendor/sweetalert2/sweetalert2.all.min.js') }}"></script>
@@ -550,7 +549,7 @@
 
         .pos-actionbar {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr 1fr 1.35fr;
+            grid-template-columns: 1fr 1fr 1fr 1.15fr 1fr 1.35fr;
             gap: 6px;
             padding: 6px;
             background: rgba(17,28,46,.96);
@@ -577,6 +576,8 @@
         .action-btn.clear { background: linear-gradient(135deg,#dc2626,#991b1b); }
         .action-btn.qr { background: linear-gradient(135deg,#0ea5e9,#0891b2); }
         .action-btn.edit { background: linear-gradient(135deg,#f59e0b,#d97706); }
+        .action-btn.discount { background: linear-gradient(135deg,#8b5cf6,#6d28d9); }
+        .action-btn.discount.has-discount { background: linear-gradient(135deg,#ec4899,#be185d); box-shadow: 0 0 12px rgba(236,72,153,.5); }
         .action-btn.pay { background: linear-gradient(135deg,#10b981,#047857); font-size: 16px; }
         .action-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
         .action-btn:disabled { opacity: .42; cursor: not-allowed; transform: none; filter: none; }
@@ -1194,6 +1195,8 @@
         .action-btn.clear { background: linear-gradient(135deg,#ef4444,#b91c1c); }
         .action-btn.qr { background: linear-gradient(135deg,#06b6d4,#0284c7); }
         .action-btn.edit { background: linear-gradient(135deg,#f59e0b,#d97706); }
+        .action-btn.discount { background: linear-gradient(135deg,#8b5cf6,#7c3aed); }
+        .action-btn.discount.has-discount { background: linear-gradient(135deg,#ec4899,#db2777); }
         .action-btn.pay {
             background: linear-gradient(135deg,var(--pos-red),var(--pos-ui-primary-strong));
             box-shadow: 0 14px 28px rgba(189,40,54,.24);
@@ -1760,12 +1763,13 @@
     {{-- TOP BAR --}}
     <div class="pos-topbar">
         @if($posLogo = \App\Models\AppSetting::logoUrl())
-            <div class="pos-logo" style="display:flex;align-items:center;gap:6px;min-width:0">
-                <img src="{{ $posLogo }}" alt="logo" style="max-height:34px;max-width:120px;object-fit:contain">
-                <span style="font-size:11px;font-weight:800;color:var(--pos-red);-webkit-text-fill-color:var(--pos-red)">JET POS</span>
+            <div class="pos-logo" style="display:flex;align-items:center;min-width:0;padding:2px 0;">
+                <img src="{{ $posLogo }}" alt="POP STAR SHOP" style="max-height:38px;height:38px;width:auto;object-fit:contain">
             </div>
         @else
-            <div class="pos-logo">{{ \App\Models\AppSetting::company('name_th') }} <span style="font-size:11px;font-weight:800;color:var(--pos-red);-webkit-text-fill-color:var(--pos-red)">JET POS</span></div>
+            <div class="pos-logo" style="display:flex;align-items:center;min-width:0;padding:2px 0;">
+                <img src="{{ asset('images/logos/popstar-business.png') }}" alt="POP STAR SHOP" style="max-height:38px;height:38px;width:auto;object-fit:contain">
+            </div>
         @endif
 
         @if($lockedBranch)
@@ -1823,7 +1827,7 @@
         <button class="topbar-btn" @click="cancelBill()" :disabled="cart.length === 0">
             <i class="bi bi-trash"></i> ยกเลิก
         </button>
-        <button class="topbar-btn" @click="openDrawer()" title="เปิดลิ้นชัก (สั่งปริ้นต์เพื่อเด้งลิ้นชัก)">
+        <button class="topbar-btn" @click="openDrawer()" title="เปิดลิ้นชักเก็บเงิน (ส่งสัญญาณเตะลิ้นชัก)">
             <i class="bi bi-box"></i> เปิดลิ้นชัก
         </button>
         <button class="topbar-btn" @click="openCfd()" title="เปิดหน้าจอลูกค้า (Customer Display)">
@@ -2095,6 +2099,10 @@
             <i class="bi bi-pencil-square"></i>
             <span>แก้บิล</span>
         </button>
+        <button class="action-btn discount" :class="{ 'has-discount': billDiscountValue > 0 }" :disabled="cart.length === 0" @click="promptBillDiscount()">
+            <i class="bi bi-tag-fill"></i>
+            <span x-text="billDiscountValue > 0 ? (billDiscountType === 'percent' ? `ลด ${billDiscountValue}%` : `ลด ฿${money(billDiscountValue)}`) : 'ส่วนลด'"></span>
+        </button>
         <button class="action-btn clear" :disabled="cart.length === 0" @click="cancelBill()">
             <i class="bi bi-trash3"></i>
             <span>ยกเลิกบิล</span>
@@ -2111,7 +2119,7 @@
     <div class="modal-box" style="max-width:820px; max-height:92vh; display:flex; flex-direction:column;" @click.outside="posHelpModalOpen = false" x-transition>
         <div class="modal-head" style="background:linear-gradient(135deg,var(--pos-red),var(--pos-ui-primary-strong)); color:#fff; padding:12px 18px;">
             <div class="modal-title" style="color:#fff; font-size:16px; font-weight:900;">
-                <i class="bi bi-camera me-2"></i>วิธีใช้งานระบบขายหน้าร้าน (JET POS) - ขั้นตอนที่ <span x-text="helpStep"></span>/5
+                <i class="bi bi-camera me-2"></i>วิธีใช้งานระบบขายหน้าร้าน (POP STAR POS) - ขั้นตอนที่ <span x-text="helpStep"></span>/5
             </div>
             <button class="modal-close" type="button" @click="posHelpModalOpen = false" style="color:#fff; background:rgba(255,255,255,.2); width:32px; height:32px; border-radius:50%; border:0; display:grid; place-items:center;">
                 <i class="bi bi-x-lg"></i>
@@ -2132,8 +2140,8 @@
                     <div style="display:flex; gap:16px; align-items:start; padding:16px; background:var(--pos-panel-2); border-radius:12px; border:2px solid var(--pos-red);">
                         <span style="width:40px; height:40px; border-radius:8px; background:var(--pos-red); color:#fff; display:grid; place-items:center; font-weight:900; font-size:18px; flex-shrink:0;">1</span>
                         <div>
-                            <strong style="display:block; font-size:18px; color:var(--pos-text); margin-bottom:6px;">เปิดกะการขาย (Shift)</strong>
-                            <span style="font-size:15px; color:var(--pos-muted); line-height:1.5;">เมื่อเริ่มงาน กดปุ่ม <b>"ยังไม่เปิดกะ"</b> ด้านบน<br>ใส่เงินทอนเริ่มต้นเพื่อเริ่มรอบการขาย</span>
+                            <strong style="display:block; font-size:18px; color:var(--pos-text); margin-bottom:6px;">เปิดกะการขาย (Shift) *จำเป็นต้องเปิดก่อนขาย*</strong>
+                            <span style="font-size:15px; color:var(--pos-muted); line-height:1.5;">เมื่อเริ่มงาน ต้องกดปุ่ม <b>"ยังไม่เปิดกะ"</b> ด้านบน เพื่อใส่เงินทอนเริ่มต้นก่อน (หากยังไม่เปิดกะ ระบบจะไม่อนุญาตให้เลือกสินค้าลงตะกร้า)</span>
                         </div>
                     </div>
                 </template>
@@ -2142,7 +2150,7 @@
                         <span style="width:40px; height:40px; border-radius:8px; background:var(--pos-red); color:#fff; display:grid; place-items:center; font-weight:900; font-size:18px; flex-shrink:0;">2</span>
                         <div>
                             <strong style="display:block; font-size:18px; color:var(--pos-text); margin-bottom:6px;">เลือกสินค้า / ยิงบาร์โค้ด / ชั่งน้ำหนัก</strong>
-                            <span style="font-size:15px; color:var(--pos-muted); line-height:1.5;">คลิกเลือกหมวดหมู่และสินค้า หรือยิงบาร์โค้ด<br>สินค้าจะถูกเพิ่มลงตะกร้าฝั่งซ้ายพร้อมคำนวณราคาอัตโนมัติ</span>
+                            <span style="font-size:15px; color:var(--pos-muted); line-height:1.5;">คลิกเลือกหมวดหมู่และสินค้า หรือยิงบาร์โค้ด<br>สินค้าจะถูกเพิ่มลงตะกร้าพร้อมคำนวณราคาอัตโนมัติ</span>
                         </div>
                     </div>
                 </template>
@@ -2150,8 +2158,11 @@
                     <div style="display:flex; gap:16px; align-items:start; padding:16px; background:var(--pos-panel-2); border-radius:12px; border:2px solid var(--pos-red);">
                         <span style="width:40px; height:40px; border-radius:8px; background:var(--pos-red); color:#fff; display:grid; place-items:center; font-weight:900; font-size:18px; flex-shrink:0;">3</span>
                         <div>
-                            <strong style="display:block; font-size:18px; color:var(--pos-text); margin-bottom:6px;">จัดการตะกร้า & สมาชิกสะสมแต้ม</strong>
-                            <span style="font-size:15px; color:var(--pos-muted); line-height:1.5;">สามารถกดปุ่ม +/- ปรับจำนวน ใส่รหัสสมาชิกสะสมแต้ม หรือกดเลือกโปรโมชั่นส่วนลดต่างๆ</span>
+                            <strong style="display:block; font-size:18px; color:var(--pos-text); margin-bottom:6px;">จัดการตะกร้า, ใส่ส่วนลด & พักบิล</strong>
+                            <span style="font-size:15px; color:var(--pos-muted); line-height:1.5;">
+                                • <b>🏷️ ส่วนลด:</b> กดปุ่มสีม่วงด้านล่างเพื่อใส่ส่วนลดท้ายบิลเป็น ฿ หรือ %<br>
+                                • <b>⏸️ พักบิล / 📁 เรียกบิล:</b> พักรายการขายชั่วคราวเพื่อรับลูกค้าท่านอื่นก่อนได้ตลอดเวลา
+                            </span>
                         </div>
                     </div>
                 </template>
@@ -2554,6 +2565,23 @@
             </button>
         </div>
 
+        {{-- Cash Drawer Section --}}
+        <div style="background:#0f172a;border-radius:10px;padding:12px 14px;margin-bottom:20px;border:1px solid #334155;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <div style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;">
+                    <i class="bi bi-inbox-fill" style="color:#38bdf8;"></i> ลิ้นชักเก็บเงิน (Cash Drawer)
+                </div>
+                <button type="button" @click="openDrawer()"
+                    style="background:#0284c7;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+                    <i class="bi bi-box-arrow-up-right"></i> เปิดลิ้นชัก
+                </button>
+            </div>
+            <div style="font-size:11px;color:#94a3b8;line-height:1.5;">
+                🔒 ระบบความปลอดภัย: ต้องยืนยันด้วย <strong>รหัสผ่านเข้าสู่ระบบ</strong> ของผู้ใช้ที่ล็อกอินอยู่ก่อนเปิดลิ้นชัก<br>
+                <span style="color:#38bdf8;font-weight:600;">⚡ โหมดพิมพ์ตรง (Kiosk):</span> หากเปิด POS ผ่านไอคอน <strong>"เปิดร้าน POS ป๊อบสตาร์"</strong> บน Desktop ลิ้นชักจะเด้งทันทีและพิมพ์สลิปเร็ว
+            </div>
+        </div>
+
         {{-- Action Buttons --}}
         <div style="display:flex;gap:10px;">
             <button type="button" @click="receiptSettingsOpen = false"
@@ -2563,6 +2591,77 @@
             <button type="button" @click="saveReceiptSettingsForm()"
                 style="flex:2;background:linear-gradient(135deg,#0284c7,#0369a1);color:#fff;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(2,132,199,.4);">
                 <i class="bi bi-check-lg me-1"></i> บันทึกการตั้งค่า
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- Cash Drawer Password Modal (User Login Password) --}}
+<div x-show="drawerPinModalOpen" x-cloak
+     style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.65);backdrop-filter:blur(6px);"
+     @click.self="drawerPinModalOpen = false"
+     @keydown.escape.window="drawerPinModalOpen = false">
+    <div style="background:#1e293b;color:#f1f5f9;border-radius:20px;padding:26px 24px 22px;width:min(92vw,380px);box-shadow:0 25px 60px rgba(0,0,0,.6);border:1px solid #334155;text-align:center;">
+        
+        {{-- Icon & Title --}}
+        <div style="width:52px;height:52px;border-radius:14px;background:rgba(2,132,199,.15);border:1.5px solid #0284c7;display:grid;place-items:center;font-size:24px;color:#38bdf8;margin:0 auto 12px;">
+            <i class="bi bi-shield-lock-fill"></i>
+        </div>
+        <div style="font-size:18px;font-weight:800;margin-bottom:4px;color:#fff;">ยืนยันรหัสผ่านเพื่อเปิดลิ้นชัก</div>
+        <div style="font-size:12px;color:#94a3b8;margin-bottom:14px;line-height:1.4;">
+            กรุณากรอกรหัสผ่านเข้าสู่ระบบของคุณเพื่อเปิดลิ้นชักเก็บเงิน
+        </div>
+
+        {{-- Current Logged-in User Badge --}}
+        <div style="background:#0f172a;border:1px solid #334155;border-radius:12px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;text-align:left;">
+            <div style="width:36px;height:36px;border-radius:10px;background:#1e293b;display:grid;place-items:center;font-size:16px;color:#38bdf8;flex-shrink:0;">
+                <i class="bi bi-person-fill"></i>
+            </div>
+            <div style="min-width:0;flex:1;">
+                <div style="font-size:13px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    {{ auth()->user()?->name ?? auth()->user()?->username ?? 'ผู้ใช้งาน' }}
+                </div>
+                <div style="font-size:11px;color:#94a3b8;">
+                    ชื่อผู้ใช้: <span style="color:#38bdf8;font-weight:600;">{{ auth()->user()?->username }}</span>
+                </div>
+            </div>
+        </div>
+
+        {{-- Password Input Display --}}
+        <div style="position:relative;margin-bottom:10px;">
+            <input :type="showDrawerPinText ? 'text' : 'password'"
+                   x-ref="drawerPinInputField"
+                   x-model="drawerPinInput"
+                   @keydown.enter.prevent="submitDrawerPin()"
+                   placeholder="พิมพ์รหัสผ่านของคุณที่นี่"
+                   autocomplete="current-password"
+                   style="width:100%;background:#0f172a;color:#fff;border:2px solid #334155;border-radius:12px;padding:12px 42px 12px 14px;font-size:16px;letter-spacing:1px;outline:none;box-sizing:border-box;transition:border-color .2s;"
+                   :style="drawerPinError ? 'border-color:#ef4444;background:#2d1215;' : ''"
+                   onfocus="if(!this.style.borderColor.includes('ef4444')) this.style.borderColor='#38bdf8'"
+                   onblur="if(!this.style.borderColor.includes('ef4444')) this.style.borderColor='#334155'">
+            
+            <button type="button" @click="showDrawerPinText = !showDrawerPinText"
+                    style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:4px;display:grid;place-items:center;">
+                <i class="bi" :class="showDrawerPinText ? 'bi-eye-slash-fill' : 'bi-eye-fill'"></i>
+            </button>
+        </div>
+
+        {{-- Error message --}}
+        <div x-show="drawerPinError" x-text="drawerPinError"
+             style="color:#f87171;font-size:12px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:4px;line-height:1.3;">
+        </div>
+
+        {{-- Action Buttons --}}
+        <div style="display:flex;gap:8px;margin-top:6px;">
+            <button type="button" @click="drawerPinModalOpen = false"
+                    style="flex:1;background:#0f172a;color:#94a3b8;border:1.5px solid #334155;border-radius:12px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;">
+                ยกเลิก
+            </button>
+            <button type="button" @click="submitDrawerPin()"
+                    :disabled="drawerPinVerifying"
+                    style="flex:2;background:linear-gradient(135deg,#0284c7,#0369a1);color:#fff;border:none;border-radius:12px;padding:11px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(2,132,199,.4);display:flex;align-items:center;justify-content:center;gap:6px;">
+                <span x-show="!drawerPinVerifying"><i class="bi bi-unlock-fill me-1"></i> ยืนยันเปิดลิ้นชัก</span>
+                <span x-show="drawerPinVerifying"><i class="bi bi-arrow-repeat spin"></i> กำลังตรวจสอบ...</span>
             </button>
         </div>
     </div>
@@ -2723,10 +2822,8 @@
         margin-top: 2px !important;
     }
     
-    /* ซ่อนปุ่ม พักบิล และ แก้ไขบิล ในแถบเมนูด้านล่าง (id pos-actionbar) */
-    .pos-actionbar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr) !important; }
-    .action-btn.hold,
-    .action-btn.edit { display: none !important; }
+    /* ปรับแต่งแถบปุ่มเมนูด้านล่าง (id pos-actionbar) */
+    .pos-actionbar { grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)) !important; }
 }
 
         /* --- Modern Cart Totals Redesign --- */
@@ -2979,6 +3076,16 @@ function posApp() {
         shiftProcessing: false,
         receiptSettingsOpen: false,
         receiptSettingsForm: { paperWidth: '80mm', showQr: false, thankMsg: 'ขอบคุณที่ใช้บริการ 🙏' },
+        drawerPinModalOpen: false,
+        drawerPinInput: '',
+        drawerPinError: '',
+        drawerPinVerifying: false,
+        showDrawerPinText: false,
+        drawerChangePinOpen: false,
+        drawerNewPinInput: '',
+        drawerNewPinConfirm: '',
+        drawerPinChangeError: '',
+        drawerPinChangeLoading: false,
         openingCash: 0,
         openingNote: '',
         countedCash: 0,
@@ -3079,6 +3186,11 @@ function posApp() {
                     }
                 } catch (e) { /* silent */ }
             }, 30 * 60 * 1000);
+
+            // Auto-sync สินค้าและราคาจากหลังบ้านทุก 15 วินาที
+            setInterval(() => {
+                this.autoSyncProducts();
+            }, 15 * 1000);
         },
 
 
@@ -3423,18 +3535,92 @@ function posApp() {
             });
         },
         openDrawer() {
-            const printWindow = window.open('', '_blank', 'width=480,height=720');
-            if (!printWindow) {
-                erpPopup('warning', 'เบราว์เซอร์บล็อกหน้าต่างพิมพ์ กรุณาอนุญาต Pop-ups');
+            this.drawerPinInput = '';
+            this.drawerPinError = '';
+            this.showDrawerPinText = false;
+            this.drawerPinModalOpen = true;
+            this.$nextTick(() => {
+                this.$refs.drawerPinInputField?.focus();
+            });
+        },
+
+        async submitDrawerPin() {
+            const password = this.drawerPinInput;
+            if (!password) {
+                this.drawerPinError = 'กรุณากรอกรหัสผ่านเข้าสู่ระบบ';
                 return;
             }
-            printWindow.document.write(`<html><head><title>Open Drawer</title></head><body>.</body></html>`);
+            this.drawerPinVerifying = true;
+            this.drawerPinError = '';
+            try {
+                const resp = await fetch('{{ route('pos.drawer.verify-pin') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ password: password })
+                });
+                const data = await resp.json();
+                if (resp.ok && data.ok) {
+                    this.drawerPinModalOpen = false;
+                    this.drawerPinInput = '';
+                    await this.executeKickDrawer();
+                } else {
+                    this.drawerPinError = data.message || 'รหัสผ่านไม่ถูกต้อง';
+                    this.drawerPinInput = '';
+                    this.$nextTick(() => { this.$refs.drawerPinInputField?.focus(); });
+                }
+            } catch (err) {
+                this.drawerPinError = 'เกิดข้อผิดพลาดในการตรวจสอบรหัสผ่าน';
+                this.drawerPinInput = '';
+            } finally {
+                this.drawerPinVerifying = false;
+            }
+        },
+
+        async executeKickDrawer() {
+            erpToast('info', 'กำลังเปิดลิ้นชักเก็บเงิน...', { timer: 1200 });
+            
+            // 1. ส่งสัญญาณตรงผ่าน Local POS Hardware Bridge (เด้งทันที 0.05 วินาที ไร้หน้าต่างพิมพ์)
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 600);
+                const resp = await fetch('http://127.0.0.1:18181/kick', { 
+                    method: 'GET',
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                if (resp.ok) {
+                    erpToast('success', 'เปิดลิ้นชักเรียบร้อย', { timer: 1500 });
+                    return;
+                }
+            } catch (bridgeErr) {
+                console.log('[POS] Local bridge not reached, fallback to browser print kick', bridgeErr);
+            }
+
+            // 2. Fallback: ส่งสัญญาณผ่านหน้าต่างพิมพ์ขนาด 0 หน้ากระดาษ
+            const printWindow = window.open('', '_blank', 'width=320,height=240');
+            if (!printWindow) {
+                erpPopup('warning', 'เบราว์เซอร์บล็อกหน้าต่าง กรุณาอนุญาต Pop-ups');
+                return;
+            }
+            printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>เปิดลิ้นชัก</title><style>
+                @page { size: 10mm 1mm; margin: 0; }
+                body { margin: 0; padding: 12px; font-family: Tahoma, sans-serif; font-size: 12px; text-align: center; color: #333; }
+            </style></head><body>
+                <div style="font-weight:bold;margin-bottom:4px;">กำลังเปิดลิ้นชักเก็บเงิน...</div>
+                <div style="font-size:10px;color:#888;">(หน้าต่างนี้จะปิดเองอัตโนมัติ)</div>
+            </body></html>`);
             printWindow.document.close();
             printWindow.focus();
             printWindow.addEventListener('afterprint', () => printWindow.close(), { once: true });
-            window.setTimeout(() => {
-                printWindow.print();
-                window.setTimeout(() => printWindow.close(), 1000); // Fallback auto-close
+            setTimeout(() => {
+                try {
+                    printWindow.print();
+                } catch (e) {}
+                setTimeout(() => { try { printWindow.close(); } catch(e){} }, 1000);
             }, 100);
         },
 
@@ -3488,60 +3674,6 @@ function posApp() {
                     .receipt-thanks { margin-top: 3mm; color: #334155; font-size: 10px; }
                     .receipt-bottom-feed { display: block; height: 12mm; }
                     @media print { html, body { width: ${paperWidth}; } }
-                
-        /* --- Modern Cart Totals Redesign --- */
-        .cart-totals {
-            display: flex !important;
-            flex-wrap: wrap !important;
-            gap: 6px !important;
-            margin-bottom: 0 !important;
-            margin-top: 10px !important;
-        }
-        .total-row {
-            display: flex !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-            width: calc(50% - 3px) !important;
-            padding: 4px 8px !important;
-            font-size: 13px !important;
-            background: #f1f5f9 !important;
-            border-radius: 6px !important;
-            color: #475569 !important;
-        }
-        .total-row.grand {
-            width: 100% !important;
-            background: transparent !important;
-            padding: 12px 4px 4px !important;
-            margin-top: 4px !important;
-            border-top: 2px dashed #cbd5e1 !important;
-            font-size: 26px !important;
-            font-weight: 900 !important;
-            color: #0f172a !important;
-        }
-        .total-row.grand .val {
-            color: #dc2626 !important;
-        }
-        .total-row.discount {
-            color: #ea580c !important;
-            background: #fff7ed !important;
-        }
-        /* Make inputs look better */
-        .pos-cart-footer {
-            padding: 12px 14px 14px !important;
-            border-top: 2px solid #e2e8f0 !important;
-        }
-        .bill-tools {
-            display: grid !important;
-            grid-template-columns: 1fr 1fr !important;
-            gap: 10px !important;
-            margin-bottom: 8px !important;
-        }
-        .bill-tools label {
-            font-size: 12px !important;
-            font-weight: 700 !important;
-            margin-bottom: 4px !important;
-            display: block !important;
-        }
 </style></head><body>${receiptHtml}</body></html>`);
                 printWindow.document.close();
                 printWindow.focus();
@@ -3603,6 +3735,60 @@ function posApp() {
             } finally {
                 icon.style.animation = '';
                 btn.disabled = false;
+            }
+        },
+        async autoSyncProducts() {
+            // Do not sync in background if user is actively searching or paying
+            if (this.payModalOpen || this.processing) return;
+            try {
+                const params = new URLSearchParams();
+                if (this.searchQ) params.set('q', this.searchQ);
+                if (this.categoryId) params.set('category_id', this.categoryId);
+                if (this.branchId) params.set('branch_id', this.branchId);
+
+                const res = await fetch(`/pos/products?${params}`, {
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                if (res.ok) {
+                    const contentType = res.headers.get('content-type') || '';
+                    if (!contentType.includes('application/json')) return;
+                    const newProducts = await res.json();
+                    if (!Array.isArray(newProducts)) return;
+
+                    // Check if any product price or name changed
+                    let priceChangedCount = 0;
+                    const oldMap = new Map((this.products || []).map(p => [p.id, p]));
+                    for (const np of newProducts) {
+                        const old = oldMap.get(np.id);
+                        if (old && (Number(old.price) !== Number(np.price) || old.name_th !== np.name_th)) {
+                            priceChangedCount++;
+                        }
+                    }
+
+                    this.products = newProducts;
+
+                    if (priceChangedCount > 0) {
+                        // Also update items currently in cart if their unit price wasn't manually overridden
+                        let cartUpdated = false;
+                        for (const item of this.cart) {
+                            const updatedProd = newProducts.find(p => p.id === item.id);
+                            if (updatedProd && Number(updatedProd.price) !== Number(item.price)) {
+                                item.price = Number(updatedProd.price);
+                                cartUpdated = true;
+                            }
+                        }
+                        if (cartUpdated && typeof this.calcTotals === 'function') {
+                            this.calcTotals();
+                        }
+                        if (typeof erpToast === 'function') {
+                            erpToast('info', `อัปเดตราคาใหม่เรียบร้อย (${priceChangedCount} รายการ)`, { timer: 3000 });
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('[POS AutoSync] skipped:', err.message);
             }
         },
         async loadProducts() {
@@ -3687,6 +3873,13 @@ function posApp() {
         async scanSearch() {
             const scanned = String(this.searchQ || '').trim();
             if (!scanned) return;
+
+            if (!this.activeShift) {
+                erpPopup('warning', 'กรุณาเปิดกะการขายก่อนเริ่มสแกนสินค้า');
+                this.searchQ = '';
+                this.openShiftModal();
+                return;
+            }
 
             // Guard: ป้องกันปืนยิงบาร์โค้ดส่ง Enter ซ้ำ (CR+LF)
             if (this._scanning) return;
@@ -3812,6 +4005,11 @@ function posApp() {
         },
 
         addToCart(product, qty = 1, meta = {}) {
+            if (!this.activeShift) {
+                erpPopup('warning', 'กรุณาเปิดกะการขายก่อนเริ่มหยิบสินค้าลงตะกร้า');
+                this.openShiftModal();
+                return;
+            }
             const addQty = Math.max(0.001, Number(qty) || 1);
             const existing = this.cart.find(i => i.id === product.id && !i.is_free_gift);
             const currentQty = existing ? Number(existing.qty) : 0;
@@ -4282,7 +4480,25 @@ function posApp() {
                 return;
             }
 
-            this.cart = JSON.parse(JSON.stringify(bill.cart));
+            this.cart = (bill.cart || []).map((item) => {
+                const p = this.products.find(x => x.id === item.id);
+                const unitPrice = Number(item.unit_price ?? item.price ?? p?.pos_price ?? p?.default_price ?? 0);
+                const nameTh = item.name_th || item.name || p?.name_th || 'สินค้า';
+                const skuCode = item.sku_code || p?.sku_code || '';
+                return {
+                    ...item,
+                    id: Number(item.id || p?.id),
+                    uid: item.uid || ('p' + (item.id || p?.id) + '_' + Math.random().toString(36).substr(2, 9)),
+                    sku_code: skuCode,
+                    name_th: nameTh,
+                    name: nameTh,
+                    unit_price: unitPrice,
+                    price: unitPrice,
+                    qty: Number(item.qty || 1),
+                    discount_value: Number(item.discount_value || 0),
+                    discount_type: item.discount_type || 'baht',
+                };
+            });
             this.selectedCartIdx = this.cart.length ? this.cart.length - 1 : null;
             this.customerQuery = bill.customerQuery || '';
             this.customerId = bill.customerId || null;
@@ -4294,6 +4510,7 @@ function posApp() {
             this.billDiscountType = bill.billDiscountType || 'baht';
             this.vatMode = bill.vatMode || 'included';
             this.appliedCard = bill.appliedCard || null;
+            this.applyQtyPromotions();
             this.heldBills = this.heldBills.filter((item) => Number(item.id) !== billId);
             erpToast('success', `เรียกบิล ${bill.hold_no || ''} แล้ว`, { timer: 1400 });
         },
@@ -4313,6 +4530,67 @@ function posApp() {
             });
 
             erpToast('info', 'เลือกสินค้าแล้ว แก้จำนวน ราคา หรือส่วนลดได้ที่รายการซ้าย', { timer: 2000 });
+        },
+
+        async promptBillDiscount() {
+            if (this.cart.length === 0) return;
+
+            const html = `
+                <div style="text-align: left; font-size: 14px; color: #cbd5e1;">
+                    <div style="margin-bottom: 12px;">
+                        <label style="display:block; margin-bottom: 4px; font-weight: bold; color: #f1f5f9;">ประเภทส่วนลด:</label>
+                        <select id="swal-discount-type" class="swal2-input" style="width: 100%; margin: 0; background: #0f172a; color: #fff; border: 1px solid #475569; border-radius: 8px; padding: 8px;">
+                            <option value="baht" ${this.billDiscountType === 'baht' ? 'selected' : ''}>จำนวนเงินบาท (฿)</option>
+                            <option value="percent" ${this.billDiscountType === 'percent' ? 'selected' : ''}>เปอร์เซ็นต์ (%)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block; margin-bottom: 4px; font-weight: bold; color: #f1f5f9;">มูลค่าส่วนลด:</label>
+                        <input id="swal-discount-val" type="number" step="0.01" min="0" value="${this.billDiscountValue > 0 ? this.billDiscountValue : ''}" placeholder="ระบุตัวเลข เช่น 50 หรือ 10" class="swal2-input" style="width: 100%; margin: 0; background: #0f172a; color: #fff; border: 1px solid #475569; border-radius: 8px; padding: 8px; font-size: 18px; font-weight: bold;">
+                    </div>
+                </div>
+            `;
+
+            const { value: formValues, isConfirmed } = await Swal.fire({
+                title: '🏷️ ส่วนลดท้ายบิล',
+                html,
+                focusConfirm: false,
+                showCancelButton: true,
+                showDenyButton: this.billDiscountValue > 0,
+                confirmButtonText: 'บันทึกส่วนลด',
+                cancelButtonText: 'ยกเลิก',
+                denyButtonText: 'ล้างส่วนลด',
+                confirmButtonColor: '#8b5cf6',
+                denyButtonColor: '#ef4444',
+                background: '#1e293b',
+                color: '#f1f5f9',
+                preConfirm: () => {
+                    const type = document.getElementById('swal-discount-type').value;
+                    const val = parseFloat(document.getElementById('swal-discount-val').value) || 0;
+                    return { type, val };
+                }
+            });
+
+            if (isConfirmed && formValues) {
+                if (formValues.val < 0) {
+                    erpPopup('warning', 'ส่วนลดต้องมากกว่า 0');
+                    return;
+                }
+                if (formValues.type === 'percent' && formValues.val > 100) {
+                    erpPopup('warning', 'ส่วนลดเปอร์เซ็นต์ต้องไม่เกิน 100%');
+                    return;
+                }
+                this.billDiscountType = formValues.type;
+                this.billDiscountValue = formValues.val;
+                if (this.billDiscountValue > 0) {
+                    erpToast('success', `ใส่ส่วนลด ${this.billDiscountType === 'percent' ? this.billDiscountValue + '%' : '฿' + this.money(this.billDiscountValue)} เรียบร้อย`);
+                } else {
+                    erpToast('info', 'ล้างส่วนลดแล้ว');
+                }
+            } else if (Swal.getDenyButton() && Swal.getDenyButton().dataset.clicked) {
+                this.billDiscountValue = 0;
+                erpToast('info', 'ล้างส่วนลดท้ายบิลแล้ว');
+            }
         },
 
         get totalQty() {
@@ -4696,6 +4974,11 @@ function posApp() {
                     this.paymentRef = '';
                     this.transferConfirmed = false;
                     this.loadActiveShift();
+
+                    // เปิดลิ้นชักอัตโนมัติเมื่อเลือกชำระด้วยเงินสด (ไม่ต้องใส่รหัสผ่าน)
+                    if (this.lastMethod === 'cash') {
+                        this.executeKickDrawer();
+                    }
                 } else {
                     erpPopup('error', data.message || 'เกิดข้อผิดพลาด');
                 }
