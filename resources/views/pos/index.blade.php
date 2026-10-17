@@ -1815,8 +1815,9 @@
             <span x-text="isFullscreen ? 'ออกเต็มจอ' : 'เต็มจอ'"></span>
         </button>
 
-        <button class="topbar-btn" type="button" @click="fastRefresh($event)" title="ซิงค์ข้อมูลล่าสุด">
-            <i class="bi bi-arrow-clockwise"></i>
+        <button class="topbar-btn position-relative" type="button" @click="fastRefresh($event)" title="ซิงค์ข้อมูลล่าสุด">
+            <i class="bi bi-arrow-clockwise" :style="isAutoSyncing ? 'animation: spin 0.6s linear infinite; color: #10b981;' : ''"></i>
+            <span x-show="autoSyncUpdated" x-cloak style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; background:#10b981; border-radius:50%; box-shadow:0 0 6px #10b981;"></span>
         </button>
 
         
@@ -3123,8 +3124,9 @@ function posApp() {
         receiptSettings: { paperWidth: '80mm' },
         heldBills: [],
 
-        // Clock
+        // Clock & Auto-Sync
         clock: '', isFullscreen: false, canInstall: false, installPrompt: null,
+        isAutoSyncing: false, autoSyncUpdated: false,
 
         init() {
             this.$watch('cart', () => this.broadcastCfd());
@@ -3740,6 +3742,7 @@ function posApp() {
         async autoSyncProducts() {
             // Do not sync in background if user is actively searching or paying
             if (this.payModalOpen || this.processing) return;
+            this.isAutoSyncing = true;
             try {
                 const params = new URLSearchParams();
                 if (this.searchQ) params.set('q', this.searchQ);
@@ -3772,6 +3775,9 @@ function posApp() {
                     this.products = newProducts;
 
                     if (priceChangedCount > 0) {
+                        this.autoSyncUpdated = true;
+                        setTimeout(() => { this.autoSyncUpdated = false; }, 4000);
+
                         // Also update items currently in cart if their unit price wasn't manually overridden
                         let cartUpdated = false;
                         for (const item of this.cart) {
@@ -3794,6 +3800,11 @@ function posApp() {
                 }
             } catch (err) {
                 console.warn('[POS AutoSync] skipped:', err.message);
+            } finally {
+                // Ensure spin animation is visible smoothly for at least 600ms
+                setTimeout(() => {
+                    this.isAutoSyncing = false;
+                }, 600);
             }
         },
         async loadProducts() {
