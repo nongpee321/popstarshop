@@ -11,13 +11,49 @@ use Illuminate\View\View;
 
 class MemberController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
-        $members = Member::with(['memberType', 'branch'])->orderBy('member_code')->paginate(50);
+        $q = trim((string) $request->input('q', ''));
+        $typeId = $request->input('member_type_id');
+        $branchId = $request->input('branch_id');
+        $status = $request->input('status');
+
+        $query = Member::with(['memberType', 'branch']);
+
+        if ($q !== '') {
+            $query->where(function ($sub) use ($q) {
+                $sub->where('member_code', 'ilike', "%{$q}%")
+                    ->orWhere('name', 'ilike', "%{$q}%")
+                    ->orWhere('phone', 'ilike', "%{$q}%");
+            });
+        }
+
+        if ($typeId) {
+            $query->where('member_type_id', $typeId);
+        }
+
+        if ($branchId) {
+            $query->where('branch_id', $branchId);
+        }
+
+        if ($status === 'active') {
+            $query->where('is_active', true);
+        } elseif ($status === 'inactive') {
+            $query->where('is_active', false);
+        }
+
+        $members = $query->orderBy('member_code')->paginate(25)->withQueryString();
         $memberTypes = MemberType::orderBy('code')->get();
         $branches = Branch::orderBy('code')->get();
 
-        return view('members.index', compact('members', 'memberTypes', 'branches'));
+        $stats = [
+            'total' => Member::count(),
+            'active' => Member::where('is_active', true)->count(),
+            'inactive' => Member::where('is_active', false)->count(),
+            'total_points' => Member::sum('points'),
+        ];
+
+        return view('members.index', compact('members', 'memberTypes', 'branches', 'stats', 'q', 'typeId', 'branchId', 'status'));
     }
 
     public function store(Request $request): RedirectResponse

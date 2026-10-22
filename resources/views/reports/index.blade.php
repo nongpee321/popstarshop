@@ -245,165 +245,253 @@
             <input type="hidden" name="category" value="{{ $selectedCategory }}">
             <input type="hidden" name="report" value="{{ $selectedReport }}">
 
-            <div class="flow-report-head no-print">
-                <div>
-                    <div class="flow-eyebrow">{{ $categoryMeta[$selectedCategory]['label'] ?? $catalog[$selectedCategory]['title'] ?? 'รายงาน' }}</div>
-                    <h1>{{ $reportLabels[$selectedReport] ?? $result['title'] }}</h1>
+            @if($isHub ?? false)
+                {{-- โหมด "ศูนย์รวมรายงาน (Reports Hub)" --}}
+                <div class="flow-report-head no-print">
+                    <div>
+                        <div class="flow-eyebrow"><i class="bi bi-grid-fill me-1"></i> REPORT DIRECTORY &amp; CATALOG</div>
+                        <h1>ศูนย์รวมรายงาน (Reports Hub)</h1>
+                        <p class="text-muted mb-0" style="font-size:13px">เลือกหมวดหมู่และเข้าถึงรายงานวิเคราะห์ทางธุรกิจ บัญชี ภาษี สต็อก และยอดขายทั้งหมดได้ทันที</p>
+                    </div>
+                    <div class="flow-head-actions">
+                        <a href="{{ route('legacy-reports.index') }}" class="flow-action-btn flow-action-link">
+                            <i class="bi bi-database-check"></i> รายงาน BPlus เดิม
+                        </a>
+                        <a href="{{ route('executive.index') }}" class="flow-action-btn flow-action-link">
+                            <i class="bi bi-speedometer2"></i> ภาพรวมผู้บริหาร
+                        </a>
+                        @if($canExport)
+                        <button type="button" class="flow-action-btn" onclick="exportCsv()">
+                            <i class="bi bi-download"></i> ดาวน์โหลด Excel
+                        </button>
+                        @endif
+                    </div>
                 </div>
-                <div class="flow-head-actions">
-                    <a href="{{ route('legacy-reports.index') }}" class="flow-action-btn flow-action-link">
-                        <i class="bi bi-database-check"></i> รายงาน BPlus เดิม
-                    </a>
-                    @if($canExport)
-                    <button type="button" class="flow-action-btn" onclick="exportCsv()">
-                        <i class="bi bi-download"></i> ดาวน์โหลด Excel
-                    </button>
-                    @endif
-                    <button type="button" class="flow-action-btn" onclick="window.print()">
-                        <i class="bi bi-printer"></i> พิมพ์รายงาน
-                    </button>
-                </div>
-            </div>
 
-            @if($branchLocked)
-                <div class="alert alert-warning no-print py-2 px-3 mb-3" style="font-size:13px">
-                    <i class="bi bi-exclamation-triangle me-1"></i>
-                    บัญชีนี้ยังไม่ได้สังกัดสาขา และไม่มีสิทธิ์ดูรายงานข้ามสาขา จึงยังไม่มีข้อมูลให้แสดง —
-                    ให้ผู้ดูแลระบบกำหนดสาขาให้ หรือให้สิทธิ์ <code>reports.all_branches</code>
+                {{-- การ์ดหมวดหมู่รายงาน --}}
+                <div class="row g-3 mb-4 no-print">
+                    @foreach($catalog as $catKey => $group)
+                        @php
+                            $meta = $categoryMeta[$catKey] ?? ['icon' => 'bi-folder2-open', 'color' => '#0284c7', 'label' => $group['title']];
+                            $catReportCount = count($group['reports']);
+                        @endphp
+                        <div class="col-12 col-md-6 col-xl-4">
+                            <div class="card h-100 border shadow-sm rounded-3 overflow-hidden bg-white">
+                                <div class="card-header bg-white py-3 px-3 d-flex align-items-center justify-content-between border-bottom">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div style="width:36px;height:36px;border-radius:8px;background:rgba(2,132,199,0.08);color:{{ $meta['color'] }};display:grid;place-items:center;font-size:18px;">
+                                            <i class="bi {{ $meta['icon'] }}"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="mb-0 fw-bold" style="color:var(--erp-text);font-size:14px">{{ $meta['label'] }}</h6>
+                                            <small class="text-muted" style="font-size:11px">{{ $catReportCount }} รายงานที่พร้อมใช้งาน</small>
+                                        </div>
+                                    </div>
+                                    <a href="{{ route('reports.index', ['category' => $catKey]) }}" class="btn btn-sm btn-outline-primary py-1 px-2" style="font-size:11px;font-weight:600">
+                                        เปิดหมวดนี้ <i class="bi bi-arrow-right ms-1"></i>
+                                    </a>
+                                </div>
+                                <div class="card-body p-2" style="max-height: 220px; overflow-y: auto;">
+                                    <div class="list-group list-group-flush">
+                                        @foreach($group['reports'] as $repKey => $repLabel)
+                                            <a href="{{ route('reports.index', ['category' => $catKey, 'report' => $repKey]) }}"
+                                               class="list-group-item list-group-item-action d-flex align-items-center justify-content-between py-2 px-2 border-0 rounded text-decoration-none"
+                                               style="font-size:12px;color:var(--erp-text)">
+                                                <span class="d-flex align-items-center gap-2 text-truncate">
+                                                    <i class="bi bi-file-earmark-bar-graph text-muted" style="font-size:12px"></i>
+                                                    <span class="text-truncate">{{ $reportLabels[$repKey] ?? $repLabel }}</span>
+                                                </span>
+                                                <i class="bi bi-chevron-right text-muted ms-2" style="font-size:10px"></i>
+                                            </a>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
-            @endif
 
-            <div class="rpt-toolbar no-print mb-3">
-                <label class="rpt-report-picker">
-                    <span>รายงานหลัก</span>
-                    <select class="rpt-select rpt-report-select" onchange="selectReport(this.value)">
-                        @foreach($catalog as $catKey => $group)
-                            <optgroup label="{{ $categoryMeta[$catKey]['label'] ?? $group['title'] }}">
-                                @foreach($group['reports'] as $repKey => $repLabel)
-                                    <option value="{{ $catKey }}|{{ $repKey }}" @selected($selectedCategory === $catKey && $selectedReport === $repKey)>
-                                        {{ $reportLabels[$repKey] ?? $repLabel }}
-                                    </option>
-                                @endforeach
-                            </optgroup>
+                {{-- ส่วนรายงานยอดนิยม / แนะนำ --}}
+                <div class="card border shadow-sm rounded-3 bg-white p-3 no-print">
+                    <h6 class="fw-bold mb-3 d-flex align-items-center gap-2" style="color:var(--erp-text);font-size:13px">
+                        <i class="bi bi-star-fill text-warning"></i> รายงานที่ใช้งานบ่อย (Quick Access)
+                    </h6>
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach($essentialReports as [$favCat, $favReport, $favLabel])
+                            <a href="{{ route('reports.index', ['category' => $favCat, 'report' => $favReport]) }}"
+                               class="btn btn-sm btn-light border d-inline-flex align-items-center gap-2 px-3 py-2 text-dark text-decoration-none"
+                               style="font-size:12px;font-weight:600;border-radius:6px">
+                                <i class="bi bi-graph-up text-primary"></i>
+                                {{ $favLabel }}
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            @else
+                {{-- โหมดตารางรายงานตามหมวด (เช่น รายงานขาย, รายงานซื้อ, ฯลฯ) --}}
+                <div class="flow-report-head no-print">
+                    <div>
+                        <div class="flow-eyebrow">{{ $categoryMeta[$selectedCategory]['label'] ?? $catalog[$selectedCategory]['title'] ?? 'รายงาน' }}</div>
+                        <h1>{{ $reportLabels[$selectedReport] ?? $result['title'] }}</h1>
+                    </div>
+                    <div class="flow-head-actions">
+                        <a href="{{ route('reports.index') }}" class="flow-action-btn flow-action-link">
+                            <i class="bi bi-grid-fill"></i> กลับศูนย์รวมรายงาน
+                        </a>
+                        <a href="{{ route('legacy-reports.index') }}" class="flow-action-btn flow-action-link">
+                            <i class="bi bi-database-check"></i> รายงาน BPlus เดิม
+                        </a>
+                        @if($canExport)
+                        <button type="button" class="flow-action-btn" onclick="exportCsv()">
+                            <i class="bi bi-download"></i> ดาวน์โหลด Excel
+                        </button>
+                        @endif
+                        <button type="button" class="flow-action-btn" onclick="window.print()">
+                            <i class="bi bi-printer"></i> พิมพ์รายงาน
+                        </button>
+                    </div>
+                </div>
+
+                @if($branchLocked)
+                    <div class="alert alert-warning no-print py-2 px-3 mb-3" style="font-size:13px">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        บัญชีนี้ยังไม่ได้สังกัดสาขา และไม่มีสิทธิ์ดูรายงานข้ามสาขา จึงยังไม่มีข้อมูลให้แสดง —
+                        ให้ผู้ดูแลระบบกำหนดสาขาให้ หรือให้สิทธิ์ <code>reports.all_branches</code>
+                    </div>
+                @endif
+
+                <div class="rpt-toolbar no-print mb-3">
+                    <label class="rpt-report-picker">
+                        <span>รายงานหลัก</span>
+                        <select class="rpt-select rpt-report-select" onchange="selectReport(this.value)">
+                            @foreach($catalog as $catKey => $group)
+                                <optgroup label="{{ $categoryMeta[$catKey]['label'] ?? $group['title'] }}">
+                                    @foreach($group['reports'] as $repKey => $repLabel)
+                                        <option value="{{ $catKey }}|{{ $repKey }}" @selected($selectedCategory === $catKey && $selectedReport === $repKey)>
+                                            {{ $reportLabels[$repKey] ?? $repLabel }}
+                                        </option>
+                                    @endforeach
+                                </optgroup>
+                            @endforeach
+                        </select>
+                    </label>
+
+                    <i class="bi bi-calendar3" style="color:var(--erp-muted)"></i>
+                    <input type="date" name="from" value="{{ $from }}" class="rpt-date-input">
+                    <span style="color:var(--erp-muted);font-size:13px">ถึง</span>
+                    <input type="date" name="to" value="{{ $to }}" class="rpt-date-input">
+
+                    <a href="{{ request()->fullUrlWithQuery(['from'=>now()->toDateString(),'to'=>now()->toDateString()]) }}" class="rpt-shortcut">วันนี้</a>
+                    <a href="{{ request()->fullUrlWithQuery(['from'=>now()->subDays(6)->toDateString(),'to'=>now()->toDateString()]) }}" class="rpt-shortcut">7 วัน</a>
+                    <a href="{{ request()->fullUrlWithQuery(['from'=>now()->startOfMonth()->toDateString(),'to'=>now()->toDateString()]) }}" class="rpt-shortcut">เดือนนี้</a>
+
+                    {{-- ไม่มีสิทธิ์ reports.all_branches = เลือกสาขาไม่ได้ ล็อกไว้ที่สาขาตัวเอง --}}
+                    <select name="branch_id" class="rpt-select" onchange="this.form.submit()" @disabled(! $canSeeAllBranches)>
+                        @if($canSeeAllBranches)
+                            <option value="all" @selected($filters['branch_id'] === null)>ทุกสาขา</option>
+                        @endif
+                        @foreach($branches as $b)
+                            <option value="{{ $b->id }}" @selected((string) $filters['branch_id'] === (string) $b->id)>{{ $b->code }} - {{ $b->name_th }}</option>
                         @endforeach
                     </select>
-                </label>
+                    <button type="submit" class="rpt-btn-filter"><i class="bi bi-funnel-fill me-1"></i>กรอง</button>
 
-                <i class="bi bi-calendar3" style="color:var(--erp-muted)"></i>
-                <input type="date" name="from" value="{{ $from }}" class="rpt-date-input">
-                <span style="color:var(--erp-muted);font-size:13px">ถึง</span>
-                <input type="date" name="to" value="{{ $to }}" class="rpt-date-input">
-
-                <a href="{{ request()->fullUrlWithQuery(['from'=>now()->toDateString(),'to'=>now()->toDateString()]) }}" class="rpt-shortcut">วันนี้</a>
-                <a href="{{ request()->fullUrlWithQuery(['from'=>now()->subDays(6)->toDateString(),'to'=>now()->toDateString()]) }}" class="rpt-shortcut">7 วัน</a>
-                <a href="{{ request()->fullUrlWithQuery(['from'=>now()->startOfMonth()->toDateString(),'to'=>now()->toDateString()]) }}" class="rpt-shortcut">เดือนนี้</a>
-
-                {{-- ไม่มีสิทธิ์ reports.all_branches = เลือกสาขาไม่ได้ ล็อกไว้ที่สาขาตัวเอง --}}
-                <select name="branch_id" class="rpt-select" onchange="this.form.submit()" @disabled(! $canSeeAllBranches)>
-                    @if($canSeeAllBranches)
-                        <option value="all" @selected($filters['branch_id'] === null)>ทุกสาขา</option>
-                    @endif
-                    @foreach($branches as $b)
-                        <option value="{{ $b->id }}" @selected((string) $filters['branch_id'] === (string) $b->id)>{{ $b->code }} - {{ $b->name_th }}</option>
-                    @endforeach
-                </select>
-                <button type="submit" class="rpt-btn-filter"><i class="bi bi-funnel-fill me-1"></i>กรอง</button>
-
-                <div class="ms-auto d-flex gap-2">
-                    @if($canExport)
-                        <button type="button" class="rpt-btn-export" onclick="exportXlsx()"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
-                        <button type="button" class="rpt-btn-export" onclick="exportCsv()"><i class="bi bi-download me-1"></i>CSV</button>
-                        <button type="button" class="rpt-btn-export" onclick="printA4()"><i class="bi bi-printer me-1"></i>พิมพ์ A4</button>
-                    @endif
-                    <button type="button" class="rpt-btn-print" onclick="window.print()"><i class="bi bi-printer me-1"></i>พิมพ์</button>
+                    <div class="ms-auto d-flex gap-2">
+                        @if($canExport)
+                            <button type="button" class="rpt-btn-export" onclick="exportXlsx()"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+                            <button type="button" class="rpt-btn-export" onclick="exportCsv()"><i class="bi bi-download me-1"></i>CSV</button>
+                            <button type="button" class="rpt-btn-export" onclick="printA4()"><i class="bi bi-printer me-1"></i>พิมพ์ A4</button>
+                        @endif
+                        <button type="button" class="rpt-btn-print" onclick="window.print()"><i class="bi bi-printer me-1"></i>พิมพ์</button>
+                    </div>
                 </div>
-            </div>
 
-            {{-- หัวเอกสารตอนพิมพ์: ข้อมูลบริษัท + ชื่อรายงาน + ช่วงวันที่ (โผล่เฉพาะสั่งพิมพ์) --}}
-            @php
-                $printBranch = $filters['branch_id'] ? collect($branches)->firstWhere('id', (int) $filters['branch_id']) : null;
-            @endphp
-            @php
-                $moneyKeys = ['net_sales','sales_amount','total_amount','amount','balance_amount','vat_amount','gross_sales'];
-                $summaryMoneyKey = collect($moneyKeys)->first(fn ($key) => collect($result['columns'])->contains('key', $key));
-                $summaryMoney = $summaryMoneyKey ? collect($result['rows'])->sum(fn ($row) => (float) data_get($row, $summaryMoneyKey)) : 0;
-                $summaryVat = collect($result['rows'])->sum(fn ($row) => (float) data_get($row, 'vat_amount'));
-            @endphp
-            <div class="rpt-print-header">
-                <div class="d-flex gap-3 align-items-start">
-                    @if($printLogo = \App\Models\AppSetting::logoUrl())
-                        <img src="{{ $printLogo }}" alt="" style="max-height:52px;max-width:130px;object-fit:contain">
-                    @endif
-                    <div>
-                        <div class="rpt-print-name">{{ \App\Models\AppSetting::company('name_th') }}</div>
-                        <div class="rpt-print-sub">{{ \App\Models\AppSetting::company('name_en') }}</div>
-                        <div class="rpt-print-sub">{{ \App\Models\AppSetting::company('address') }}</div>
-                        <div class="rpt-print-sub">
-                            เลขทะเบียนนิติบุคคล {{ \App\Models\AppSetting::company('tax_id') }}@if(\App\Models\AppSetting::company('phone')) &middot; โทร {{ \App\Models\AppSetting::company('phone') }}@endif
+                {{-- หัวเอกสารตอนพิมพ์: ข้อมูลบริษัท + ชื่อรายงาน + ช่วงวันที่ (โผล่เฉพาะสั่งพิมพ์) --}}
+                @php
+                    $printBranch = $filters['branch_id'] ? collect($branches)->firstWhere('id', (int) $filters['branch_id']) : null;
+                @endphp
+                @php
+                    $moneyKeys = ['net_sales','sales_amount','total_amount','amount','balance_amount','vat_amount','gross_sales'];
+                    $summaryMoneyKey = collect($moneyKeys)->first(fn ($key) => collect($result['columns'])->contains('key', $key));
+                    $summaryMoney = $summaryMoneyKey ? collect($result['rows'])->sum(fn ($row) => (float) data_get($row, $summaryMoneyKey)) : 0;
+                    $summaryVat = collect($result['rows'])->sum(fn ($row) => (float) data_get($row, 'vat_amount'));
+                @endphp
+                <div class="rpt-print-header">
+                    <div class="d-flex gap-3 align-items-start">
+                        @if($printLogo = \App\Models\AppSetting::logoUrl())
+                            <img src="{{ $printLogo }}" alt="" style="max-height:52px;max-width:130px;object-fit:contain">
+                        @endif
+                        <div>
+                            <div class="rpt-print-name">{{ \App\Models\AppSetting::company('name_th') }}</div>
+                            <div class="rpt-print-sub">{{ \App\Models\AppSetting::company('name_en') }}</div>
+                            <div class="rpt-print-sub">{{ \App\Models\AppSetting::company('address') }}</div>
+                            <div class="rpt-print-sub">
+                                เลขทะเบียนนิติบุคคล {{ \App\Models\AppSetting::company('tax_id') }}@if(\App\Models\AppSetting::company('phone')) &middot; โทร {{ \App\Models\AppSetting::company('phone') }}@endif
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="rpt-print-meta">
-                    <div class="rpt-print-title">{{ $reportLabels[$selectedReport] ?? $result['title'] }}</div>
-                    <div class="rpt-print-sub">ช่วงวันที่ {{ \Illuminate\Support\Carbon::parse($from)->thaiDate() }} ถึง {{ \Illuminate\Support\Carbon::parse($to)->thaiDate() }}</div>
-                    <div class="rpt-print-sub">สาขา: {{ $printBranch->name_th ?? 'ทุกสาขา' }}</div>
-                    <div class="rpt-print-sub">พิมพ์เมื่อ {{ now()->thaiDate(true) }} น.</div>
-                </div>
-            </div>
-
-            <div class="content-card overflow-hidden">
-                <div class="flow-report-summary no-print">
-                    <div class="flow-report-meta">
-                        <div class="flow-dash">-</div>
-                        <dl>
-                            <div><dt>ณ วันที่</dt><dd>{{ \Illuminate\Support\Carbon::parse($to)->thaiDate() }}</dd></div>
-                            <div><dt>ช่วงเวลา</dt><dd>{{ \Illuminate\Support\Carbon::parse($from)->thaiDate() }} @if($from !== $to) - {{ \Illuminate\Support\Carbon::parse($to)->thaiDate() }} @endif</dd></div>
-                            <div><dt>จำนวนทั้งหมด</dt><dd>{{ number_format($result['total']) }} รายการ</dd></div>
-                        </dl>
-                    </div>
-                    <div class="flow-report-totals">
-                        <div><span>ยอดรวมทั้งสิ้น</span><strong>{{ number_format($summaryMoney, 2) }}</strong></div>
-                        <div><span>ภาษีมูลค่าเพิ่ม</span><strong>{{ number_format($summaryVat, 2) }}</strong></div>
-                        <div><span>สาขา</span><strong>{{ $printBranch->name_th ?? 'ทุกสาขา' }}</strong></div>
-                    </div>
-                </div>
-                <div class="flow-tabs no-print">
-                    <span class="active">เอกสารขาย</span>
-                    <span>เอกสารบัญชี</span>
-                </div>
-                <div class="rpt-panel-title">
-                    <div>
-                        <div class="fw-bold fs-5">{{ $reportLabels[$selectedReport] ?? $result['title'] }}</div>
-                        <div class="text-muted small">
-                            {{ \Illuminate\Support\Carbon::parse($from)->thaiDate() }}
-                            @if($from !== $to) ถึง {{ \Illuminate\Support\Carbon::parse($to)->thaiDate() }} @endif
-                            &middot; {{ $printBranch->name_th ?? 'ทุกสาขา' }}
-                        </div>
-                    </div>
-                    <div class="d-flex align-items-center gap-3 flex-wrap no-print">
-                        <label class="d-flex align-items-center gap-2 small text-muted">
-                            แสดง
-                            <select name="per_page" class="form-select form-select-sm" style="width:78px" onchange="this.form.submit()">
-                                @foreach([10, 25, 50, 100] as $sz)
-                                    <option value="{{ $sz }}" @selected($perPage === $sz)>{{ $sz }}</option>
-                                @endforeach
-                            </select>
-                            แถว
-                        </label>
-                        <div class="erp-search">
-                            <i class="bi bi-search erp-search-icon"></i>
-                            <input type="text" name="q" value="{{ $filters['q'] }}" placeholder="ค้นหา..." class="form-control form-control-sm ps-5">
-                        </div>
-                        <span class="badge text-bg-light border">{{ number_format($result['total']) }} รายการ</span>
+                    <div class="rpt-print-meta">
+                        <div class="rpt-print-title">{{ $reportLabels[$selectedReport] ?? $result['title'] }}</div>
+                        <div class="rpt-print-sub">ช่วงวันที่ {{ \Illuminate\Support\Carbon::parse($from)->thaiDate() }} ถึง {{ \Illuminate\Support\Carbon::parse($to)->thaiDate() }}</div>
+                        <div class="rpt-print-sub">สาขา: {{ $printBranch->name_th ?? 'ทุกสาขา' }}</div>
+                        <div class="rpt-print-sub">พิมพ์เมื่อ {{ now()->thaiDate(true) }} น.</div>
                     </div>
                 </div>
 
-                @include('reports.partials.result-table', [
-                    'columns' => $displayColumns,
-                    'rows' => $result['rows'],
-                    'empty' => 'ไม่พบข้อมูลตามเงื่อนไขที่เลือก',
-                ])
-            </div>
+                <div class="content-card overflow-hidden">
+                    <div class="flow-report-summary no-print">
+                        <div class="flow-report-meta">
+                            <div class="flow-dash">-</div>
+                            <dl>
+                                <div><dt>ณ วันที่</dt><dd>{{ \Illuminate\Support\Carbon::parse($to)->thaiDate() }}</dd></div>
+                                <div><dt>ช่วงเวลา</dt><dd>{{ \Illuminate\Support\Carbon::parse($from)->thaiDate() }} @if($from !== $to) - {{ \Illuminate\Support\Carbon::parse($to)->thaiDate() }} @endif</dd></div>
+                                <div><dt>จำนวนทั้งหมด</dt><dd>{{ number_format($result['total']) }} รายการ</dd></div>
+                            </dl>
+                        </div>
+                        <div class="flow-report-totals">
+                            <div><span>ยอดรวมทั้งสิ้น</span><strong>{{ number_format($summaryMoney, 2) }}</strong></div>
+                            <div><span>ภาษีมูลค่าเพิ่ม</span><strong>{{ number_format($summaryVat, 2) }}</strong></div>
+                            <div><span>สาขา</span><strong>{{ $printBranch->name_th ?? 'ทุกสาขา' }}</strong></div>
+                        </div>
+                    </div>
+                    <div class="flow-tabs no-print">
+                        <span class="active">เอกสารขาย</span>
+                        <span>เอกสารบัญชี</span>
+                    </div>
+                    <div class="rpt-panel-title">
+                        <div>
+                            <div class="fw-bold fs-5">{{ $reportLabels[$selectedReport] ?? $result['title'] }}</div>
+                            <div class="text-muted small">
+                                {{ \Illuminate\Support\Carbon::parse($from)->thaiDate() }}
+                                @if($from !== $to) ถึง {{ \Illuminate\Support\Carbon::parse($to)->thaiDate() }} @endif
+                                &middot; {{ $printBranch->name_th ?? 'ทุกสาขา' }}
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-3 flex-wrap no-print">
+                            <label class="d-flex align-items-center gap-2 small text-muted">
+                                แสดง
+                                <select name="per_page" class="form-select form-select-sm" style="width:78px" onchange="this.form.submit()">
+                                    @foreach([10, 25, 50, 100] as $sz)
+                                        <option value="{{ $sz }}" @selected($perPage === $sz)>{{ $sz }}</option>
+                                    @endforeach
+                                </select>
+                                แถว
+                            </label>
+                            <div class="erp-search">
+                                <i class="bi bi-search erp-search-icon"></i>
+                                <input type="text" name="q" value="{{ $filters['q'] }}" placeholder="ค้นหา..." class="form-control form-control-sm ps-5">
+                            </div>
+                            <span class="badge text-bg-light border">{{ number_format($result['total']) }} รายการ</span>
+                        </div>
+                    </div>
+
+                    @include('reports.partials.result-table', [
+                        'columns' => $displayColumns,
+                        'rows' => $result['rows'],
+                        'empty' => 'ไม่พบข้อมูลตามเงื่อนไขที่เลือก',
+                    ])
+                </div>
+            @endif
         </form>
     </div>
 </div>

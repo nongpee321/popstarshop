@@ -145,10 +145,15 @@
         }
         .brand-logo-img {
             height: 48px;
-            width: 48px;
-            object-fit: cover;
-            border-radius: 12px;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.14);
+            width: auto;
+            max-width: 54px;
+            object-fit: contain;
+            border-radius: 10px;
+            filter: drop-shadow(0 2px 8px rgba(0,0,0,0.18));
+            transition: transform 0.2s ease;
+        }
+        .brand-header:hover .brand-logo-img {
+            transform: scale(1.05);
         }
         .brand-text h1 {
             font-size: 1.15rem;
@@ -749,7 +754,7 @@
     <!-- Navigation Header -->
     <header class="top-nav">
         <a href="{{ route('portal') }}" class="brand-header">
-            <img src="{{ asset('images/popstar-icon-128.png') }}?v={{ time() }}" alt="PopStar Logo" class="brand-logo-img">
+            <img src="{{ asset('images/intro-star-logo.png') }}?v={{ time() }}" alt="PopStar Logo" class="brand-logo-img">
             <div class="brand-text">
                 <h1>{{ $companyName ?? 'บริษัท ป๊อบสตาร์ฟู้ดเทรดดิ้ง จำกัด' }}</h1>
                 <p>{{ $companyNameEn ?? 'PopStar Food Trading Co., Ltd.' }}</p>

@@ -62,11 +62,9 @@ class BplusOperationController extends Controller
             $request->query('date', now('Asia/Bangkok')->toDateString()),
             'Asia/Bangkok'
         )->toDateString();
-        $lockedBranchId = auth()->user()?->branchScopeId();
-        $selectedBranchId = $lockedBranchId ?: ($request->integer('branch_id') ?: null);
+        $selectedBranchId = $request->has('branch_id') && $request->filled('branch_id') ? (int)$request->input('branch_id') : null;
 
         $branches = Branch::query()
-            ->when($lockedBranchId, fn ($query) => $query->whereKey($lockedBranchId))
             ->orderBy('code')
             ->get();
 
@@ -86,7 +84,7 @@ class BplusOperationController extends Controller
             'branches' => $branches,
             'selectedDate' => $selectedDate,
             'selectedBranchId' => $selectedBranchId,
-            'lockedBranchId' => $lockedBranchId,
+            'lockedBranchId' => null,
             'pythonPosInstaller' => $this->currentPythonPosInstaller(),
         ]);
     }

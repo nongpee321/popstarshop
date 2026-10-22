@@ -64,6 +64,7 @@ class PosApiController extends Controller
         return response()->json([
             'success' => true,
             'server_time' => now()->toIso8601String(),
+            'catalog_version' => \App\Support\PosSyncNotifier::getVersion(),
             'device' => [
                 'id' => $device?->id,
                 'name' => $device?->name,

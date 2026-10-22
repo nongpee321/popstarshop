@@ -11,18 +11,26 @@ from PySide6.QtGui import QIcon
 import requests
 
 from sync_worker import SyncWorker
-from database.models import init_db, Product, Category, PosReceipt, PosReceiptItem, PosShift
+from database.models import (
+    init_db, Product, Category, PosReceipt, PosReceiptItem, PosShift,
+    Sale, SaleItem, Payment, Outbox, SyncLog, ScaleProfile,
+    get_pos_data_paths, backup_pos_db, restore_pos_db
+)
+from services.scale_service import ScaleBarcodeParser
 from sqlalchemy.orm import Session
 
 class MainWindow(QMainWindow):
     def __init__(self, db_path="pos.db"):
         super().__init__()
         self.db_path = db_path
-        self.app_data_dir = os.path.dirname(db_path) or '.'
+        paths = get_pos_data_paths()
+        self.app_data_dir = paths['base_dir']
         self.config_file = os.path.join(self.app_data_dir, 'config.json')
         self.config = self.load_config()
         self.current_shift = None
         self.customer_display = None
+        self.discount_amount = 0.0
+        self.discount_label = ""
         self.setWindowTitle("PopCentral POS")
         
         # Set Window Icon
@@ -95,21 +103,18 @@ class MainWindow(QMainWindow):
             json.dump(self.config, f)
             
     def check_config_and_start(self):
-        if not self.config.get('pos_token'):
-            url, ok1 = QInputDialog.getText(self, "ตั้งค่าเชื่อมต่อเซิร์ฟเวอร์", "กรุณาใส่ API URL (เช่น http://localhost:8000):", text=self.config.get('api_url', 'http://localhost:8000'))
-            if not ok1: return
-            url = url.strip()
-            if url.startswith('http://') and not ('localhost' in url or '127.0.0.1' in url):
-                QMessageBox.critical(self, "Security Error", "Production API ต้องใช้ https:// เท่านั้นเพื่อความปลอดภัยของระบบ!")
-                return
-                
-            token, ok2 = QInputDialog.getText(self, "ตั้งค่า Token", "กรุณาใส่ POS Device Token:")
-            if not ok2: return
-            
-            self.config['api_url'] = url
-            self.config['pos_token'] = token.strip()
-            self.save_config()
-            
+        if hasattr(self, 'branch_label') and self.config.get('branch_name'):
+            self.branch_label.setText(f"🏢 {self.config.get('branch_name')}")
+            self.branch_label.show()
+        if self.config.get('cashier_name'):
+            name = self.config.get('cashier_name')
+            self.logged_in_cashier = True
+            if hasattr(self, 'cashier_btn') and hasattr(self, 'logout_btn'):
+                self.cashier_btn.setText(f"👤   {name}")
+                self.cashier_btn.setStyleSheet("QPushButton { background-color: #10b981; border: none; color: white; padding: 5px 10px; border-radius: 6px; font-weight: bold;} QPushButton:hover { background-color: #059669; }")
+                self.logout_btn.setText(f"🚪 ล็อกเอาท์ ({name})")
+                self.logout_btn.show()
+                self.cashier_btn.hide()
         self.start_sync()
         self.check_active_shift()
 
@@ -118,7 +123,23 @@ class MainWindow(QMainWindow):
         self.sync_worker.sync_started.connect(self.on_sync_started)
         self.sync_worker.sync_finished.connect(self.on_sync_finished)
         self.sync_worker.products_updated.connect(self.load_products_from_db)
+        self.sync_worker.pending_count_updated.connect(self.update_pending_sync_badge)
         self.sync_worker.start()
+        
+    def show_pending_sync_dialog(self):
+        """เปิดหน้าต่างตรวจสอบรายละเอียดบิลที่ค้าง Sync"""
+        from ui.pending_sync_dialog import PendingSyncDialog
+        dialog = PendingSyncDialog(self, db_path=self.db_path)
+        dialog.exec()
+
+    def update_pending_sync_badge(self, count):
+        if hasattr(self, 'pending_sync_badge'):
+            if count > 0:
+                self.pending_sync_badge.setText(f"⏳ ค้าง Sync: {count} บิล")
+                self.pending_sync_badge.show()
+            else:
+                self.pending_sync_badge.setText("✅ Sync ครบแล้ว")
+                self.pending_sync_badge.hide()
         
     def on_sync_started(self):
         self.network_status.setText("🟢 Syncing")
@@ -181,14 +202,27 @@ class MainWindow(QMainWindow):
             
         row, col = 0, 0
         for p in products:
-            prod_btn = QPushButton(f"{p.name_th}\n\n฿{p.default_price:.2f}")
+            price_to_show = p.pos_price if p.pos_price is not None and p.pos_price > 0 else p.default_price
+            if p.pos_price is not None and p.pos_price < p.default_price:
+                btn_text = f"{p.name_th}\n\n฿{price_to_show:.2f} (ลดพิเศษ)"
+                btn_style = """
+                    QPushButton { background-color: #fff1f2; color: #e11d48; border: 2px solid #f43f5e; border-radius: 8px; font-size: 13px; font-weight: bold; }
+                    QPushButton:hover { border: 2px solid #be123c; background-color: #ffe4e6; }
+                """
+            else:
+                btn_text = f"{p.name_th}\n\n฿{price_to_show:.2f}"
+                btn_style = """
+                    QPushButton { background-color: white; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; font-weight: bold; }
+                    QPushButton:hover { border: 2px solid #0284c7; background-color: #f0f9ff; }
+                """
+            prod_btn = QPushButton(btn_text)
             prod_btn.setFixedSize(130, 130)
             prod_btn.setToolTip(p.name_th)
-            prod_btn.setStyleSheet("""
-                QPushButton { background-color: white; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; font-weight: bold; }
-                QPushButton:hover { border: 2px solid #0284c7; background-color: #f0f9ff; }
-            """)
-            prod_btn.clicked.connect(lambda checked, prod=p: self.add_to_cart(prod))
+            prod_btn.setStyleSheet(btn_style)
+            def make_click_handler(product):
+                return lambda checked: self.handle_product_click(product)
+
+            prod_btn.clicked.connect(make_click_handler(p))
             self.prod_grid.addWidget(prod_btn, row, col)
             col += 1
             if col > 3:
@@ -197,15 +231,83 @@ class MainWindow(QMainWindow):
                 
         session.close()
 
+    def handle_product_click(self, product):
+        if getattr(product, 'is_scale_item', False):
+            weight, ok = QInputDialog.getDouble(self, "สินค้าน้ำหนัก", f"ระบุน้ำหนักสำหรับ '{product.name_th}' (กก.):", 1.0, 0.001, 999.0, 3)
+            if ok and weight > 0:
+                self.add_to_cart(product, qty=weight, is_scale=True)
+        else:
+            self.add_to_cart(product, qty=1.0)
+
+    def manual_backup_db(self):
+        try:
+            dest = backup_pos_db(self.db_path, comment="manual")
+            if dest:
+                QMessageBox.information(self, "สำรองข้อมูลสำเร็จ", f"สำรองฐานข้อมูลเรียบร้อยแล้วที่:\n{dest}")
+            else:
+                QMessageBox.warning(self, "แจ้งเตือน", "ไม่พบไฟล์ฐานข้อมูลหรือสำรองข้อมูลไม่สำเร็จ")
+        except Exception as e:
+            QMessageBox.critical(self, "เกิดข้อผิดพลาด", f"ไม่สามารถสำรองฐานข้อมูลได้:\n{e}")
+
+    def manual_restore_db(self):
+        from PySide6.QtWidgets import QFileDialog
+        paths = get_pos_data_paths()
+        backup_file, _ = QFileDialog.getOpenFileName(
+            self,
+            "เลือกไฟล์สำรองเพื่อกู้คืนฐานข้อมูล",
+            paths['backup_dir'],
+            "SQLite Backup (*.db);;All Files (*.*)"
+        )
+        if not backup_file:
+            return
+            
+        reply = QMessageBox.question(
+            self,
+            "ยืนยันการกู้คืนฐานข้อมูล",
+            f"คำเตือน: การกู้คืนจะนำเข้าข้อมูลจากไฟล์สำรอง:\n{backup_file}\n\nระบบจะทำการสำรองฐานข้อมูลปัจจุบันไว้ก่อนกู้คืน ต้องการดำเนินการต่อหรือไม่?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                restore_pos_db(backup_file)
+                self.load_products_from_db()
+                QMessageBox.information(self, "กู้คืนสำเร็จ", "กู้คืนฐานข้อมูลเรียบร้อยแล้ว กรุณารีสตาร์ทโปรแกรมเพื่อความเสถียรสูงสุด")
+            except Exception as e:
+                QMessageBox.critical(self, "เกิดข้อผิดพลาด", f"กู้คืนฐานข้อมูลล้มเหลว:\n{e}")
+
     def handle_barcode_scan(self):
-        query = self.search_input.text().strip()
+        query = str(self.search_input.text()).strip()
         if not query: return
         
         try:
-            db_path = getattr(self, 'db_path', os.path.join(self.app_data_dir, 'pos_offline.db'))
+            db_path = getattr(self, 'db_path', os.path.join(self.app_data_dir, 'data', 'pos.db'))
             session = init_db(f"sqlite:///{db_path}")
             
-            # Find product by exact sku_code, barcode, or exact name_th match
+            # 1. Try parsing scale barcode (e.g. 13-digit starting with 800, 801, 02, etc.)
+            scale_data = ScaleBarcodeParser.parse(query, session)
+            if scale_data:
+                # Search product by item_code (e.g. sku_code, barcode, or id)
+                item_code = scale_data['item_code']
+                weight = scale_data['weight']
+                
+                product = session.query(Product).filter(
+                    (Product.sku_code == item_code) | 
+                    (Product.sku_code.endswith(item_code)) |
+                    (Product.barcode == item_code) |
+                    (Product.barcode.endswith(item_code))
+                ).first()
+                
+                session.close()
+                if product:
+                    self.add_to_cart(product, qty=weight, is_scale=True)
+                    self.search_input.clear()
+                    return
+                else:
+                    QMessageBox.warning(self, "ไม่พบสินค้าจากเครื่องชั่ง", f"บาร์โค้ดเครื่องชั่ง '{query}'\nรหัสสินค้า: {item_code}\nน้ำหนัก: {weight} กก.\nแต่ไม่พบรหัสสินค้านี้ในระบบ")
+                    self.search_input.selectAll()
+                    return
+
+            # 2. Find normal product by exact sku_code, barcode (preserving string), or exact name_th
             product = session.query(Product).filter(
                 (Product.sku_code == query) | (Product.name_th == query) | (Product.barcode == query)
             ).first()
@@ -213,8 +315,15 @@ class MainWindow(QMainWindow):
             session.close()
             
             if product:
-                self.add_to_cart(product)
-                self.search_input.clear()
+                # If product is flagged as scale/weight item but scanned via normal barcode, prompt weight
+                if getattr(product, 'is_scale_item', False):
+                    weight, ok = QInputDialog.getDouble(self, "สินค้าน้ำหนัก", f"ระบุน้ำหนักสำหรับ '{product.name_th}' (กก.):", 1.0, 0.001, 999.0, 3)
+                    if ok and weight > 0:
+                        self.add_to_cart(product, qty=weight, is_scale=True)
+                        self.search_input.clear()
+                else:
+                    self.add_to_cart(product, qty=1.0)
+                    self.search_input.clear()
             else:
                 reply = QMessageBox.question(self, "ไม่พบสินค้า", f"ไม่พบรหัสบาร์โค้ด '{query}' ในระบบ\nต้องการเพิ่มสินค้าใหม่ด่วนหรือไม่?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
                 if reply == QMessageBox.StandardButton.Yes:
@@ -265,7 +374,7 @@ class MainWindow(QMainWindow):
             import traceback
             QMessageBox.critical(self, "Error", f"Error adding product:\n{traceback.format_exc()}")
 
-    def add_to_cart(self, product):
+    def add_to_cart(self, product, qty=1.0, is_scale=False):
         if not self.current_shift:
             QMessageBox.warning(self, "แจ้งเตือน", "กรุณาเปิดกะก่อนเริ่มการขาย")
             return
@@ -277,26 +386,32 @@ class MainWindow(QMainWindow):
 
         prod_id = product.get('id') if isinstance(product, dict) else getattr(product, 'id')
         prod_name = product.get('name_th') if isinstance(product, dict) else getattr(product, 'name_th')
-        prod_price = float(product.get('default_price') if isinstance(product, dict) else getattr(product, 'default_price') or 0.0)
+        # Use pos_price (promotion/special price) if available, otherwise default_price
+        if isinstance(product, dict):
+            prod_price = float(product.get('pos_price') if product.get('pos_price') is not None else (product.get('default_price') or 0.0))
+        else:
+            prod_price = float(getattr(product, 'pos_price') if getattr(product, 'pos_price', None) is not None else (getattr(product, 'default_price', 0.0) or 0.0))
 
         try:
-            for row in range(self.cart_table.rowCount()):
-                item = self.cart_table.item(row, 0)
-                if not item: continue
-                if item.data(Qt.UserRole) == prod_id:
-                    current_cart_qty = float(self.cart_table.item(row, 1).text())
-                    if current_cart_qty + 1 > stock_qty:
-                        QMessageBox.warning(self, "แจ้งเตือน", f"สต็อกไม่พอ (เหลือ {stock_qty:g} ชิ้น)")
+            # If not scale item, check if product already in cart and increment
+            if not is_scale:
+                for row in range(self.cart_table.rowCount()):
+                    item = self.cart_table.item(row, 0)
+                    if not item: continue
+                    if item.data(Qt.UserRole) == prod_id:
+                        current_cart_qty = float(self.cart_table.item(row, 1).text())
+                        if current_cart_qty + qty > stock_qty:
+                            QMessageBox.warning(self, "แจ้งเตือน", f"สต็อกไม่พอ (เหลือ {stock_qty:g} ชิ้น)")
+                            return
+                        if stock_qty < 20 and current_cart_qty == 0:
+                            QMessageBox.warning(self, "แจ้งเตือน", f"สินค้าเหลือน้อย (เหลือ {stock_qty:g} ชิ้น)")
+                        
+                        new_qty = current_cart_qty + qty
+                        self.cart_table.item(row, 1).setText(f"{new_qty:g}")
+                        price = float(self.cart_table.item(row, 2).text())
+                        self.cart_table.item(row, 3).setText(f"{price * new_qty:.2f}")
+                        self.update_cart_total()
                         return
-                    if stock_qty < 20 and current_cart_qty == 0:
-                        QMessageBox.warning(self, "แจ้งเตือน", f"สินค้าเหลือน้อย (เหลือ {stock_qty:g} ชิ้น)")
-                    
-                    qty = current_cart_qty + 1
-                    self.cart_table.item(row, 1).setText(str(qty))
-                    price = float(self.cart_table.item(row, 2).text())
-                    self.cart_table.item(row, 3).setText(f"{price * qty:.2f}")
-                    self.update_cart_total()
-                    return
             
             if stock_qty <= 0:
                 QMessageBox.warning(self, "แจ้งเตือน", f"สินค้าหมดสต็อก (เหลือ {stock_qty:g} ชิ้น)")
@@ -308,17 +423,19 @@ class MainWindow(QMainWindow):
             self.cart_table.insertRow(row)
             
             name_str = str(prod_name) if prod_name else ""
+            if is_scale:
+                name_str = f"{name_str} [ชั่งน้ำหนัก]"
             name_item = QTableWidgetItem(name_str)
             name_item.setToolTip(name_str)
             name_item.setData(Qt.UserRole, prod_id)
             
-            qty_item = QTableWidgetItem("1")
+            qty_item = QTableWidgetItem(f"{qty:g}")
             qty_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             
             price_item = QTableWidgetItem(f"{prod_price:.2f}")
             price_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             
-            total_item = QTableWidgetItem(f"{prod_price:.2f}")
+            total_item = QTableWidgetItem(f"{prod_price * qty:.2f}")
             total_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             
             self.cart_table.setItem(row, 0, name_item)
@@ -405,14 +522,35 @@ class MainWindow(QMainWindow):
         
     def update_cart_total(self):
         try:
-            total = 0.0
+            subtotal = 0.0
             for row in range(self.cart_table.rowCount()):
                 item = self.cart_table.item(row, 3)
                 if item:
-                    total += float(item.text())
-            self.total_val.setText(f"฿{total:,.2f}")
+                    subtotal += float(item.text().replace(',', ''))
+            
+            # Reset discount if cart is empty
+            if subtotal <= 0:
+                self.discount_amount = 0.0
+                self.discount_label = ""
+            
+            discount = min(self.discount_amount, subtotal)
+            grand_total = max(0.0, subtotal - discount)
+            
+            if hasattr(self, 'subtotal_val'):
+                self.subtotal_val.setText(f"฿{subtotal:,.2f}")
+            if hasattr(self, 'discount_val'):
+                if discount > 0:
+                    lbl = f" ({self.discount_label})" if self.discount_label else ""
+                    self.discount_title_lbl.setText(f"ส่วนลด{lbl}:")
+                    self.discount_val.setText(f"-฿{discount:,.2f}")
+                    self.discount_row.parentWidget().show()
+                else:
+                    self.discount_title_lbl.setText("ส่วนลด:")
+                    self.discount_val.setText("-฿0.00")
+            
+            self.total_val.setText(f"฿{grand_total:,.2f}")
             if hasattr(self, 'customer_display') and self.customer_display and not self.customer_display.isHidden():
-                self.customer_display.update_cart(self.cart_table, total)
+                self.customer_display.update_cart(self.cart_table, grand_total)
         except Exception as e:
             import traceback
             QMessageBox.critical(self, "Error", f"Error updating total:\n{traceback.format_exc()}")
@@ -441,7 +579,7 @@ class MainWindow(QMainWindow):
             logo.setText("PopCentral POS")
             logo.setStyleSheet("font-size: 20px; font-weight: bold; color: #b91c1c;")
         
-        version_label = QLabel("v1.12.23")
+        version_label = QLabel("v1.22.0")
         version_label.setStyleSheet("font-size: 14px; color: #64748b; font-weight: bold; background: #e2e8f0; padding: 2px 8px; border-radius: 10px;")
         
         self.branch_label = QLabel(f"🏢 {self.config.get('branch_name', 'กำลังตรวจสอบ...')}")
@@ -451,6 +589,14 @@ class MainWindow(QMainWindow):
         self.network_status = QLabel("🟡 Offline")
         self.network_status.setStyleSheet("font-size: 14px; font-weight: bold; color: #ca8a04;")
         
+        # Pending Sync Badge (Clickable to view and retry)
+        self.pending_sync_badge = QLabel("⏳ ค้าง Sync: 0 บิล")
+        self.pending_sync_badge.setStyleSheet("font-size: 13px; font-weight: bold; color: #b91c1c; background: #fee2e2; padding: 4px 10px; border-radius: 12px; border: 1px solid #f87171; cursor: pointer;")
+        self.pending_sync_badge.setCursor(Qt.PointingHandCursor)
+        self.pending_sync_badge.setToolTip("คลิกเพื่อดูรายละเอียดบิลค้าง Sync และสั่งส่งซ้ำ")
+        self.pending_sync_badge.mousePressEvent = lambda e: self.show_pending_sync_dialog()
+        self.pending_sync_badge.hide()
+
         # Action Buttons
         self.fs_btn = QPushButton("🔲 เต็มจอ")
         from PySide6.QtWidgets import QSizePolicy
@@ -472,24 +618,34 @@ class MainWindow(QMainWindow):
         self.update_clock()
         
         # Cashier Button
-        self.logged_in_cashier = False
-        self.cashier_btn = QPushButton("👤 ยังไม่เข้าสู่ระบบ")
+        self.logged_in_cashier = bool(self.config.get('cashier_name'))
+        initial_cashier_name = self.config.get('cashier_name', '')
+
+        self.cashier_btn = QPushButton(f"👤   {initial_cashier_name}" if initial_cashier_name else "👤 ยังไม่เข้าสู่ระบบ")
         self.cashier_btn.setToolTip('แคชเชียร์')
         from PySide6.QtWidgets import QSizePolicy
         self.cashier_btn.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
-        self.cashier_btn.setStyleSheet("""
-            QPushButton { background-color: #64748b; border: none; color: white; padding: 5px 10px; border-radius: 6px; font-weight: bold;}
-            QPushButton:hover { background-color: #475569; }
-        """)
+        if initial_cashier_name:
+            self.cashier_btn.setStyleSheet("""
+                QPushButton { background-color: #10b981; border: none; color: white; padding: 5px 10px; border-radius: 6px; font-weight: bold;}
+                QPushButton:hover { background-color: #059669; }
+            """)
+            self.cashier_btn.hide()
+        else:
+            self.cashier_btn.setStyleSheet("""
+                QPushButton { background-color: #64748b; border: none; color: white; padding: 5px 10px; border-radius: 6px; font-weight: bold;}
+                QPushButton:hover { background-color: #475569; }
+            """)
         self.cashier_btn.clicked.connect(self.login_cashier)
         
-        self.logout_btn = QPushButton("🚪 ล็อกเอาท์")
+        self.logout_btn = QPushButton(f"🚪 ล็อกเอาท์ ({initial_cashier_name})" if initial_cashier_name else "🚪 ล็อกเอาท์")
         self.logout_btn.setToolTip('ออกจากระบบ')
         self.logout_btn.setStyleSheet("""
             QPushButton { background-color: #ef4444; border: none; color: white; padding: 5px 10px; border-radius: 6px; font-weight: bold;}
             QPushButton:hover { background-color: #ca8a04; }
         """)
-        self.logout_btn.hide()
+        if not initial_cashier_name:
+            self.logout_btn.hide()
         self.logout_btn.clicked.connect(self.logout_cashier)
         
         # Shift Button
@@ -525,6 +681,9 @@ class MainWindow(QMainWindow):
         
         action_revenue = main_menu.addAction("ดูรายได้วันนี้")
         action_revenue.triggered.connect(self.show_today_revenue)
+
+        action_shift_report = main_menu.addAction("📄 เช็คบิลกะ / พิมพ์ใบกะ (Z-Report)")
+        action_shift_report.triggered.connect(self.show_shift_z_report)
         
         main_menu.addSeparator()
         
@@ -537,8 +696,23 @@ class MainWindow(QMainWindow):
         
         main_menu.addSeparator()
         
-        action_settings = main_menu.addAction("ตั้งค่าระบบ")
+        action_backup = main_menu.addAction("💾 สำรองฐานข้อมูล (Backup Database)")
+        action_backup.triggered.connect(self.manual_backup_db)
+        
+        action_restore = main_menu.addAction("🔄 กู้คืนฐานข้อมูล (Restore Database)")
+        action_restore.triggered.connect(self.manual_restore_db)
+
+        main_menu.addSeparator()
+        
+        action_settings = main_menu.addAction("⚙️ ตั้งค่าเชื่อมต่อ ERP (API & Token)")
         action_settings.triggered.connect(self.open_settings)
+        
+        action_printer = main_menu.addAction("🖨️ ตั้งค่าเครื่องพิมพ์ใบเสร็จ (Printer Settings)")
+        action_printer.triggered.connect(self.open_printer_settings)
+
+        main_menu.addSeparator()
+        action_manual = main_menu.addAction("📖 คู่มือการใช้งาน (User Manual)")
+        action_manual.triggered.connect(self.open_manual_dialog)
         
         menu_btn.setMenu(main_menu)
         
@@ -548,6 +722,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.branch_label)
         layout.addSpacing(10)
         layout.addWidget(self.network_status)
+        layout.addSpacing(8)
+        layout.addWidget(self.pending_sync_badge)
         layout.addSpacing(10)
         layout.addWidget(self.fs_btn)
         layout.addSpacing(10)
@@ -628,30 +804,51 @@ class MainWindow(QMainWindow):
                 self.check_active_shift()
 
     def toggle_shift(self):
-        if not hasattr(self, 'logged_in_cashier') or not self.logged_in_cashier:
-            QMessageBox.warning(self, "แจ้งเตือน", "กรุณาล็อกอินเข้าระบบก่อนเปิด/ปิดกะ!")
-            return
-            
         headers = {
             'Authorization': f"Bearer {self.config.get('pos_token', '')}",
             'Accept': 'application/json'
         }
             
         if getattr(self, 'current_shift', None):
+            # Refresh shift details from server before opening close dialog
+            try:
+                s_res = requests.get(
+                    f"{self.config['api_url']}/api/pos/shift",
+                    headers=headers,
+                    timeout=5
+                )
+                if s_res.status_code == 200:
+                    latest_shift = s_res.json().get('shift')
+                    if latest_shift:
+                        self.current_shift.update(latest_shift)
+            except Exception:
+                pass
+
             # Close Shift
             from ui.shift_dialog import ShiftCloseDialog
-            dialog = ShiftCloseDialog(self, expected_cash=self.current_shift.get('expected_cash', 0.0))
+            dialog = ShiftCloseDialog(self, expected_cash=float(self.current_shift.get('expected_cash', 0.0)))
             if dialog.exec() == QDialog.Accepted:
+                shift_id = self.current_shift.get('id') or self.current_shift.get('server_id')
                 try:
                     res = requests.post(
                         f"{self.config['api_url']}/api/pos/shift/close",
                         headers=headers,
-                        json={'shift_id': self.current_shift.get('id'), 'counted_cash': dialog.counted_cash},
+                        json={'shift_id': shift_id, 'counted_cash': dialog.counted_cash},
                         timeout=15
                     )
                     if res.status_code == 200:
-                        QMessageBox.information(self, "สำเร็จ", "ปิดกะเรียบร้อย (Online)")
+                        data = res.json()
+                        diff_val = data.get('shift', {}).get('cash_difference', 0.0)
+                        diff_str = f"฿ {diff_val:,.2f}"
+                        QMessageBox.information(self, "สำเร็จ", f"ปิดกะเรียบร้อย\nยอดขาด/เกิน: {diff_str}")
                         self._close_shift_local(dialog.counted_cash, synced=True)
+                        from ui.receipt_dialog import ShiftReportDialog
+                        shift_payload = dict(self.current_shift or {})
+                        shift_payload.update(data.get('shift', {}))
+                        shift_payload['counted_cash'] = dialog.counted_cash
+                        shift_payload['cash_difference'] = diff_val
+                        shift_payload['status'] = 'closed'
+                        ShiftReportDialog(self, shift_payload).exec()
                     else:
                         err_msg = res.json().get('message', res.text) if res.text else 'API Error'
                         reply = QMessageBox.question(self, 'ข้อผิดพลาดจากเซิร์ฟเวอร์', f'เซิร์ฟเวอร์แจ้งว่า: {err_msg}\n\nคุณต้องการบังคับปิดกะในเครื่อง (Force Close) หรือไม่?', QMessageBox.Yes | QMessageBox.No)
@@ -678,8 +875,12 @@ class MainWindow(QMainWindow):
                     if res.status_code == 200:
                         QMessageBox.information(self, "สำเร็จ", "เปิดกะเรียบร้อย (Online)")
                         data = res.json()
-                        server_id = data.get('shift_id', 0)
+                        shift_obj = data.get('shift', {}) if isinstance(data.get('shift'), dict) else {}
+                        server_id = shift_obj.get('id') or data.get('shift_id', 0)
                         self._open_shift_local(dialog.opening_cash, server_id=server_id, synced=True)
+                        if shift_obj:
+                            self.current_shift = shift_obj
+                            self.current_shift['server_id'] = server_id
                     else:
                         err_msg = res.json().get("message", res.text) if res.text else "API Error"
                         QMessageBox.warning(self, "ไม่สามารถเปิดกะ Online ได้", f"เซิร์ฟเวอร์แจ้งว่า: {err_msg}\n\nหากต้องการเปิดแบบออฟไลน์ กรุณายกเลิกการเชื่อมต่อเน็ต")
@@ -791,6 +992,51 @@ class MainWindow(QMainWindow):
         session.close()
         QMessageBox.information(self, "สรุปรายได้วันนี้", f"จำนวนบิลวันนี้: {today_count} บิล\nยอดขายรวมวันนี้: ฿ {today_total:,.2f}")
 
+    def show_shift_z_report(self):
+        shift = getattr(self, 'current_shift', None)
+        if not shift:
+            QMessageBox.warning(self, "แจ้งเตือน", "ยังไม่มีกะที่เปิดอยู่ในขณะนี้ กรุณาเปิดกะก่อนเช็คบิลกะ")
+            return
+
+        # Fetch latest real-time shift stats from server or local DB
+        shift_data = dict(shift)
+        api_url = self.config.get('api_url', '').rstrip('/')
+        pos_token = self.config.get('pos_token', '')
+        
+        if api_url and pos_token:
+            try:
+                res = requests.get(
+                    f"{api_url}/api/pos/shift",
+                    headers={'Authorization': f"Bearer {pos_token}", 'Accept': 'application/json'},
+                    timeout=5
+                )
+                if res.status_code == 200:
+                    latest = res.json().get('shift')
+                    if latest:
+                        shift_data.update(latest)
+            except Exception:
+                pass
+
+        # Fallback calculate from local SQLite sales if needed
+        try:
+            session = init_db(f"sqlite:///{self.db_path}")
+            shift_id = shift_data.get('id') or shift_data.get('server_id')
+            if shift_id:
+                local_sales = session.query(Sale).filter_by(shift_id=shift_id).all()
+                if local_sales and (not shift_data.get('cash_sales') and not shift_data.get('transfer_sales')):
+                    c_sales = sum(s.cash_amount or (s.total_amount if s.payment_method == 'cash' else 0) for s in local_sales)
+                    t_sales = sum(s.transfer_amount or (s.total_amount if s.payment_method == 'transfer' else 0) for s in local_sales)
+                    shift_data['cash_sales'] = c_sales
+                    shift_data['transfer_sales'] = t_sales
+                    shift_data['receipt_count'] = len(local_sales)
+            session.close()
+        except Exception:
+            pass
+
+        from ui.receipt_dialog import ShiftReportDialog
+        dialog = ShiftReportDialog(self, shift_data)
+        dialog.exec()
+
 
     def manual_sync(self):
         if hasattr(self, 'sync_worker'):
@@ -805,7 +1051,14 @@ class MainWindow(QMainWindow):
         printer_name = self.config.get('receipt_printer', '')
         if not printer_name:
             from PySide6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "แจ้งเตือน", "ไม่ได้ตั้งค่าเครื่องพิมพ์ใบเสร็จ ไม่สามารถเปิดลิ้นชักได้")
+            reply = QMessageBox.question(
+                self, 
+                "ยังไม่ได้ตั้งค่าเครื่องพิมพ์", 
+                "ยังไม่ได้เลือกเครื่องพิมพ์ใบเสร็จ (Receipt Printer)\nคุณต้องการตั้งค่าเครื่องพิมพ์ตอนนี้หรือไม่?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self.open_printer_settings()
             return
             
         expected_pin = self.config.get('cashier_pin', '')
@@ -829,6 +1082,13 @@ class MainWindow(QMainWindow):
         except Exception as e:
             error_msg = str(e).replace(self.config.get('pos_token', ''), '***TOKEN_HIDDEN***')
             QMessageBox.critical(self, "Error", f"ไม่สามารถเชื่อมต่อเครื่องพิมพ์ได้:\n{error_msg}")
+
+    def open_printer_settings(self):
+        from ui.receipt_dialog import ReceiptSettingsDialog
+        dlg = ReceiptSettingsDialog(self, config=self.config)
+        if dlg.exec():
+            self.config = self.load_config()
+            QMessageBox.information(self, "สำเร็จ", "บันทึกการตั้งค่าเครื่องพิมพ์เรียบร้อยแล้ว")
 
     def open_settings(self):
         url, ok1 = QInputDialog.getText(self, "ตั้งค่าเชื่อมต่อเซิร์ฟเวอร์", "กรุณาใส่ API URL:", text=self.config.get('api_url', 'http://localhost:8000'))
@@ -948,36 +1208,94 @@ class MainWindow(QMainWindow):
         self.cart_table.setEditTriggers(QTableWidget.NoEditTriggers)
         layout.addWidget(self.cart_table)
         
-        # Totals
+        # Totals Frame
         total_frame = QFrame()
-        total_frame.setStyleSheet("background-color: #f8fafc; border-radius: 8px; border: 1px solid #cbd5e1;")
-        total_layout = QHBoxLayout(total_frame)
+        total_frame.setStyleSheet("background-color: #f8fafc; border-radius: 8px; border: 1px solid #cbd5e1; padding: 4px;")
+        total_layout = QVBoxLayout(total_frame)
+        total_layout.setContentsMargins(10, 8, 10, 8)
+        total_layout.setSpacing(4)
         
-        total_label = QLabel("ยอดรวมทั้งสิ้น:")
-        total_label.setStyleSheet("font-size: 20px; font-weight: bold; color: #334155;")
+        # Subtotal row
+        subtotal_row = QHBoxLayout()
+        subtotal_lbl = QLabel("ยอดรวมสินค้า:")
+        subtotal_lbl.setStyleSheet("font-size: 14px; color: #64748b; font-weight: bold;")
+        self.subtotal_val = QLabel("฿0.00")
+        self.subtotal_val.setStyleSheet("font-size: 15px; color: #334155; font-weight: bold;")
+        self.subtotal_val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        subtotal_row.addWidget(subtotal_lbl)
+        subtotal_row.addWidget(self.subtotal_val)
+        total_layout.addLayout(subtotal_row)
+        
+        # Discount row
+        self.discount_row = QHBoxLayout()
+        self.discount_title_lbl = QLabel("ส่วนลด:")
+        self.discount_title_lbl.setStyleSheet("font-size: 14px; color: #dc2626; font-weight: bold;")
+        self.discount_val = QLabel("-฿0.00")
+        self.discount_val.setStyleSheet("font-size: 15px; color: #dc2626; font-weight: bold;")
+        self.discount_val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.discount_row.addWidget(self.discount_title_lbl)
+        self.discount_row.addWidget(self.discount_val)
+        total_layout.addLayout(self.discount_row)
+        
+        # Grand total row
+        grand_total_row = QHBoxLayout()
+        total_label = QLabel("ยอดชำระสุทธิ:")
+        total_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #0f172a;")
         self.total_val = QLabel("฿0.00")
-        self.total_val.setStyleSheet("font-size: 28px; font-weight: bold; color: #b91c1c;")
+        self.total_val.setStyleSheet("font-size: 26px; font-weight: bold; color: #b91c1c;")
         self.total_val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        grand_total_row.addWidget(total_label)
+        grand_total_row.addWidget(self.total_val)
+        total_layout.addLayout(grand_total_row)
         
-        total_layout.addWidget(total_label)
-        total_layout.addWidget(self.total_val)
         layout.addWidget(total_frame)
+        
+        # Action Toolbar (Discount + Hold + Recall)
+        aux_btn_layout = QHBoxLayout()
+        aux_btn_layout.setSpacing(6)
+        
+        self.scale_btn = QPushButton("⚖️ ใส่ กก.")
+        self.scale_btn.setToolTip("สินค้าชั่งน้ำหนัก (เลือกสินค้าและระบุน้ำหนักเป็นกิโลกรัม)")
+        self.scale_btn.setStyleSheet("background-color: #0d9488; color: white; border-radius: 6px; padding: 8px 10px; font-size: 13px; font-weight: bold;")
+        self.scale_btn.clicked.connect(self.prompt_scale_weight_item)
+
+        self.discount_btn = QPushButton("🏷️ ใส่ส่วนลด")
+        self.discount_btn.setToolTip("กำหนดส่วนลดเป็นบาท หรือเปอร์เซ็นต์")
+        self.discount_btn.setStyleSheet("background-color: #f59e0b; color: white; border-radius: 6px; padding: 8px 10px; font-size: 13px; font-weight: bold;")
+        self.discount_btn.clicked.connect(self.apply_discount_prompt)
+        
+        self.hold_btn = QPushButton("⏸️ พักบิล")
+        self.hold_btn.setToolTip("พักบิลปัจจุบันไว้ชั่วคราวเพื่อรับลูกค้าคนถัดไป")
+        self.hold_btn.setStyleSheet("background-color: #3b82f6; color: white; border-radius: 6px; padding: 8px 12px; font-size: 13px; font-weight: bold;")
+        self.hold_btn.clicked.connect(self.hold_current_bill)
+        
+        self.recall_btn = QPushButton("📋 บิลพัก")
+        self.recall_btn.setToolTip("ดูและดึงบิลที่พักไว้กลับมาขายต่อ")
+        self.recall_btn.setStyleSheet("background-color: #6366f1; color: white; border-radius: 6px; padding: 8px 12px; font-size: 13px; font-weight: bold;")
+        self.recall_btn.clicked.connect(self.recall_held_bills)
+        
+        aux_btn_layout.addWidget(self.scale_btn)
+        aux_btn_layout.addWidget(self.discount_btn)
+        aux_btn_layout.addWidget(self.hold_btn)
+        aux_btn_layout.addWidget(self.recall_btn)
+        layout.addLayout(aux_btn_layout)
         
         # Payment Buttons
         btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(8)
         
         cancel_bill_btn = QPushButton("ยกเลิกบิล")
         cancel_bill_btn.setToolTip('ยกเลิกบิลปัจจุบัน')
-        cancel_bill_btn.setStyleSheet("background-color: #ef4444; color: white; border-radius: 8px; padding: 15px; font-size: 24px; font-weight: bold;")
+        cancel_bill_btn.setStyleSheet("background-color: #ef4444; color: white; border-radius: 8px; padding: 12px; font-size: 20px; font-weight: bold;")
         cancel_bill_btn.clicked.connect(self.cancel_current_bill)
         
         pay_btn = QPushButton("ชำระเงิน")
         pay_btn.setToolTip('ชำระเงิน')
-        pay_btn.setStyleSheet("background-color: #10b981; color: white; border-radius: 8px; padding: 15px; font-size: 24px; font-weight: bold;")
+        pay_btn.setStyleSheet("background-color: #10b981; color: white; border-radius: 8px; padding: 12px; font-size: 20px; font-weight: bold;")
         pay_btn.clicked.connect(self.show_payment_dialog)
         
-        btn_layout.addWidget(cancel_bill_btn)
-        btn_layout.addWidget(pay_btn)
+        btn_layout.addWidget(cancel_bill_btn, 1)
+        btn_layout.addWidget(pay_btn, 2)
         layout.addLayout(btn_layout)
         
         return frame
@@ -988,7 +1306,259 @@ class MainWindow(QMainWindow):
             self.search_input.setFocus()
             self.search_input.setText(self.search_input.text() + event.text())
         super().keyPressEvent(event)
+
+    def prompt_scale_weight_item(self):
+        """ปุ่มฟังก์ชันชั่งน้ำหนัก: รองรับยิงบาร์โค้ด/QR และระบุกิโลกรัมแล้วเพิ่มลงตะกร้า"""
+        from ui.scale_weight_dialog import ScaleWeightDialog
+        dialog = ScaleWeightDialog(self, db_path=self.db_path)
+        if dialog.exec() == QDialog.Accepted:
+            if dialog.selected_product and dialog.entered_weight > 0:
+                self.add_to_cart(dialog.selected_product, qty=dialog.entered_weight, is_scale=True)
+
+    def apply_discount_prompt(self):
+        if self.cart_table.rowCount() == 0:
+            QMessageBox.warning(self, "แจ้งเตือน", "ไม่มีสินค้าในตะกร้าสำหรับคิดส่วนลด!")
+            return
+            
+        subtotal = 0.0
+        for row in range(self.cart_table.rowCount()):
+            item = self.cart_table.item(row, 3)
+            if item:
+                subtotal += float(item.text().replace(',', ''))
+                
+        options = ["ลดเป็นจำนวนเงิน (฿)", "ลดเป็นเปอร์เซ็นต์ (%)", "ล้างส่วนลด"]
+        choice, ok = QInputDialog.getItem(self, "กำหนดส่วนลดบิล", f"ยอดรวมก่อนลด: ฿{subtotal:,.2f}\nเลือกประเภทส่วนลด:", options, 0, False)
+        if not ok or not choice:
+            return
+            
+        if choice == "ล้างส่วนลด":
+            self.discount_amount = 0.0
+            self.discount_label = ""
+            self.update_cart_total()
+            QMessageBox.information(self, "สำเร็จ", "ล้างส่วนลดเรียบร้อยแล้ว")
+            return
+            
+        if choice == "ลดเป็นจำนวนเงิน (฿)":
+            val, ok_val = QInputDialog.getDouble(self, "ส่วนลดเป็นบาท", f"ระบุจำนวนเงินส่วนลด (บาท, ไม่เกิน {subtotal:,.2f}):", self.discount_amount or 0.0, 0, subtotal, 2)
+            if ok_val:
+                self.discount_amount = round(val, 2)
+                self.discount_label = f"฿{self.discount_amount:,.2f}"
+                self.update_cart_total()
+        elif choice == "ลดเป็นเปอร์เซ็นต์ (%)":
+            pct, ok_pct = QInputDialog.getDouble(self, "ส่วนลดเป็นเปอร์เซ็นต์", "ระบุเปอร์เซ็นต์ส่วนลด (0 - 100%):", 5.0, 0, 100, 1)
+            if ok_pct:
+                calc_val = round(subtotal * (pct / 100.0), 2)
+                self.discount_amount = min(calc_val, subtotal)
+                self.discount_label = f"{pct:g}%"
+                self.update_cart_total()
+
+    def hold_current_bill(self):
+        if self.cart_table.rowCount() == 0:
+            QMessageBox.warning(self, "แจ้งเตือน", "ไม่มีสินค้าในตะกร้าที่จะพักบิล!")
+            return
+            
+        note, ok = QInputDialog.getText(self, "พักบิลปัจจุบัน (Hold Bill)", "ระบุชื่อลูกค้าหรือหมายเหตุพักบิล (เว้นว่างได้):")
+        if not ok:
+            return
+            
+        note = note.strip() or "ลูกค้าพักบิล"
         
+        # Build cart items payload
+        cart_items = []
+        total_amount = 0.0
+        for row in range(self.cart_table.rowCount()):
+            name_item = self.cart_table.item(row, 0)
+            qty_item = self.cart_table.item(row, 1)
+            price_item = self.cart_table.item(row, 2)
+            total_item = self.cart_table.item(row, 3)
+            if not name_item or not qty_item or not price_item:
+                continue
+            p_id = name_item.data(Qt.UserRole)
+            qty = float(qty_item.text())
+            price = float(price_item.text().replace(',', ''))
+            tot = float(total_item.text().replace(',', '')) if total_item else qty * price
+            total_amount += tot
+            cart_items.append({
+                "id": p_id,
+                "name": name_item.text(),
+                "qty": qty,
+                "unit_price": price,
+                "total": tot
+            })
+            
+        # 1. พยายามยิงไปเก็บที่ Server ERP ก่อน
+        api_url = (self.config.get('api_url') or 'http://localhost:8000').rstrip('/')
+        pos_token = self.config.get('pos_token')
+        saved_server = False
+        
+        if pos_token and self.current_shift:
+            try:
+                payload = {
+                    "branch_id": self.config.get('branch_id', 1),
+                    "shift_id": self.current_shift.get('server_id') or self.current_shift.get('id') or 1,
+                    "cashier_id": self.config.get('cashier_id', 1),
+                    "label": note,
+                    "total_amount": total_amount,
+                    "payload": {
+                        "cart": cart_items,
+                        "discount_amount": self.discount_amount,
+                        "discount_label": self.discount_label
+                    }
+                }
+                headers = {
+                    'Authorization': f'Bearer {pos_token}',
+                    'Accept': 'application/json'
+                }
+                res = requests.post(f"{api_url}/api/pos/held-bills", json=payload, headers=headers, timeout=5)
+                if res.status_code in (200, 201):
+                    saved_server = True
+            except Exception as e:
+                print("Hold bill server call error:", e)
+                
+        # 2. เก็บสำรองไว้ใน local config/file ด้วย เพื่อให้ดูได้เสมอ
+        held_file = os.path.join(self.app_data_dir, 'local_held_bills.json')
+        local_bills = []
+        if os.path.exists(held_file):
+            try:
+                with open(held_file, 'r', encoding='utf-8') as f:
+                    local_bills = json.load(f)
+            except Exception:
+                local_bills = []
+                
+        from datetime import datetime
+        local_bills.append({
+            "id": int(datetime.now().timestamp() * 1000),
+            "hold_no": f"H{len(local_bills) + 1:03d}",
+            "label": note,
+            "createdAt": datetime.now().isoformat(),
+            "total_amount": total_amount,
+            "discount_amount": self.discount_amount,
+            "discount_label": self.discount_label,
+            "cart": cart_items
+        })
+        try:
+            with open(held_file, 'w', encoding='utf-8') as f:
+                json.dump(local_bills, f, ensure_ascii=False)
+        except Exception:
+            pass
+            
+        # ล้างตะกร้าเพื่อรับลูกค้าคนต่อไป
+        self.discount_amount = 0.0
+        self.discount_label = ""
+        self.cart_table.setRowCount(0)
+        self.update_cart_total()
+        QMessageBox.information(self, "พักบิลสำเร็จ", f"พักบิล '{note}' เรียบร้อยแล้ว\nสามารถเปิดการขายให้ลูกค้ารายต่อไปได้ทันที")
+
+    def recall_held_bills(self):
+        # 1. รวบรวมบิลพักทั้งจาก Server ERP และ Local
+        all_held = []
+        api_url = (self.config.get('api_url') or 'http://localhost:8000').rstrip('/')
+        pos_token = self.config.get('pos_token')
+        
+        if pos_token:
+            try:
+                headers = {'Authorization': f'Bearer {pos_token}', 'Accept': 'application/json'}
+                res = requests.get(f"{api_url}/api/pos/held-bills?branch_id={self.config.get('branch_id', 1)}", headers=headers, timeout=4)
+                if res.status_code == 200:
+                    data = res.json()
+                    all_held.extend(data.get('held_bills', []))
+            except Exception as e:
+                print("Failed to fetch server held bills:", e)
+                
+        held_file = os.path.join(self.app_data_dir, 'local_held_bills.json')
+        if os.path.exists(held_file):
+            try:
+                with open(held_file, 'r', encoding='utf-8') as f:
+                    local_bills = json.load(f)
+                    # Filter out duplicates by label/timestamp
+                    server_labels = {b.get('label') for b in all_held}
+                    for lb in local_bills:
+                        if lb.get('label') not in server_labels:
+                            all_held.append(lb)
+            except Exception:
+                pass
+                
+        if not all_held:
+            QMessageBox.information(self, "แจ้งเตือน", "ไม่มีบิลที่พักไว้ในขณะนี้")
+            return
+            
+        from ui.held_bills_dialog import HeldBillsDialog
+        dlg = HeldBillsDialog(self, held_bills=all_held)
+        if dlg.exec() == QDialog.Accepted and dlg.selected_bill:
+            chosen = dlg.selected_bill
+            
+            # หากในตะกร้าปัจจุบันมีสินค้าอยู่ ให้ยืนยันก่อนทับ
+            if self.cart_table.rowCount() > 0:
+                reply = QMessageBox.question(self, "ยืนยันการเรียกบิล", "ในตะกร้าปัจจุบันมีสินค้าอยู่ ต้องการแทนที่ด้วยบิลที่เรียกคืนหรือไม่?", QMessageBox.Yes | QMessageBox.No)
+                if reply != QMessageBox.Yes:
+                    return
+                    
+            cart_data = chosen.get('cart') or (chosen.get('payload') or {}).get('cart') or []
+            self.cart_table.setRowCount(0)
+            
+            for item in cart_data:
+                p_id = item.get('id') or item.get('product_id')
+                name = item.get('name') or item.get('name_th') or "สินค้า"
+                qty = float(item.get('qty') or 1)
+                price = float(item.get('unit_price') or item.get('price') or 0.0)
+                tot = qty * price
+                
+                row = self.cart_table.rowCount()
+                self.cart_table.insertRow(row)
+                
+                name_item = QTableWidgetItem(name)
+                name_item.setData(Qt.UserRole, p_id)
+                qty_item = QTableWidgetItem(f"{qty:g}")
+                qty_item.setTextAlignment(Qt.AlignCenter)
+                price_item = QTableWidgetItem(f"{price:.2f}")
+                price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                tot_item = QTableWidgetItem(f"{tot:.2f}")
+                tot_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                
+                self.cart_table.setItem(row, 0, name_item)
+                self.cart_table.setItem(row, 1, qty_item)
+                self.cart_table.setItem(row, 2, price_item)
+                self.cart_table.setItem(row, 3, tot_item)
+                
+                # Manage widget buttons
+                manage_widget = QWidget()
+                manage_layout = QHBoxLayout(manage_widget)
+                manage_layout.setContentsMargins(0, 0, 0, 0)
+                manage_layout.setSpacing(4)
+                edit_btn = QPushButton("แก้ไข")
+                edit_btn.setStyleSheet("background-color: #f59e0b; color: white; border-radius: 4px; padding: 4px 8px;")
+                edit_btn.clicked.connect(self.edit_cart_item)
+                del_btn = QPushButton("ลบ")
+                del_btn.setStyleSheet("background-color: #ef4444; color: white; border-radius: 4px; padding: 4px 8px;")
+                del_btn.clicked.connect(self.edit_cart_item)
+                manage_layout.addWidget(edit_btn)
+                manage_layout.addWidget(del_btn)
+                self.cart_table.setCellWidget(row, 4, manage_widget)
+                
+            self.discount_amount = float(chosen.get('discount_amount') or 0.0)
+            self.discount_label = str(chosen.get('discount_label') or "")
+            self.update_cart_total()
+            
+            # ลบบิลออกจาก local file
+            if os.path.exists(held_file):
+                try:
+                    with open(held_file, 'r', encoding='utf-8') as f:
+                        lbills = json.load(f)
+                    lbills = [b for b in lbills if b.get('id') != chosen.get('id') and b.get('label') != chosen.get('label')]
+                    with open(held_file, 'w', encoding='utf-8') as f:
+                        json.dump(lbills, f, ensure_ascii=False)
+                except Exception:
+                    pass
+                    
+            # ยิง resume ไปที่ Server หากมี ID
+            server_id = chosen.get('id')
+            if server_id and pos_token and not str(server_id).startswith('17'):
+                try:
+                    requests.post(f"{api_url}/api/pos/held-bills/{server_id}/resume", headers={'Authorization': f'Bearer {pos_token}'}, timeout=3)
+                except Exception:
+                    pass
+                    
+            QMessageBox.information(self, "สำเร็จ", f"ดึงบิล '{chosen.get('label', '')}' กลับมายังตะกร้าเรียบร้อยแล้ว")
 
     def cancel_current_bill(self, auto_reason=None):
         if isinstance(auto_reason, bool):
@@ -1097,12 +1667,16 @@ class MainWindow(QMainWindow):
                     total_qty += qty
                     total_amount += total
                 
+            subtotal = total_amount
+            discount = min(self.discount_amount, subtotal)
+            grand_total = max(0.0, subtotal - discount)
+            
             from ui.payment_dialog import PaymentDialog
             from ui.help_dialog import HelpDialog
-            dialog = PaymentDialog(self, total_amount, total_items, total_qty)
+            dialog = PaymentDialog(self, grand_total, total_items, total_qty, discount_amount=discount)
             
             if hasattr(self, 'customer_display') and self.customer_display and not self.customer_display.isHidden():
-                self.customer_display.show_payment(total_amount)
+                self.customer_display.show_payment(grand_total)
                 
             if dialog.exec() == QDialog.Accepted:
                 if hasattr(self, 'customer_display') and self.customer_display and not self.customer_display.isHidden():
@@ -1163,6 +1737,7 @@ class MainWindow(QMainWindow):
             # Note: We will save total_amount below after loop
             
             items = []
+            api_items = []
             for row in range(self.cart_table.rowCount()):
                 name_item = self.cart_table.item(row, 0)
                 qty_item = self.cart_table.item(row, 1)
@@ -1186,14 +1761,73 @@ class MainWindow(QMainWindow):
                     unit_price=price,
                     total_price=total
                 ))
+                api_items.append({
+                    "product_id": product_id,
+                    "qty": qty,
+                    "unit_price": price
+                })
                 
             doc_no = 'OFFLINE-' + receipt_id[:8].upper()
+            server_receipt_no = None
+
+            # ── 1. ยิงเข้า Server Checkout ทันทีผ่าน API ──
+            api_url = (self.config.get('api_url') or 'http://localhost:8000').rstrip('/')
+            pos_token = self.config.get('pos_token')
+
+            # Resolve valid active branch_id, cashier_id, shift_id
+            active_shift = getattr(self, 'current_shift', None) or {}
+            cur_branch_id = active_shift.get('branch_id') or self.config.get('branch_id') or 6
+            cur_cashier_id = active_shift.get('cashier_id') or self.config.get('cashier_id') or 21
+            cur_shift_id = active_shift.get('id') or active_shift.get('server_id')
+
+            if pos_token:
+                try:
+                    discount_val = min(self.discount_amount, total_amount)
+                    payload = {
+                        "branch_id": cur_branch_id,
+                        "shift_id": cur_shift_id,
+                        "cashier_id": cur_cashier_id,
+                        "method": method_map.get(method, 'cash'),
+                        "payment_confirmed": True,
+                        "cash_received": received_amount,
+                        "cash_amount": cash_amount,
+                        "transfer_amount": transfer_amount,
+                        "change_amount": max(0, change_amount),
+                        "is_full_tax": is_full_tax,
+                        "customer_name": cust_name,
+                        "customer_tax_id": cust_tax,
+                        "customer_address": cust_addr,
+                        "discount_amount": discount_val,
+                        "items": api_items
+                    }
+                    headers = {
+                        'Authorization': f'Bearer {pos_token}',
+                        'Accept': 'application/json',
+                        'Idempotency-Key': f"pos-direct-{receipt_id}"
+                    }
+                    resp = requests.post(f"{api_url}/api/pos/checkout", json=payload, headers=headers, timeout=10)
+                    if resp.status_code in (200, 201):
+                        resp_data = resp.json()
+                        server_receipt_no = resp_data.get('receipt_no')
+                        if server_receipt_no:
+                            doc_no = server_receipt_no
+                except Exception as ex:
+                    print(f"Direct checkout to ERP failed, fallback to local: {ex}")
             
-            new_receipt = PosReceipt(
-                id=receipt_id,
-                shift_id=self.current_shift.get('local_id') if getattr(self, 'current_shift', None) else None,
+            discount_applied = min(self.discount_amount, total_amount)
+            net_total = max(0.0, total_amount - discount_applied)
+            idempotency_key = f"pos-sale-{receipt_id}"
+
+            # Create Sale record
+            new_sale = Sale(
+                local_sale_id=receipt_id,
+                server_receipt_id=server_receipt_no,
+                device_id=self.config.get('device_id', 'DEV-01'),
+                branch_id=cur_branch_id,
+                shift_id=cur_shift_id or (active_shift.get('local_id') if active_shift else None),
+                cashier_salesman_id=cur_cashier_id,
                 doc_number=doc_no,
-                total_amount=total_amount,
+                total_amount=net_total,
                 received_amount=received_amount,
                 payment_method=method_map.get(method, 'cash'),
                 cash_amount=cash_amount,
@@ -1202,17 +1836,69 @@ class MainWindow(QMainWindow):
                 customer_name=cust_name,
                 customer_tax_id=cust_tax,
                 customer_address=cust_addr,
-                sync_status='pending'
+                status='synced' if server_receipt_no else 'pending',
+                idempotency_key=idempotency_key,
+                synced_at=datetime.utcnow() if server_receipt_no else None
             )
             
-            session.add(new_receipt)
+            # Create Payment record
+            payment_record = Payment(
+                sale_id=receipt_id,
+                method=method_map.get(method, 'cash'),
+                amount=net_total,
+                received_amount=received_amount,
+                change_amount=max(0.0, change_amount)
+            )
+
+            # Create Outbox record for synchronization queue
+            outbox_payload = {
+                "local_sale_id": receipt_id,
+                "branch_id": cur_branch_id,
+                "shift_id": cur_shift_id,
+                "cashier_id": cur_cashier_id,
+                "method": method_map.get(method, 'cash'),
+                "payment_confirmed": True,
+                "cash_received": received_amount,
+                "cash_amount": cash_amount,
+                "transfer_amount": transfer_amount,
+                "change_amount": max(0, change_amount),
+                "is_full_tax": is_full_tax,
+                "customer_name": cust_name,
+                "customer_tax_id": cust_tax,
+                "customer_address": cust_addr,
+                "discount_amount": discount_applied,
+                "items": api_items
+            }
+            outbox_record = Outbox(
+                event_type='sale_checkout',
+                aggregate_id=receipt_id,
+                payload_json=json.dumps(outbox_payload),
+                idempotency_key=idempotency_key,
+                status='synced' if server_receipt_no else 'pending',
+                synced_at=datetime.utcnow() if server_receipt_no else None
+            )
+
+            # Atomic Transaction to save sale, sale_items, payment, and outbox
+            session.add(new_sale)
             session.add_all(items)
+            session.add(payment_record)
+            session.add(outbox_record)
             
             # Extract data before commit expires the instances
             receipt_items_data = [{'name': i.name, 'qty': i.qty, 'price': i.unit_price, 'total': i.total_price} for i in items]
             
             session.commit()
             session.close()
+
+            # Update pending sync badge
+            if hasattr(self, 'sync_worker') and self.sync_worker:
+                pending_count = self.sync_worker.get_pending_count()
+                self.update_pending_sync_badge(pending_count)
+            
+            # Reset discount after successful checkout
+            saved_discount = discount_applied
+            self.discount_amount = 0.0
+            self.discount_label = ""
             
             self.cart_table.setRowCount(0)
             self.update_cart_total()
@@ -1221,7 +1907,8 @@ class MainWindow(QMainWindow):
             from datetime import datetime
             receipt_data = {
                 'doc_number': doc_no,
-                'total': total_amount,
+                'total': net_total,
+                'discount_amount': saved_discount,
                 'payment_method': method_map.get(method, 'cash'),
                 'is_full_tax': is_full_tax,
                 'customer_name': cust_name,
@@ -1246,8 +1933,13 @@ class MainWindow(QMainWindow):
 
     
     def show_help(self):
-        from ui.help_dialog import HelpDialog
-        dialog = HelpDialog(self)
+        from ui.manual_dialog import ManualDialog
+        dialog = ManualDialog(self)
+        dialog.exec()
+
+    def open_manual_dialog(self):
+        from ui.manual_dialog import ManualDialog
+        dialog = ManualDialog(self)
         dialog.exec()
 
     def toggle_fullscreen(self):

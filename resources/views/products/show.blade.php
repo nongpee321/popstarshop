@@ -27,73 +27,509 @@
     <div x-data="productShow()" x-cloak>
         @if(request()->boolean('popup'))
         <section class="compact-product-window">
-            <div class="compact-menu"><strong>สินค้า-{{ $product->sku_code }}</strong></div>
-            <div class="compact-tools">
-                <button type="button" @click="compactTab='detail'"><i class="bi bi-card-checklist"></i> รายละเอียด</button>
-                <button type="button" @click="compactTab='price'"><i class="bi bi-tags"></i> ราคาขาย</button>
-                <button type="button" @click="compactTab='barcode'"><i class="bi bi-upc-scan"></i> บาร์โค้ด</button>
-                <button type="button" @click="compactTab='stock'"><i class="bi bi-boxes"></i> สต๊อก</button>
+            <div class="compact-header">
+                <div class="compact-title-group">
+                    <span class="compact-badge-sku">{{ $product->sku_code }}</span>
+                    <h2 class="compact-title-name">{{ $product->name_th }}</h2>
+                </div>
+                <div class="compact-tools-bar">
+                    <button type="button" :class="compactTab==='detail' && 'active'" @click="compactTab='detail'"><i class="bi bi-card-checklist"></i> ข้อมูลทั่วไป</button>
+                    <button type="button" :class="compactTab==='price' && 'active'" @click="compactTab='price'"><i class="bi bi-tags"></i> ราคาขาย</button>
+                    <button type="button" :class="compactTab==='barcode' && 'active'" @click="compactTab='barcode'"><i class="bi bi-upc-scan"></i> รหัสบาร์โค้ด</button>
+                    <button type="button" :class="compactTab==='stock' && 'active'" @click="compactTab='stock'"><i class="bi bi-boxes"></i> สต๊อกและต้นทุน</button>
+                </div>
             </div>
-            <nav class="compact-tabs">
-                <button :class="compactTab==='detail' && 'active'" @click="compactTab='detail'">รายละเอียด</button>
-                <button :class="compactTab==='price' && 'active'" @click="compactTab='price'">ราคาขายสินค้า</button>
-                <button :class="compactTab==='barcode' && 'active'" @click="compactTab='barcode'">รหัสสินค้า / บาร์โค้ด</button>
-                <button :class="compactTab==='stock' && 'active'" @click="compactTab='stock'">คลัง / ผู้จำหน่าย</button>
-            </nav>
+
+            @if(session('success'))
+                <div class="alert alert-success d-flex align-items-center gap-2 m-3 mb-0 py-2 px-3 rounded-3 shadow-sm">
+                    <i class="bi bi-check-circle-fill fs-5 text-success"></i>
+                    <div>{{ session('success') }}</div>
+                </div>
+            @endif
+            @if(session('error'))
+                <div class="alert alert-danger d-flex align-items-center gap-2 m-3 mb-0 py-2 px-3 rounded-3 shadow-sm">
+                    <i class="bi bi-exclamation-triangle-fill fs-5 text-danger"></i>
+                    <div>{{ session('error') }}</div>
+                </div>
+            @endif
+            @if($errors->any())
+                <div class="alert alert-danger m-3 mb-0 py-2 px-3 rounded-3 shadow-sm">
+                    <div class="fw-bold mb-1"><i class="bi bi-x-circle-fill me-1"></i>ไม่สามารถบันทึกได้เนื่องจาก:</div>
+                    <ul class="mb-0 ps-3 small">
+                        @foreach($errors->all() as $err)
+                            <li>{{ $err }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
 
             <div class="compact-body" x-show="compactTab==='detail'">
-                <form method="post" action="{{ route('products.update', $product) }}" class="compact-form">@csrf @method('PUT')<input type="hidden" name="popup" value="1">
-                    <label>รหัสสินค้า<input name="sku_code" value="{{ $product->sku_code }}" required></label>
-                    <label class="wide">ชื่อสินค้า<input name="name_th" value="{{ $product->name_th }}" required></label>
-                    <label>ชื่ออังกฤษ<input name="name_en" value="{{ $product->name_en }}"></label>
-                    <label>ประเภทสินค้า<select name="product_category_id"><option value="">ไม่กำหนด</option>@foreach($categories as $item)<option value="{{ $item->id }}" @selected($item->id===$product->product_category_id)>{{ $item->name_th }}</option>@endforeach</select></label>
-                    <label>แผนก<select name="product_department_id"><option value="">ไม่กำหนด</option>@foreach($departments as $item)<option value="{{ $item->id }}" @selected($item->id===$product->product_department_id)>{{ $item->name_th }}</option>@endforeach</select></label>
-                    <label>ยี่ห้อ<select name="product_brand_id"><option value="">ไม่กำหนด</option>@foreach($brands as $item)<option value="{{ $item->id }}" @selected($item->id===$product->product_brand_id)>{{ $item->name_th }}</option>@endforeach</select></label>
-                    <label>หน่วยหลัก<select name="base_unit_id" required>@foreach($units as $item)<option value="{{ $item->id }}" @selected($item->id===$product->base_unit_id)>{{ $item->displayLabel() }}</option>@endforeach</select></label>
-                    <label>ราคาขายเริ่มต้น<input type="number" step="0.01" min="0" name="default_price" value="{{ $product->default_price }}"></label>
-                    <label>ราคาขายสูงสุด/หน่วยฐาน<input type="number" step="0.0001" min="0" name="maximum_sale_price" value="{{ $product->maximum_sale_price }}"></label>
-                    <label>กำไรขั้นต่ำ (%)<input type="number" step="0.0001" max="100" name="minimum_margin_percent" value="{{ $product->minimum_margin_percent }}"></label>
-                    <label>ควบคุมกำไร<select name="margin_control_policy"><option value="warn" @selected($product->margin_control_policy==='warn')>แจ้งเตือน</option><option value="block" @selected($product->margin_control_policy==='block')>ห้ามขายจนกว่าผู้จัดการอนุมัติ</option></select></label>
-                    <label>ขายเมื่อสต๊อกไม่พอ<select name="negative_stock_policy"><option value="allow" @selected($product->negative_stock_policy==='allow')>เตือนแล้วอนุญาต</option><option value="block" @selected($product->negative_stock_policy==='block')>ห้ามขายเกินสต๊อก</option></select></label>
-                    <label>จุดสั่งซื้อ<input type="number" step="0.0001" min="0" name="reorder_point" value="{{ $product->reorder_point }}"></label>
-                    <label>สต๊อกต่ำสุด<input type="number" step="0.0001" min="0" name="minimum_stock" value="{{ $product->minimum_stock }}"></label>
-                    <label>สต๊อกสูงสุด<input type="number" step="0.0001" min="0" name="maximum_stock" value="{{ $product->maximum_stock }}"></label>
-                    <label class="wide">หมายเหตุ<textarea name="note" rows="3">{{ $product->note }}</textarea></label>
-                    <label>เตือนก่อนหมดอายุ (วัน)<input type="number" min="0" max="3650" name="expiry_warning_days" value="{{ $product->expiry_warning_days }}"></label>
-                    <label>อายุสินค้านับจากวันผลิต (วัน)<input type="number" min="1" max="36500" name="shelf_life_days" value="{{ $product->shelf_life_days }}"></label>
-                    <label>เริ่มแนะนำระบายก่อนหมดอายุ (วัน)<input type="number" min="0" max="3650" name="clearance_warning_days" value="{{ $product->clearance_warning_days }}"></label>
-                    <label>ส่วนลดระบายที่แนะนำ (%)<input type="number" step="0.01" min="0" max="100" name="clearance_discount_percent" value="{{ $product->clearance_discount_percent }}"></label>
-                    <label>เมื่อ Lot หมดอายุ<select name="expiry_sale_policy"><option value="block" @selected($product->expiry_sale_policy==='block')>ห้ามขาย/ห้ามใช้</option><option value="allow" @selected($product->expiry_sale_policy==='allow')>เตือนแต่อนุญาต</option></select></label>
-                    <div class="compact-checks wide"><label><input type="checkbox" name="is_active" value="1" @checked($product->is_active)> ใช้งาน</label><label><input type="checkbox" name="is_vat" value="1" @checked($product->is_vat)> คิด VAT</label><label><input type="checkbox" name="tracks_expiry" value="1" @checked($product->tracks_expiry)> ควบคุม Lot/หมดอายุ</label></div>
-                    <div class="compact-save wide"><button><i class="bi bi-check-lg"></i> บันทึก</button></div>
+                <form method="post" action="{{ route('products.update', $product) }}" class="compact-form-modern">@csrf @method('PUT')<input type="hidden" name="popup" value="1">
+                    
+                    {{-- กลุ่มที่ 1: ข้อมูลหลักสินค้า --}}
+                    <div class="form-section-card">
+                        <div class="section-card-title"><i class="bi bi-info-circle text-primary"></i> ข้อมูลพื้นฐานสินค้า</div>
+                        <div class="form-grid-3">
+                            <div class="form-field">
+                                <label>รหัสสินค้า (SKU) <span class="text-danger">*</span></label>
+                                <input name="sku_code" value="{{ $product->sku_code }}" required class="form-control-modern">
+                            </div>
+                            <div class="form-field span-2">
+                                <label>ชื่อสินค้าภาษาไทย <span class="text-danger">*</span></label>
+                                <input name="name_th" value="{{ $product->name_th }}" required class="form-control-modern fw-bold">
+                            </div>
+                            <div class="form-field">
+                                <label>ชื่อสินค้าภาษาอังกฤษ</label>
+                                <input name="name_en" value="{{ $product->name_en }}" class="form-control-modern">
+                            </div>
+                            <div class="form-field">
+                                <label>หมวดหมู่สินค้า</label>
+                                <select name="product_category_id" class="form-select-modern">
+                                    <option value="">-- ไม่ระบุ --</option>
+                                    @foreach($categories as $item)
+                                        <option value="{{ $item->id }}" @selected($item->id===$product->product_category_id)>{{ $item->name_th }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="form-field">
+                                <label>แผนก</label>
+                                <select name="product_department_id" class="form-select-modern">
+                                    <option value="">-- ไม่ระบุ --</option>
+                                    @foreach($departments as $item)
+                                        <option value="{{ $item->id }}" @selected($item->id===$product->product_department_id)>{{ $item->name_th }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="form-field">
+                                <label>ยี่ห้อ / แบรนด์</label>
+                                <select name="product_brand_id" class="form-select-modern">
+                                    <option value="">-- ไม่ระบุ --</option>
+                                    @foreach($brands as $item)
+                                        <option value="{{ $item->id }}" @selected($item->id===$product->product_brand_id)>{{ $item->name_th }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="form-field">
+                                <label>หน่วยนับหลัก <span class="text-danger">*</span></label>
+                                <select name="base_unit_id" required class="form-select-modern fw-bold">
+                                    @foreach($units as $item)
+                                        <option value="{{ $item->id }}" @selected($item->id===$product->base_unit_id)>{{ $item->displayLabel() }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- กลุ่มที่ 2: ราคาขายและการตั้งค่าการขาย --}}
+                    <div class="form-section-card">
+                        <div class="section-card-title"><i class="bi bi-tag text-success"></i> ราคาขายและกำไร</div>
+                        <div class="form-grid-3">
+                            <div class="form-field">
+                                <label>ราคาขายเริ่มต้น (บาท) <span class="text-danger">*</span></label>
+                                <div class="price-input-wrap">
+                                    <span class="currency-tag">฿</span>
+                                    <input type="number" step="0.01" min="0" name="default_price" value="{{ $product->default_price }}" class="form-control-modern price-input" required>
+                                </div>
+                            </div>
+                            <div class="form-field">
+                                <label>ต้นทุนเฉลี่ย (บาท)</label>
+                                <div class="price-input-wrap">
+                                    <span class="currency-tag text-muted">฿</span>
+                                    <input type="number" step="0.01" min="0" name="average_cost" value="{{ $product->average_cost }}" class="form-control-modern" style="padding-left:28px;">
+                                </div>
+                            </div>
+                            <div class="form-field">
+                                <label>ต้นทุนซื้อล่าสุด (บาท)</label>
+                                <div class="price-input-wrap">
+                                    <span class="currency-tag text-muted">฿</span>
+                                    <input type="number" step="0.01" min="0" name="last_purchase_cost" value="{{ $product->last_purchase_cost }}" class="form-control-modern" style="padding-left:28px;">
+                                </div>
+                            </div>
+                            <div class="form-field">
+                                <label>ราคาขายสูงสุด/หน่วยฐาน</label>
+                                <input type="number" step="0.0001" min="0" name="maximum_sale_price" value="{{ $product->maximum_sale_price }}" class="form-control-modern">
+                            </div>
+                            <div class="form-field">
+                                <label>กำไรขั้นต่ำ (%)</label>
+                                <input type="number" step="0.0001" max="100" name="minimum_margin_percent" value="{{ $product->minimum_margin_percent }}" class="form-control-modern">
+                            </div>
+                            <div class="form-field">
+                                <label>นโยบายควบคุมกำไร</label>
+                                <select name="margin_control_policy" class="form-select-modern">
+                                    <option value="warn" @selected($product->margin_control_policy==='warn')>แจ้งเตือน</option>
+                                    <option value="block" @selected($product->margin_control_policy==='block')>ห้ามขายจนกว่าผู้จัดการอนุมัติ</option>
+                                </select>
+                            </div>
+                            <div class="form-field">
+                                <label>เมื่อสต๊อกไม่พอขาย</label>
+                                <select name="negative_stock_policy" class="form-select-modern">
+                                    <option value="allow" @selected($product->negative_stock_policy==='allow')>เตือนแล้วอนุญาตให้ขาย</option>
+                                    <option value="block" @selected($product->negative_stock_policy==='block')>ห้ามขายเกินสต๊อก (บล็อก)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- กลุ่มที่ 3: สต๊อกและอายุสินค้า --}}
+                    <div class="form-section-card">
+                        <div class="section-card-title"><i class="bi bi-box-seam text-warning"></i> ควบคุมสต๊อกและวันหมดอายุ</div>
+                        <div class="form-grid-3">
+                            <div class="form-field">
+                                <label>จุดสั่งซื้อ (Reorder Point)</label>
+                                <input type="number" step="0.0001" min="0" name="reorder_point" value="{{ $product->reorder_point }}" class="form-control-modern">
+                            </div>
+                            <div class="form-field">
+                                <label>สต๊อกต่ำสุด (Min)</label>
+                                <input type="number" step="0.0001" min="0" name="minimum_stock" value="{{ $product->minimum_stock }}" class="form-control-modern">
+                            </div>
+                            <div class="form-field">
+                                <label>สต๊อกสูงสุด (Max)</label>
+                                <input type="number" step="0.0001" min="0" name="maximum_stock" value="{{ $product->maximum_stock }}" class="form-control-modern">
+                            </div>
+                            <div class="form-field">
+                                <label>อายุสินค้า (วัน)</label>
+                                <input type="number" min="1" max="36500" name="shelf_life_days" value="{{ $product->shelf_life_days }}" class="form-control-modern" placeholder="นับจากวันผลิต">
+                            </div>
+                            <div class="form-field">
+                                <label>เตือนก่อนหมดอายุ (วัน)</label>
+                                <input type="number" min="0" max="3650" name="expiry_warning_days" value="{{ $product->expiry_warning_days }}" class="form-control-modern">
+                            </div>
+                            <div class="form-field">
+                                <label>เมื่อ Lot สินค้าหมดอายุ</label>
+                                <select name="expiry_sale_policy" class="form-select-modern">
+                                    <option value="block" @selected($product->expiry_sale_policy==='block')>ห้ามขาย / ห้ามใช้</option>
+                                    <option value="allow" @selected($product->expiry_sale_policy==='allow')>เตือนแต่อนุญาต</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- หมายเหตุและสถานะ --}}
+                    <div class="form-section-card">
+                        <div class="form-field mb-3">
+                            <label>หมายเหตุสินค้า / คำแนะนำเพิ่มเติม</label>
+                            <textarea name="note" rows="2" class="form-control-modern" placeholder="บันทึกข้อความเพิ่มเติม เช่น วิธีเก็บรักษา หรือจุดสังเกต">{{ $product->note }}</textarea>
+                        </div>
+                        <div class="status-switches-bar">
+                            <label class="switch-item">
+                                <input type="checkbox" name="is_active" value="1" @checked($product->is_active)>
+                                <span><i class="bi bi-check-circle-fill text-success"></i> เปิดใช้งานสินค้านี้</span>
+                            </label>
+                            <label class="switch-item">
+                                <input type="checkbox" name="is_vat" value="1" @checked($product->is_vat)>
+                                <span><i class="bi bi-receipt text-primary"></i> สินค้าคิดภาษี (VAT)</span>
+                            </label>
+                            <label class="switch-item">
+                                <input type="checkbox" name="tracks_expiry" value="1" @checked($product->tracks_expiry)>
+                                <span><i class="bi bi-calendar2-week text-danger"></i> ควบคุม Lot และวันหมดอายุ</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    {{-- ปุ่มบันทึก Sticky Footer --}}
+                    <div class="compact-footer-bar">
+                        <button type="submit" class="btn-save-modern"><i class="bi bi-check2-circle me-1"></i> บันทึกการเปลี่ยนแปลง</button>
+                    </div>
                 </form>
             </div>
+            {{-- แท็บราคาขาย --}}
             <div class="compact-body" x-show="compactTab==='price'">
-                <div class="compact-section-head mb-2 d-flex justify-content-between align-items-center">
-                    <strong>ราคาขายตามตารางราคา</strong>
-                    <form method="post" action="{{ route('products.prices.upsert', $product) }}" class="d-flex gap-2 align-items-center">
-                        @csrf
-                        <input type="hidden" name="popup" value="1">
-                        <input type="hidden" name="compact_form" value="1">
-                        <label class="small text-muted mb-0">ราคาเริ่มต้น:</label>
-                        <input type="number" step="0.01" min="0" name="price" value="{{ number_format((float) ($product->default_price ?? 0), 2, '.', '') }}" class="num form-control form-control-sm" style="width:110px;" required>
-                        <button class="compact-row-save btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> บันทึกราคาหลัก</button>
-                    </form>
+                {{-- 1. ราคาขายมาตรฐานกลาง (ใช้กับทุกสาขา) --}}
+                <div class="form-section-card mb-3">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                        <div>
+                            <div class="section-card-title mb-1"><i class="bi bi-globe text-primary"></i> ราคาขายมาตรฐาน (ทุกสาขา)</div>
+                            <div class="text-muted small">ราคากลางที่ใช้ร่วมกันทุกสาขา (หากสาขาใดไม่ได้ตั้งราคาเฉพาะ จะใช้ราคานี้อัตโนมัติ)</div>
+                        </div>
+                        <form method="post" action="{{ route('products.prices.upsert', $product) }}" class="d-flex gap-2 align-items-center">
+                            @csrf
+                            <input type="hidden" name="branch_id" value="all">
+                            <input type="hidden" name="popup" value="{{ request()->boolean('popup') ? 1 : 0 }}">
+                            <input type="hidden" name="compact_form" value="1">
+                            <div class="price-input-wrap">
+                                <span class="currency-tag">฿</span>
+                                <input type="number" step="0.01" min="0" name="price" value="{{ number_format((float) ($product->default_price ?? 0), 2, '.', '') }}" class="form-control-modern price-input" style="width:140px;" required>
+                            </div>
+                            <button class="btn-save-modern" style="padding:8px 16px; font-size:13px;"><i class="bi bi-check2 me-1"></i> บันทึกราคามาตรฐาน (ทุกสาขา)</button>
+                        </form>
+                    </div>
                 </div>
-                <table class="compact-table compact-edit-table"><thead><tr><th>ตารางราคา</th><th>หน่วย</th><th class="num">ราคาขาย</th><th class="num">ทุน</th><th>สาขาที่ใช้</th><th></th></tr></thead><tbody>@forelse($allProductPrices as $price)<tr><td>{{ $price->priceTable?->name_th ?? $price->priceTable?->code }}</td><td>{{ $price->unit?->displayLabel() ?? 'ทั่วไป' }}</td><td><input form="price-{{ $price->id }}" class="num" type="number" step="0.01" min="0" name="price" value="{{ number_format((float) $price->price, 2, '.', '') }}" required></td><td><input form="price-{{ $price->id }}" class="num" type="number" step="0.01" min="0" name="cost_price" value="{{ number_format((float) $price->cost_price, 2, '.', '') }}"></td><td>-</td><td><form id="price-{{ $price->id }}" method="post" action="{{ route('products.prices.upsert', $product) }}">@csrf<input type="hidden" name="price_table_id" value="{{ $price->price_table_id }}"><input type="hidden" name="unit_id" value="{{ $price->unit_id }}"><input type="hidden" name="popup" value="1"><input type="hidden" name="compact_form" value="1"><button class="compact-row-save"><i class="bi bi-check-lg"></i> บันทึก</button></form></td></tr>@empty<tr><td colspan="6" class="text-center py-2 text-muted">ใช้ราคาเริ่มต้น ฿{{ number_format($product->default_price,2) }} (สามารถกำหนดราคาตารางราคาเพิ่มเติมได้)</td></tr>@endforelse</tbody></table>
+
+                {{-- 2. ราคาขายแยกตามสาขา (เปลี่ยนราคาเฉพาะสาขาๆ นั้นๆ) --}}
+                <div class="form-section-card mb-3">
+                    <div class="section-card-title mb-1"><i class="bi bi-shop text-danger"></i> กำหนดราคาขายเฉพาะสาขา</div>
+                    <div class="text-muted small mb-3">กำหนดราคาขายที่แตกต่างกันในแต่ละสาขาได้ทันที โดยหน้าร้าน POS แต่ละสาขาจะคิดราคาตามที่ระบุไว้ที่นี่</div>
+
+                    <div class="table-responsive">
+                        <table class="compact-table">
+                            <thead>
+                                <tr>
+                                    <th>รหัส / ชื่อสาขา</th>
+                                    <th>สถานะราคา</th>
+                                    <th class="text-end" style="width:180px;">ราคาขายสาขานี้ (บาท)</th>
+                                    <th class="text-center" style="width:120px;">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($branches as $b)
+                                    @php
+                                        $customPriceRow = $b->price_table_id ? $productPrices->get($b->price_table_id)?->firstWhere('unit_id', null) : null;
+                                        $isBranchCustom = $customPriceRow !== null;
+                                        $branchDisplayPrice = $isBranchCustom ? (float) $customPriceRow->price : (float) $product->default_price;
+                                    @endphp
+                                    <tr>
+                                        <td>
+                                            <span class="badge bg-light text-dark border font-monospace me-1">[{{ $b->code }}]</span>
+                                            <strong class="text-dark">{{ $b->name_th }}</strong>
+                                        </td>
+                                        <td>
+                                            @if($isBranchCustom)
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
+                                                    <i class="bi bi-tag-fill me-1"></i>ราคาเฉพาะสาขา
+                                                </span>
+                                            @else
+                                                <span class="badge bg-light text-muted border px-2 py-1">
+                                                    <i class="bi bi-globe me-1"></i>ใช้ราคามาตรฐาน
+                                                </span>
+                                            @endif
+                                        </td>
+                                        <td class="text-end">
+                                            <input form="branch-price-form-{{ $b->id }}" 
+                                                   type="number" step="0.01" min="0" name="price" 
+                                                   value="{{ number_format($branchDisplayPrice, 2, '.', '') }}" 
+                                                   class="form-control-modern text-end fw-bold {{ $isBranchCustom ? 'text-danger' : 'text-dark' }}" 
+                                                   style="width: 140px; display: inline-block;" required>
+                                        </td>
+                                        <td class="text-center">
+                                            <form id="branch-price-form-{{ $b->id }}" method="post" action="{{ route('products.prices.upsert', $product) }}" class="d-inline">
+                                                @csrf
+                                                <input type="hidden" name="branch_id" value="{{ $b->id }}">
+                                                <input type="hidden" name="popup" value="{{ request()->boolean('popup') ? 1 : 0 }}">
+                                                <input type="hidden" name="compact_form" value="1">
+                                                <button type="submit" class="btn btn-sm btn-danger px-3 py-1 fw-bold" style="font-size: 11px;">
+                                                    <i class="bi bi-check2"></i> บันทึกสาขานี้
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {{-- 3. ราคาตามตารางราคา (Price Tables) --}}
+                <div class="form-section-card">
+                    <div class="section-card-title"><i class="bi bi-table text-secondary"></i> ตารางราคาทั้งหมดในระบบ</div>
+                    <div class="table-responsive">
+                        <table class="compact-table">
+                            <thead>
+                                <tr>
+                                    <th>ตารางราคา</th>
+                                    <th>หน่วยนับ</th>
+                                    <th class="text-end" style="width:140px;">ราคาขาย (บาท)</th>
+                                    <th class="text-end" style="width:140px;">ราคาทุน (บาท)</th>
+                                    <th class="text-center" style="width:100px;">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($allProductPrices as $price)
+                                    <tr>
+                                        <td class="fw-bold">{{ $price->priceTable?->name ?? $price->priceTable?->name_th ?? $price->priceTable?->code }}</td>
+                                        <td><span class="badge bg-light text-dark border">{{ $price->unit?->displayLabel() ?? 'ทั่วไป' }}</span></td>
+                                        <td>
+                                            <input form="price-{{ $price->id }}" class="form-control-modern text-end fw-bold text-danger" type="number" step="0.01" min="0" name="price" value="{{ number_format((float) $price->price, 2, '.', '') }}" required>
+                                        </td>
+                                        <td>
+                                            <input form="price-{{ $price->id }}" class="form-control-modern text-end text-muted" type="number" step="0.01" min="0" name="cost_price" value="{{ number_format((float) $price->cost_price, 2, '.', '') }}">
+                                        </td>
+                                        <td class="text-center">
+                                            <form id="price-{{ $price->id }}" method="post" action="{{ route('products.prices.upsert', $product) }}">
+                                                @csrf
+                                                <input type="hidden" name="price_table_id" value="{{ $price->price_table_id }}">
+                                                <input type="hidden" name="unit_id" value="{{ $price->unit_id }}">
+                                                <input type="hidden" name="popup" value="{{ request()->boolean('popup') ? 1 : 0 }}">
+                                                <input type="hidden" name="compact_form" value="1">
+                                                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-check-lg"></i> บันทึก</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="5" class="text-center py-4 text-muted">
+                                            <i class="bi bi-info-circle me-1"></i> ใช้ราคาเริ่มต้น ฿{{ number_format($product->default_price, 2) }}
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
+
+            {{-- แท็บบาร์โค้ด --}}
             <div class="compact-body" x-show="compactTab==='barcode'">
-                <div class="compact-section-head"><strong>รหัสสินค้า / บาร์โค้ด</strong><button @click="barcodeOpen=true">+ เพิ่มรหัส</button></div>
-                <table class="compact-table compact-edit-table"><thead><tr><th>บาร์โค้ด</th><th>ประเภท</th><th>หน่วย</th><th class="num">ตัวคูณ</th><th class="num">ราคา</th><th>สถานะ</th><th></th></tr></thead><tbody>@forelse($product->barcodes as $barcode)<tr class="{{ $barcode->is_active ? '' : 'barcode-disabled' }}"><td><input form="barcode-{{ $barcode->id }}" name="barcode" value="{{ $barcode->barcode }}" required></td><td><select form="barcode-{{ $barcode->id }}" name="barcode_type" required>@foreach(\App\Support\BarcodePolicy::LABELS as $typeValue => $typeLabel)<option value="{{ $typeValue }}" @selected($typeValue===$barcode->barcode_type)>{{ $typeLabel }}</option>@endforeach</select></td><td><select form="barcode-{{ $barcode->id }}" name="unit_id" required>@foreach($units as $unit)<option value="{{ $unit->id }}" @selected($unit->id===$barcode->unit_id)>{{ $unit->displayLabel() }}</option>@endforeach</select></td><td><input form="barcode-{{ $barcode->id }}" class="num" type="number" step="0.0001" min="0.0001" name="unit_factor" value="{{ number_format((float) $barcode->unit_factor, 4, '.', '') }}" required></td><td><input form="barcode-{{ $barcode->id }}" class="num" type="number" step="0.01" min="0" name="price" value="{{ $barcode->price === null ? '' : number_format((float) $barcode->price, 2, '.', '') }}"></td><td><input form="barcode-{{ $barcode->id }}" type="hidden" name="is_active" value="0"><label class="barcode-state {{ $barcode->is_active ? 'is-on' : 'is-off' }}"><input form="barcode-{{ $barcode->id }}" type="checkbox" name="is_active" value="1" @checked($barcode->is_active)><span>{{ $barcode->is_active ? 'ใช้งาน' : 'ปิดใช้งาน' }}</span></label></td><td><form id="barcode-{{ $barcode->id }}" method="post" action="{{ route('products.barcodes.update', [$product, $barcode]) }}">@csrf @method('PUT')<input type="hidden" name="popup" value="1"><button class="compact-row-save"><i class="bi bi-check-lg"></i> บันทึก</button></form></td></tr>@empty<tr><td colspan="7">ยังไม่มีบาร์โค้ด</td></tr>@endforelse</tbody></table>
-            </div>
-            <div class="compact-body" x-show="compactTab==='stock'">
-                <div class="compact-cost-grid">
-                    <div><span>ทุนรับเข้าล่าสุด</span><strong>฿{{ number_format((float) $product->last_purchase_cost, 2) }}</strong><small>{{ $product->last_purchase_cost_at?->format('d/m/Y H:i') ?? 'ยังไม่เคยรับเข้า' }}</small></div>
-                    <div><span>ทุนรับเข้าเฉลี่ยเดือนนี้</span><strong>{{ $currentPurchaseAverageCost !== null ? '฿'.number_format((float) $currentPurchaseAverageCost, 2) : '-' }}</strong><small>เฉลี่ยถ่วงน้ำหนักเฉพาะใบรับซื้อ</small></div>
-                    <div><span>ทุนเฉลี่ยงวด {{ $currentCostPeriod['period'] ?? now()->format('Y-m') }}</span><strong>฿{{ number_format($currentPeriodAverageCost, 2) }}</strong><small>ต้นงวด + รับเข้าในเดือน</small></div>
-                    <div><span>ทุนคงเหลือเฉลี่ย</span><strong>฿{{ number_format((float) ($currentCostPeriod['ending_average_cost'] ?? 0), 2) }}</strong><small>มูลค่า Lot คงเหลือ ÷ จำนวน</small></div>
+                <div class="form-section-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="section-card-title mb-0"><i class="bi bi-upc-scan text-danger"></i> รหัสสินค้าและบาร์โค้ด</div>
+                        <button type="button" class="btn btn-sm btn-primary rounded-pill px-3" @click="barcodeOpen=true">
+                            <i class="bi bi-plus-lg me-1"></i> เพิ่มรหัสบาร์โค้ด
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="compact-table">
+                            <thead>
+                                <tr>
+                                    <th>รหัสบาร์โค้ด</th>
+                                    <th>ประเภทบาร์โค้ด</th>
+                                    <th>หน่วย</th>
+                                    <th class="text-end" style="width:110px;">ตัวคูณหน่วย</th>
+                                    <th class="text-end" style="width:130px;">ราคาขายเฉพาะ</th>
+                                    <th class="text-center" style="width:100px;">สถานะ</th>
+                                    <th class="text-center" style="width:90px;">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($product->barcodes as $barcode)
+                                    <tr class="{{ $barcode->is_active ? '' : 'table-light opacity-75' }}">
+                                        <td>
+                                            <input form="barcode-{{ $barcode->id }}" name="barcode" value="{{ $barcode->barcode }}" class="form-control-modern font-monospace fw-bold" required>
+                                        </td>
+                                        <td>
+                                            <select form="barcode-{{ $barcode->id }}" name="barcode_type" class="form-select-modern" required>
+                                                @foreach(\App\Support\BarcodePolicy::LABELS as $typeValue => $typeLabel)
+                                                    <option value="{{ $typeValue }}" @selected($typeValue===$barcode->barcode_type)>{{ $typeLabel }}</option>
+                                                @endforeach
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <select form="barcode-{{ $barcode->id }}" name="unit_id" class="form-select-modern" required>
+                                                @foreach($units as $unit)
+                                                    <option value="{{ $unit->id }}" @selected($unit->id===$barcode->unit_id)>{{ $unit->displayLabel() }}</option>
+                                                @endforeach
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <input form="barcode-{{ $barcode->id }}" class="form-control-modern text-end" type="number" step="0.0001" min="0.0001" name="unit_factor" value="{{ number_format((float) $barcode->unit_factor, 4, '.', '') }}" required>
+                                        </td>
+                                        <td>
+                                            <input form="barcode-{{ $barcode->id }}" class="form-control-modern text-end fw-bold text-danger" type="number" step="0.01" min="0" name="price" value="{{ $barcode->price === null ? '' : number_format((float) $barcode->price, 2, '.', '') }}" placeholder="ตามราคาหลัก">
+                                        </td>
+                                        <td class="text-center">
+                                            <input form="barcode-{{ $barcode->id }}" type="hidden" name="is_active" value="0">
+                                            <label class="switch-item justify-content-center">
+                                                <input form="barcode-{{ $barcode->id }}" type="checkbox" name="is_active" value="1" @checked($barcode->is_active)>
+                                                <span class="small {{ $barcode->is_active ? 'text-success fw-bold' : 'text-muted' }}">{{ $barcode->is_active ? 'ใช้งาน' : 'ปิด' }}</span>
+                                            </label>
+                                        </td>
+                                        <td class="text-center">
+                                            <form id="barcode-{{ $barcode->id }}" method="post" action="{{ route('products.barcodes.update', [$product, $barcode]) }}">
+                                                @csrf @method('PUT')
+                                                <input type="hidden" name="popup" value="1">
+                                                <button class="btn btn-sm btn-danger px-3"><i class="bi bi-check-lg"></i> บันทึก</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="7" class="text-center py-4 text-muted">
+                                            <i class="bi bi-upc me-1"></i> ยังไม่มีรหัสบาร์โค้ดเสริม (ระบบใช้รหัส SKU เริ่มต้นในการสแกน)
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <div class="compact-columns"><div><h6>สต๊อกคงเหลือ</h6><table class="compact-table"><thead><tr><th>คลัง / ที่เก็บ</th><th class="num">คงเหลือ</th></tr></thead><tbody>@forelse($product->stockBalances as $stock)<tr><td>{{ $stock->warehouseLocation?->warehouse?->name_th ?? $stock->warehouseLocation?->code ?? '-' }}</td><td class="num">{{ number_format($stock->qty_on_hand,4) }}</td></tr>@empty<tr><td colspan="2">ไม่มีสต๊อกคงเหลือ</td></tr>@endforelse</tbody></table></div><div><h6>ผู้จำหน่าย</h6><table class="compact-table"><thead><tr><th>รหัส</th><th>ชื่อผู้จำหน่าย</th></tr></thead><tbody>@forelse($product->suppliers as $link)<tr><td>{{ $link->supplier?->code }}</td><td>{{ $link->supplier?->name_th }}</td></tr>@empty<tr><td colspan="2">ยังไม่กำหนดผู้จำหน่าย</td></tr>@endforelse</tbody></table></div></div>
+            </div>
+
+            {{-- แท็บสต๊อกและต้นทุน --}}
+            <div class="compact-body" x-show="compactTab==='stock'">
+                {{-- ต้นทุน --}}
+                <div class="form-section-card mb-3">
+                    <div class="section-card-title"><i class="bi bi-cash-stack text-success"></i> สรุปต้นทุนสินค้า</div>
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <div class="p-3 bg-light rounded-3 border">
+                                <span class="text-muted small d-block mb-1">ทุนรับเข้าล่าสุด</span>
+                                <strong class="fs-5 text-dark">฿{{ number_format((float) $product->last_purchase_cost, 2) }}</strong>
+                                <small class="text-muted d-block mt-1">{{ $product->last_purchase_cost_at?->format('d/m/Y H:i') ?? 'ยังไม่เคยรับเข้า' }}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-3 bg-light rounded-3 border">
+                                <span class="text-muted small d-block mb-1">ทุนรับเข้าเฉลี่ยเดือนนี้</span>
+                                <strong class="fs-5 text-dark">{{ $currentPurchaseAverageCost !== null ? '฿'.number_format((float) $currentPurchaseAverageCost, 2) : '-' }}</strong>
+                                <small class="text-muted d-block mt-1">เฉลี่ยถ่วงน้ำหนักเฉพาะใบรับซื้อ</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-3 bg-light rounded-3 border">
+                                <span class="text-muted small d-block mb-1">ทุนเฉลี่ยงวด {{ $currentCostPeriod['period'] ?? now()->format('Y-m') }}</span>
+                                <strong class="fs-5 text-dark">฿{{ number_format($currentPeriodAverageCost, 2) }}</strong>
+                                <small class="text-muted d-block mt-1">ต้นงวด + รับเข้าในเดือน</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-3 bg-light rounded-3 border">
+                                <span class="text-muted small d-block mb-1">ทุนคงเหลือเฉลี่ย</span>
+                                <strong class="fs-5 text-primary">฿{{ number_format((float) ($currentCostPeriod['ending_average_cost'] ?? 0), 2) }}</strong>
+                                <small class="text-muted d-block mt-1">มูลค่า Lot คงเหลือ ÷ จำนวน</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- สต๊อกและซัพพลายเออร์ --}}
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="form-section-card h-100">
+                            <div class="section-card-title"><i class="bi bi-boxes text-warning"></i> สต๊อกคงเหลือตามคลัง</div>
+                            <table class="compact-table">
+                                <thead>
+                                    <tr>
+                                        <th>คลังสินค้า / ที่เก็บ</th>
+                                        <th class="text-end">จำนวนคงเหลือ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse($product->stockBalances as $stock)
+                                        <tr>
+                                            <td class="fw-semibold">{{ $stock->warehouseLocation?->warehouse?->name_th ?? $stock->warehouseLocation?->code ?? '-' }}</td>
+                                            <td class="text-end fw-bold text-success fs-6">{{ number_format($stock->qty_on_hand, 4) }}</td>
+                                        </tr>
+                                    @empty
+                                        <tr><td colspan="2" class="text-center py-3 text-muted">ไม่มีสต๊อกคงเหลือ</td></tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-section-card h-100">
+                            <div class="section-card-title"><i class="bi bi-truck text-info"></i> ผู้จำหน่าย (Suppliers)</div>
+                            <table class="compact-table">
+                                <thead>
+                                    <tr>
+                                        <th>รหัส</th>
+                                        <th>ชื่อผู้จำหน่าย</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse($product->suppliers as $link)
+                                        <tr>
+                                            <td><span class="badge bg-light text-dark border">{{ $link->supplier?->code }}</span></td>
+                                            <td class="fw-semibold">{{ $link->supplier?->name_th }}</td>
+                                        </tr>
+                                    @empty
+                                        <tr><td colspan="2" class="text-center py-3 text-muted">ยังไม่ได้ระบุผู้จำหน่าย</td></tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
         @endif
@@ -193,7 +629,8 @@
         </div>
 
         @php
-            $salePriceExVat = $product->is_vat ? ((float) $defaultPosPrice * 100 / (100 + $currentVatRate)) : (float) $defaultPosPrice;
+            $currentVat = (float) ($vatRate ?? 7);
+            $salePriceExVat = $product->is_vat ? ((float) $defaultPosPrice * 100 / (100 + $currentVat)) : (float) $defaultPosPrice;
             $estimatedProfit = $salePriceExVat - $currentPeriodAverageCost;
         @endphp
         <div class="cost-overview-grid mb-4">
@@ -419,7 +856,7 @@
                             <tbody>
                                 @forelse($product->stockBalances as $balance)
                                 <tr>
-                                    <td>{{ $balance->warehouseLocation->warehouse->name }} / {{ $balance->warehouseLocation->name ?? $balance->warehouseLocation->code }}</td>
+                                    <td>{{ $balance->warehouseLocation?->warehouse?->name_th ?? $balance->warehouseLocation?->warehouse?->name ?? 'ไม่ระบุคลัง' }} / {{ $balance->warehouseLocation?->name ?? $balance->warehouseLocation?->code ?? '-' }}</td>
                                     <td class="text-end {{ $balance->on_hand_qty < 0 ? 'text-danger fw-semibold' : '' }}">{{ number_format($balance->on_hand_qty, 2) }}</td>
                                     <td class="text-end">{{ number_format($balance->reserved_qty, 2) }}</td>
                                 </tr>
@@ -832,6 +1269,14 @@
                             <div class="col-md-6">
                                 <label class="form-label text-muted small">ราคาเริ่มต้น</label>
                                 <input type="number" step="0.01" min="0" name="default_price" value="{{ $product->default_price }}" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-muted small">ต้นทุนเฉลี่ย (บาท)</label>
+                                <input type="number" step="0.01" min="0" name="average_cost" value="{{ $product->average_cost }}" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-muted small">ต้นทุนซื้อล่าสุด (บาท)</label>
+                                <input type="number" step="0.01" min="0" name="last_purchase_cost" value="{{ $product->last_purchase_cost }}" class="form-control">
                                 <div class="form-check mt-2">
                                     <input type="checkbox" name="is_vat" value="1" @checked($product->is_vat) class="form-check-input" id="editProductVat">
                                     <label class="form-check-label" for="editProductVat">คิด VAT</label>
@@ -974,44 +1419,67 @@
     body.erp-popup-page .app-content { padding:5px !important; }
     body.erp-popup-page .container-fluid { max-width:none !important; padding:0 !important; }
     body.erp-popup-page div[x-data="productShow()"] > :not(.compact-product-window):not(.booking-modal-backdrop) { display:none !important; }
-    body.erp-popup-page { background:#ececec; }
-    .compact-product-window { min-height:calc(100vh - 10px); border:1px solid #8d9297; background:#ececec; color:#151515; font:10px Tahoma,"Noto Sans Thai",sans-serif; }
-    .compact-menu { height:24px; display:flex; align-items:center; justify-content:flex-end; padding:0 9px; border-bottom:1px solid #aaa; background:var(--erp-primary-soft); }
-    .compact-tools { height:38px; display:flex; align-items:stretch; gap:1px; padding:2px 5px; border-bottom:1px solid #aaa; background:var(--erp-border); }
-    .compact-tools button { min-width:72px; border:1px solid transparent; background:transparent; font-size:9px; }
-    .compact-tools button:hover { border-color:#9aa0a6; background:var(--erp-surface-2); }
-    .compact-tools i { display:block; color:var(--erp-primary-ink); font-size:13px; }
-    .compact-tabs { display:flex; gap:1px; padding:4px 7px 0; border-bottom:1px solid #8d9298; background:#ddd; }
-    .compact-tabs button { padding:3px 8px; border:1px solid #999; border-bottom:0; background:var(--erp-border); font-size:9px; }
-    .compact-tabs button.active { position:relative; top:1px; background:#fff; color:var(--erp-danger); font-weight:700; }
-    .compact-body { height:calc(100vh - 101px); overflow:auto; padding:8px; background:var(--erp-primary-soft); }
-    .compact-form { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px 9px; max-width:100%; padding:9px; border:1px solid #aaa; background:#eee; }
-    .compact-form label { display:grid; grid-template-columns:90px minmax(0,1fr); align-items:center; gap:7px; margin:0; white-space:nowrap; }
-    .compact-form label.wide,.compact-form .wide { grid-column:span 3; }
-    .compact-form input:not([type=checkbox]),.compact-form select,.compact-form textarea { width:100%; min-height:21px; padding:1px 4px; border:1px solid #8f9499; border-radius:0; background:#fff; font:10px Tahoma,"Noto Sans Thai",sans-serif; }
-    .compact-form textarea { resize:vertical; }
-    .compact-checks { display:flex; gap:22px; padding:8px 0; border-top:1px solid #bbb; }
-    .compact-checks label { display:flex; gap:5px; }
-    .compact-save { display:flex; justify-content:flex-end; }
-    .compact-save button,.compact-section-head button { min-width:86px; padding:5px 12px; border:1px solid #888; background:linear-gradient(#fff,#ddd); font-weight:700; }
-    .compact-section-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-    .compact-table { width:100%; border-collapse:collapse; background:#fff; }
-    .compact-table th,.compact-table td { padding:3px 5px; border:1px solid #aeb3b7; text-align:left; }
-    .compact-table th { background:linear-gradient(#f5f5f5,var(--erp-border)); font-weight:700; }
-    .compact-table tr:nth-child(even) td { background:var(--erp-surface-2); }
+    body.erp-popup-page { background:#f1f5f9; font-family:'Segoe UI', Tahoma, 'Noto Sans Thai', sans-serif; }
+    .compact-product-window { min-height:100vh; background:#f8fafc; color:#1e293b; font-size:13px; display:flex; flex-direction:column; }
+    
+    /* Header & Modern Tabs */
+    .compact-header { background:#ffffff; border-bottom:1px solid #e2e8f0; padding:12px 18px 0; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
+    .compact-title-group { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+    .compact-badge-sku { background:#fee2e2; color:#b91c1c; font-size:12px; font-weight:800; padding:3px 10px; border-radius:6px; border:1px solid #fecaca; font-family:monospace; }
+    .compact-title-name { font-size:17px; font-weight:800; color:#0f172a; margin:0; }
+    
+    .compact-tools-bar { display:flex; gap:6px; }
+    .compact-tools-bar button { padding:8px 16px; border:1px solid transparent; border-bottom:2px solid transparent; background:transparent; font-size:13px; font-weight:700; color:#64748b; border-radius:6px 6px 0 0; cursor:pointer; transition:all .15s ease; display:flex; align-items:center; gap:6px; }
+    .compact-tools-bar button:hover { color:#0f172a; background:#f1f5f9; }
+    .compact-tools-bar button.active { color:#b91c1c; border-bottom:3px solid #b91c1c; background:#ffffff; font-weight:800; }
+    
+    /* Body & Organized Cards */
+    .compact-body { flex:1; overflow-y:auto; padding:16px 20px 80px; background:#f8fafc; }
+    .compact-form-modern { display:flex; flex-direction:column; gap:16px; max-width:960px; margin:0 auto; }
+    
+    .form-section-card { background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:18px 20px; box-shadow:0 1px 4px rgba(0,0,0,0.03); }
+    .section-card-title { font-size:14px; font-weight:800; color:#334155; margin-bottom:14px; display:flex; align-items:center; gap:8px; border-bottom:1px dashed #e2e8f0; padding-bottom:8px; }
+    
+    .form-grid-3 { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px 18px; }
+    .form-field { display:flex; flex-direction:column; gap:5px; }
+    .form-field.span-2 { grid-column:span 2; }
+    .form-field.span-3 { grid-column:span 3; }
+    .form-field label { font-size:12px; font-weight:700; color:#475569; margin:0; }
+    
+    .form-control-modern, .form-select-modern { width:100%; height:38px; padding:6px 12px; border:1px solid #cbd5e1; border-radius:8px; background:#ffffff; font-size:13px; color:#0f172a; outline:none; transition:border-color .15s ease, box-shadow .15s ease; }
+    .form-control-modern:focus, .form-select-modern:focus { border-color:#b91c1c; box-shadow:0 0 0 3px rgba(185,28,28,0.1); }
+    textarea.form-control-modern { height:auto; min-height:64px; }
+    
+    .price-input-wrap { position:relative; display:flex; align-items:center; }
+    .price-input-wrap .currency-tag { position:absolute; left:12px; font-weight:800; color:#64748b; font-size:14px; }
+    .price-input-wrap .price-input { padding-left:28px; font-weight:800; color:#b91c1c; font-size:15px; }
+    
+    /* Switches & Status Bar */
+    .status-switches-bar { display:flex; flex-wrap:wrap; gap:20px; padding:12px 14px; background:#f1f5f9; border-radius:8px; border:1px solid #e2e8f0; }
+    .switch-item { display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:700; color:#334155; cursor:pointer; margin:0; }
+    .switch-item input[type="checkbox"] { width:18px; height:18px; accent-color:#b91c1c; cursor:pointer; margin:0; }
+    
+    /* Modern Sticky Footer */
+    .compact-footer-bar { position:fixed; bottom:0; left:0; right:0; background:#ffffff; border-top:1px solid #e2e8f0; padding:12px 24px; display:flex; justify-content:flex-end; box-shadow:0 -4px 12px rgba(0,0,0,0.06); z-index:100; }
+    .btn-save-modern { background:#b91c1c; color:#ffffff; font-size:14px; font-weight:800; border:none; padding:10px 24px; border-radius:8px; cursor:pointer; box-shadow:0 2px 4px rgba(185,28,28,0.2); transition:background .15s ease, transform .1s ease; display:inline-flex; align-items:center; }
+    .btn-save-modern:hover { background:#991b1b; transform:translateY(-1px); }
+    
+    /* Table Enhancements */
+    .compact-table { width:100%; border-collapse:collapse; background:#fff; border-radius:8px; overflow:hidden; border:1px solid #e2e8f0; }
+    .compact-table th,.compact-table td { padding:8px 12px; border:1px solid #f1f5f9; text-align:left; font-size:13px; }
+    .compact-table th { background:#f8fafc; font-weight:800; color:#475569; }
+    .compact-table tr:nth-child(even) td { background:#fafafa; }
     .compact-table .num { text-align:right; }
     .compact-table .code { color:var(--erp-primary-dark); font-weight:700; }
-    .compact-edit-table input,.compact-edit-table select { width:100%; min-height:23px; padding:1px 4px; border:1px solid #92979c; border-radius:0; background:#fff; font:11px Tahoma,"Noto Sans Thai",sans-serif; }
-    .compact-edit-table td { padding:3px; }
-    .compact-edit-table tr.barcode-disabled td { background:var(--erp-primary-soft); color:var(--erp-muted); }
-    .barcode-state { display:inline-flex; align-items:center; gap:4px; margin:0; padding:2px 6px; border-radius:3px; white-space:nowrap; font-weight:700; cursor:pointer; }
-    .barcode-state.is-on { background:var(--erp-success-soft); color:#166534; }
-    .barcode-state.is-off { background:var(--erp-border); color:#4b5563; }
-    .barcode-state input { width:auto; min-height:0; margin:0; }
-    .compact-row-save { white-space:nowrap; padding:3px 8px; border:1px solid #888; background:linear-gradient(#fff,#ddd); font:700 11px Tahoma,"Noto Sans Thai",sans-serif; }
-    .compact-columns { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-    body.erp-popup-page .booking-modal { width:min(520px,calc(100vw - 30px)) !important; border-radius:3px; font-size:12px; }
-    @media(max-width:700px){.compact-form{grid-template-columns:1fr}.compact-form label.wide,.compact-form .wide{grid-column:span 1}.compact-columns{grid-template-columns:1fr}.compact-form label{grid-template-columns:105px minmax(0,1fr)}}
+    .compact-edit-table input,.compact-edit-table select { width:100%; height:32px; padding:4px 8px; border:1px solid #cbd5e1; border-radius:6px; background:#fff; font-size:12px; }
+    .compact-row-save { white-space:nowrap; padding:5px 12px; border:none; border-radius:6px; background:#b91c1c; color:#fff; font-weight:700; font-size:12px; cursor:pointer; }
+    .compact-row-save:hover { background:#991b1b; }
+    
+    @media(max-width:768px){
+        .form-grid-3 { grid-template-columns:1fr; }
+        .form-field.span-2 { grid-column:span 1; }
+        .form-field.span-3 { grid-column:span 1; }
+    }
     [x-cloak] { display: none !important; }
     .legacy-product-summary,
     .legacy-barcode-table { display: none !important; }

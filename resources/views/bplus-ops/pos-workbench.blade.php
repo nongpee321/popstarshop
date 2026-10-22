@@ -54,22 +54,19 @@
             </div>
             <i class="bi bi-receipt"></i>
         </div>
-        <form method="get" action="{{ route('bplus.pos-workbench') }}" class="pos-filter row g-2 align-items-end">
+        <form method="get" action="{{ route('bplus.pos-workbench') }}" class="pos-filter row g-2 align-items-end" id="posFilterForm">
             <div class="col-12 col-md-4">
                 <label class="form-label">วันที่ขาย</label>
-                <input type="date" name="date" value="{{ $selectedDate }}" class="form-control">
+                <input type="date" name="date" value="{{ $selectedDate }}" class="form-control" onchange="document.getElementById('posFilterForm').submit()">
             </div>
             <div class="col-12 col-md-5">
                 <label class="form-label">สาขา</label>
-                <select name="branch_id" class="form-select" @disabled($lockedBranchId)>
-                    <option value="">ทุกสาขา</option>
+                <select name="branch_id" class="form-select" onchange="document.getElementById('posFilterForm').submit()">
+                    <option value="">-- รวมทุกสาขา --</option>
                     @foreach($branches as $branch)
                         <option value="{{ $branch->id }}" @selected((int) $selectedBranchId === (int) $branch->id)>{{ $branch->code }} - {{ $branch->name_th }}</option>
                     @endforeach
                 </select>
-                @if($lockedBranchId)
-                    <input type="hidden" name="branch_id" value="{{ $lockedBranchId }}">
-                @endif
             </div>
             <div class="col-12 col-md-3">
                 <div class="pos-filter-actions">

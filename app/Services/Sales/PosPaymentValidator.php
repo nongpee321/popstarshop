@@ -21,8 +21,13 @@ class PosPaymentValidator
         if ($data['method'] === 'cash') {
             $received = DecimalMath::round($data['cash_received'] ?? 0, DecimalMath::DISPLAY_MONEY_SCALE);
             if (DecimalMath::compare(DecimalMath::add($received, '0.01', 2), $total) < 0) {
-                $short = number_format((float) DecimalMath::subtract($total, $received, 2), 2);
-                throw new RuntimeException("ยอดเงินสดที่รับไม่ครบ ขาดอีก {$short} บาท");
+                $req = app()->has('request') ? request() : null;
+                $isOffline = ($req && ($req->attributes->has('pos_device') || ($req->header('Idempotency-Key') && str_starts_with($req->header('Idempotency-Key'), 'offline-receipt-'))))
+                    || (!empty($data['is_offline_sync']));
+                if (! $isOffline) {
+                    $short = number_format((float) DecimalMath::subtract($total, $received, 2), 2);
+                    throw new RuntimeException("ยอดเงินสดที่รับไม่ครบ ขาดอีก {$short} บาท");
+                }
             }
         }
 

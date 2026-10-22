@@ -95,10 +95,66 @@ class SystemSettingController extends Controller
 
     public function updateLayout(Request $request): RedirectResponse
     {
-        $data = $request->validate(['erp_layout' => ['required', 'in:classic,odoo']]);
-        AppSetting::set('erp_layout', $data['erp_layout']);
+        $data = $request->validate([
+            'erp_layout' => ['nullable', 'in:classic,odoo'],
+            'erp_theme' => ['nullable', 'in:ocean,navy,emerald,slate,clear,popstar'],
+        ]);
+        if (!empty($data['erp_layout'])) {
+            AppSetting::set('erp_layout', $data['erp_layout']);
+        }
+        if (!empty($data['erp_theme'])) {
+            AppSetting::set('erp_theme', $data['erp_theme']);
+        }
 
-        return redirect()->route('settings.index')->with('success', 'บันทึกรูปแบบหน้าหลังบ้านแล้ว');
+        return redirect()->route('settings.index', ['tab' => 'theme'])->with('success', 'บันทึกการตั้งค่าธีมและรูปแบบหน้าจอเรียบร้อยแล้ว');
+    }
+
+    public function updateLogo(Request $request)
+    {
+        $request->validate([
+            'logo_choice' => ['nullable', 'string', 'max:255'],
+            'logo_file' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp,svg', 'max:4096'],
+        ], [
+            'logo_file.image' => 'ไฟล์โลโก้ต้องเป็นรูปภาพ (png/jpg/webp/svg)',
+            'logo_file.max' => 'ไฟล์โลโก้ต้องไม่เกิน 4MB',
+        ]);
+
+        $newLogoPath = null;
+
+        if ($request->hasFile('logo_file')) {
+            $file = $request->file('logo_file');
+            $name = 'custom-'.now()->format('YmdHis').'.'.strtolower($file->getClientOriginalExtension());
+            $file->move(public_path('images/logos'), $name);
+            $newLogoPath = 'images/logos/'.$name;
+        } elseif ($request->filled('logo_choice')) {
+            $choice = trim($request->input('logo_choice'));
+            if ($choice === '__none__') {
+                $newLogoPath = null;
+            } else {
+                $choice = ltrim($choice, '/\\');
+                if (str_starts_with($choice, 'images/') && File::exists(public_path($choice))) {
+                    $newLogoPath = $choice;
+                }
+            }
+        }
+
+        AppSetting::set('logo_path', $newLogoPath);
+        if ($newLogoPath !== null) {
+            AppSetting::set('company.logo', $newLogoPath);
+        }
+
+        $logoUrl = AppSetting::logoUrl();
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'เปลี่ยนโลโก้ระบบเรียบร้อยแล้ว',
+                'logo_path' => $newLogoPath,
+                'logo_url' => $logoUrl,
+            ]);
+        }
+
+        return redirect()->route('settings.index', ['tab' => 'logo'])->with('success', 'เปลี่ยนโลโก้ระบบเรียบร้อยแล้ว');
     }
 
     public function index(): View
@@ -260,7 +316,22 @@ class SystemSettingController extends Controller
                 ->first(fn (User $candidate) => $candidate->hasPermission('pos.sell'));
 
             if (! $user) {
-                abort(422, "สาขา {$branch->code} ยังไม่มีแคชเชียร์ที่มีสิทธิ์ขาย POS จึงยังสร้างเครื่องไม่ได้");
+                // หากสาขานี้ยังไม่มีพนักงานประจำ ให้ใช้ผู้ใช้ปัจจุบัน (Admin/ผู้สร้าง) หรือผู้ใช้ที่มีสิทธิ์ pos.sell
+                $currentUser = auth()->user();
+                if ($currentUser && $currentUser->is_active && $currentUser->hasPermission('pos.sell')) {
+                    $user = $currentUser;
+                } else {
+                    $user = User::query()
+                        ->where('is_active', true)
+                        ->with('roles.permissions')
+                        ->orderBy('id')
+                        ->get()
+                        ->first(fn (User $candidate) => $candidate->hasPermission('pos.sell'));
+                }
+            }
+
+            if (! $user) {
+                abort(422, "ระบบยังไม่มีผู้ใช้งานที่มีสิทธิ์ขาย POS (pos.sell) จึงยังสร้างเครื่องไม่ได้");
             }
 
             $terminalCode = PosTerminalCode::next($branch);
@@ -290,11 +361,45 @@ class SystemSettingController extends Controller
         $device = PosDevice::findOrFail($data['pos_device_id']);
         $token = $device->rotateToken();
 
-        return redirect()->route('settings.index')->with([
+        return redirect()->route('settings.index', ['tab' => 'pos-download'])->with([
             'success' => "ออก Token ใหม่สำหรับ {$device->name} แล้ว Token เดิมจะใช้งานไม่ได้",
             'pos_token' => $token,
             'pos_device_name' => $device->name,
         ]);
+    }
+
+    public function updatePosDeviceBranch(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'pos_device_id' => ['required', 'integer', 'exists:pos_devices,id'],
+            'branch_id' => ['required', 'integer', 'exists:branches,id'],
+        ]);
+
+        $device = PosDevice::findOrFail($data['pos_device_id']);
+        $branch = Branch::findOrFail($data['branch_id']);
+        $device->update(['branch_id' => $branch->id]);
+
+        return redirect()->route('settings.index', ['tab' => 'pos-download'])->with(
+            'success',
+            "ย้ายสาขาสำหรับเครื่อง {$device->name} ({$device->terminal_code}) ไปยัง \"{$branch->name_th}\" เรียบร้อยแล้ว"
+        );
+    }
+
+    public function destroyPosDevice(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'pos_device_id' => ['required', 'integer', 'exists:pos_devices,id'],
+        ]);
+
+        $device = PosDevice::findOrFail($data['pos_device_id']);
+        $deviceName = $device->name;
+        $deviceCode = $device->terminal_code;
+        $device->delete();
+
+        return redirect()->route('settings.index', ['tab' => 'pos-download'])->with(
+            'success',
+            "ลบเครื่อง {$deviceName} ({$deviceCode}) เรียบร้อยแล้ว"
+        );
     }
 
     public function updatePosTerminalHardware(Request $request): RedirectResponse
@@ -340,9 +445,10 @@ class SystemSettingController extends Controller
             'credit_days' => ['required', 'integer', 'min:0', 'max:365'],
             'footer_note' => ['nullable', 'string', 'max:500'],
             'menu_order' => ['nullable', 'string', 'max:2000'],
-            'erp_theme' => ['required', 'in:ocean,navy,emerald,slate,clear'],
+            'erp_theme' => ['nullable', 'in:ocean,navy,emerald,slate,clear,popstar'],
             // Optional for cached/older settings forms; preserve the current choice if omitted.
             'erp_layout' => ['nullable', 'in:classic,odoo'],
+            'active_tab' => ['nullable', 'string', 'max:50'],
         ], [
             'company_name_th.required' => 'กรุณาระบุชื่อบริษัท',
             'logo_file.image' => 'ไฟล์โลโก้ต้องเป็นรูปภาพ (png/jpg/webp/svg)',
@@ -357,12 +463,17 @@ class SystemSettingController extends Controller
             $name = 'custom-'.now()->format('YmdHis').'.'.strtolower($file->getClientOriginalExtension());
             $file->move(public_path('images/logos'), $name);
             AppSetting::set('logo_path', 'images/logos/'.$name);
+            AppSetting::set('company.logo', 'images/logos/'.$name);
         } elseif ($request->filled('logo_choice')) {
-            if ($data['logo_choice'] === '__none__') {
+            $choice = trim($data['logo_choice']);
+            if ($choice === '__none__') {
                 AppSetting::set('logo_path', null);
-            } elseif (str_starts_with($data['logo_choice'], 'images/')
-                && File::exists(public_path($data['logo_choice']))) {
-                AppSetting::set('logo_path', $data['logo_choice']);
+            } else {
+                $choice = ltrim($choice, '/\\');
+                if (str_starts_with($choice, 'images/') && File::exists(public_path($choice))) {
+                    AppSetting::set('logo_path', $choice);
+                    AppSetting::set('company.logo', $choice);
+                }
             }
         }
 
@@ -376,7 +487,9 @@ class SystemSettingController extends Controller
         AppSetting::set('doc_price_includes_vat', $data['price_includes_vat']);
         AppSetting::set('default_credit_days', (string) $data['credit_days']);
         AppSetting::set('doc_footer_note', $data['footer_note'] ?? '');
-        AppSetting::set('erp_theme', $data['erp_theme']);
+        if (! empty($data['erp_theme'])) {
+            AppSetting::set('erp_theme', $data['erp_theme']);
+        }
         AppSetting::set('erp_layout', $data['erp_layout'] ?? AppSetting::get('erp_layout', 'classic'));
         if ($request->filled('menu_order')) {
             $requestedOrder = json_decode($data['menu_order'], true);
@@ -412,7 +525,9 @@ class SystemSettingController extends Controller
             }
         }
 
-        return redirect()->route('settings.index')->with('success', 'บันทึกการตั้งค่าเรียบร้อย');
+        $activeTab = $request->input('active_tab', 'func');
+
+        return redirect()->route('settings.index', ['tab' => $activeTab])->with('success', 'บันทึกการตั้งค่าเรียบร้อย');
     }
 
     private function defaultMenuOrder(): array

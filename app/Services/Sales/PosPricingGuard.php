@@ -2,6 +2,7 @@
 
 namespace App\Services\Sales;
 
+use App\Models\Branch;
 use App\Models\DiscountCard;
 use App\Models\FlashSaleItem;
 use App\Models\PriceTable;
@@ -204,7 +205,12 @@ class PosPricingGuard
             fn ($item) => DecimalMath::multiply($item['qty'], $item['unit_price'])
         )), DecimalMath::DISPLAY_MONEY_SCALE);
         if (DecimalMath::compare(DecimalMath::absoluteDifference($submitted, $expected, 2), '0.02') > 0) {
-            throw new RuntimeException('ราคาหรือส่วนลดเปลี่ยนจากข้อมูลบนเซิร์ฟเวอร์ กรุณาโหลดสินค้าใหม่แล้วคิดเงินอีกครั้ง');
+            $isOffline = request()->attributes->has('pos_device')
+                || (request()->header('Idempotency-Key') && str_starts_with(request()->header('Idempotency-Key'), 'offline-receipt-'))
+                || (!empty($data['is_offline_sync']));
+            if (! $isOffline) {
+                throw new RuntimeException('ราคาหรือส่วนลดเปลี่ยนจากข้อมูลบนเซิร์ฟเวอร์ กรุณาโหลดสินค้าใหม่แล้วคิดเงินอีกครั้ง');
+            }
         }
 
         $cost = DecimalMath::round(DecimalMath::sum($items->map(
@@ -296,15 +302,22 @@ class PosPricingGuard
     private function basePrices(array $productIds, int $branchId): array
     {
         $products = Product::whereIn('id', $productIds)->get(['id', 'default_price'])->keyBy('id');
-        $tableId = PriceTable::where('is_default', true)->value('id');
-        $rows = $tableId ? ProductPrice::where('price_table_id', $tableId)
+        $branch = $branchId ? Branch::find($branchId) : null;
+        $branchTableId = $branch?->price_table_id;
+        $defaultTableId = PriceTable::where('is_default', true)->value('id');
+        $tableIds = array_values(array_unique(array_filter([$branchTableId, $defaultTableId])));
+
+        $rows = !empty($tableIds) ? ProductPrice::whereIn('price_table_id', $tableIds)
             ->whereIn('product_id', $productIds)->where('is_active', true)
             ->orderByRaw('CASE WHEN unit_id IS NULL THEN 0 ELSE 1 END')->get()->groupBy('product_id') : collect();
 
-        $basePrices = collect($productIds)->mapWithKeys(function ($id) use ($products, $rows) {
-            $row = $rows->get($id)?->first();
+        $basePrices = collect($productIds)->mapWithKeys(function ($id) use ($products, $rows, $branchTableId, $defaultTableId) {
+            $productRows = $rows->get($id, collect());
+            $branchRow = $branchTableId ? $productRows->firstWhere('price_table_id', $branchTableId) : null;
+            $defaultRow = $defaultTableId ? $productRows->firstWhere('price_table_id', $defaultTableId) : null;
+            $price = $branchRow?->price ?? $defaultRow?->price ?? $products[$id]?->default_price ?? 0;
 
-            return [$id => (float) ($row?->price ?? $products[$id]?->default_price ?? 0)];
+            return [$id => (float) $price];
         });
         $overrides = $this->priceSchedules->active($productIds, $branchId, now())
             ->keyBy(fn ($schedule) => $schedule->product_id.':'.($schedule->unit_id ?? 'base'));
@@ -318,13 +331,16 @@ class PosPricingGuard
 
     private function campaignPrice(int $productId, float $basePrice, int $branchId): float
     {
-        $today = now()->toDateString();
+        $now = now();
+        $today = $now->toDateString();
         $prices = Promotion::where('is_active', true)->where('product_id', $productId)
             ->where(fn ($query) => $query->whereNull('starts_at')->orWhere('starts_at', '<=', $today))
             ->where(fn ($query) => $query->whereNull('ends_at')->orWhere('ends_at', '>=', $today))
             ->where(fn ($query) => $query->whereNull('min_qty')->orWhere('min_qty', '<=', 1))
             ->whereNull('min_amount')
-            ->get()->map(function ($promotion) use ($basePrice) {
+            ->get()
+            ->filter(fn ($promotion) => $promotion->isRunningAt($now, $branchId))
+            ->map(function ($promotion) use ($basePrice) {
                 if ((float) $promotion->discount_amount > 0) {
                     return max(0, $basePrice - (float) $promotion->discount_amount);
                 }

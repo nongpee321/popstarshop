@@ -1,4 +1,4 @@
-@php
+﻿@php
     // เมนูทั้งหมดอยู่ใน App\Support\ErpMenu — เรียงลำดับและกรองสิทธิ์มาให้แล้ว
     $menuSections = \App\Support\ErpMenu::forUser(auth()->user());
 
@@ -35,6 +35,20 @@
                 if (mode && mode !== 'light') {
                     document.documentElement.setAttribute('data-color-mode', mode);
                     if (mode === 'night') document.documentElement.setAttribute('data-bs-theme', 'dark');
+                }
+                var customColors = localStorage.getItem('erp_custom_colors');
+                if (customColors) {
+                    try {
+                        var c = JSON.parse(customColors);
+                        var s = document.createElement('style');
+                        s.id = 'erp-custom-color-style';
+                        s.innerHTML = ':root { --erp-bg:' + c.bg + ' !important; --erp-primary-dark:' + c.primary + ' !important; --fa-blue-deep:' + c.primary + ' !important; --erp-primary-ink:' + c.primary + ' !important; } .fa-rail { background:' + c.rail + ' !important; } .btn-primary, .btn-primary:hover { background-color:' + c.primary + ' !important; border-color:' + c.primary + ' !important; } body, .content-wrapper { background-color:' + c.bg + ' !important; }';
+                        document.head.appendChild(s);
+                    } catch(e){}
+                }
+                var customTheme = localStorage.getItem('erp_custom_theme');
+                if (customTheme) {
+                    document.documentElement.setAttribute('data-theme', customTheme);
                 }
             } catch (e) {}
         })();
@@ -606,17 +620,17 @@
             --accent-btn-hover:linear-gradient(135deg,#1d4ed8,#115e59);
         }
         html[data-theme="popstar"] {
-            --erp-primary-dark:#d32f2f; --erp-primary-soft:#ffebee; --erp-border:#ef9a9a;
-            --erp-ink:#212121; --erp-bg:#ffffff; --fa-blue:#d32f2f; --fa-blue-deep:#c62828; --fa-blue-dark:#b71c1c;
+            --erp-primary-dark:#1e293b; --erp-primary-soft:#ffebee; --erp-border:#ef9a9a;
+            --erp-ink:#212121; --erp-bg:#f8fafc; --fa-blue:#d32f2f; --fa-blue-deep:#c62828; --fa-blue-dark:#b71c1c;
             --fa-green:#2e7d32; --fa-green-deep:#1b5e20; --accent-btn:linear-gradient(135deg,#e53935,#c62828);
             --accent-btn-hover:linear-gradient(135deg,#ef5350,#b71c1c);  --erp-primary-ink:#c62828; --erp-success-ink:#2e7d32;
             --erp-success-on-soft:#2e7d32; --erp-surface:#ffffff; --erp-soft:#fffafb;
         }
         html[data-theme="popstar"] body { background:var(--erp-bg); }
-        html[data-theme="popstar"] .fa-rail { background: linear-gradient(180deg, #c62828 0%, #8e0000 100%); }
+        html[data-theme="popstar"] .fa-rail { background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); }
         html[data-theme="popstar"] .fa-rail-btn { color: rgba(255,255,255,.9); font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,.3); }
         html[data-theme="popstar"] .fa-rail-btn:hover { background: rgba(0,0,0,.1); color: #fff; }
-        html[data-theme="popstar"] .fa-rail-btn.active { background: #fff; color: #c62828; text-shadow: none; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+        html[data-theme="popstar"] .fa-rail-btn.active { background: #38bdf8; color: #0f172a; text-shadow: none; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
         html[data-theme="clear"] body { background:var(--erp-bg); }
         
         /* Theme Transition */
@@ -651,6 +665,15 @@
         html[data-color-mode="sepia"] .fa-rail-btn { color: #7a6345 !important; text-shadow: none !important; }
         html[data-color-mode="sepia"] .fa-rail-btn:hover { background: rgba(0,0,0,.05) !important; color: #433422 !important; }
         html[data-color-mode="sepia"] .fa-rail-btn.active { background: #fdf6e3 !important; color: #433422 !important; box-shadow: none !important; border-left: 3px solid #8c7355 !important; }
+        html[data-color-mode="sepia"] .fa-rail-btn::after { background: #433422 !important; color: #fdf6e3 !important; }
+        html[data-color-mode="sepia"] .fa-rail-btn::before { border-right-color: #433422 !important; }
+        html[data-color-mode="sepia"] .fa-subnav { background: #f4ecd8 !important; border-right: 1px solid #e3d5b8 !important; }
+        html[data-color-mode="sepia"] .fa-subnav-title { color: #7a6345 !important; }
+        html[data-color-mode="sepia"] .fa-subnav-link { color: #433422 !important; }
+        html[data-color-mode="sepia"] .fa-subnav-link i { color: #8c7355 !important; }
+        html[data-color-mode="sepia"] .fa-subnav-link:hover { background: #e9dec4 !important; color: #271c10 !important; }
+        html[data-color-mode="sepia"] .fa-subnav-link.active { background: #fdf6e3 !important; color: #8c7355 !important; box-shadow: inset 3px 0 0 #8c7355 !important; }
+        html[data-color-mode="sepia"] .fa-collapse-btn { background: #fdf6e3 !important; border-color: #e3d5b8 !important; color: #7a6345 !important; }
 
         html[data-color-mode="night"] {
             --erp-bg: #0f172a !important; 
@@ -815,24 +838,103 @@
             color: #fda4af !important; 
             border-color: rgba(244, 63, 94, 0.25) !important; 
         }
-        /* Night Sidebar Overrides */
-        html[data-color-mode="night"] .fa-rail { 
+        /* Night Sidebar & Subnav Overrides */
+        html[data-color-mode="night"] .fa-rail,
+        html[data-bs-theme="dark"] .fa-rail { 
             background: #090e17 !important; 
             border-right: 1px solid #1e293b !important; 
         }
-        html[data-color-mode="night"] .fa-rail-btn { 
+        html[data-color-mode="night"] .fa-rail-btn,
+        html[data-bs-theme="dark"] .fa-rail-btn { 
             color: #94a3b8 !important; 
             text-shadow: none !important; 
         }
-        html[data-color-mode="night"] .fa-rail-btn:hover { 
+        html[data-color-mode="night"] .fa-rail-btn:hover,
+        html[data-bs-theme="dark"] .fa-rail-btn:hover { 
             background: #1e293b !important; 
             color: #38bdf8 !important; 
         }
-        html[data-color-mode="night"] .fa-rail-btn.active { 
+        html[data-color-mode="night"] .fa-rail-btn.active,
+        html[data-bs-theme="dark"] .fa-rail-btn.active { 
             background: #1e293b !important; 
             color: #38bdf8 !important; 
             box-shadow: none !important; 
             border-left: 3px solid #38bdf8 !important; 
+        }
+        html[data-color-mode="night"] .fa-rail-btn::after,
+        html[data-bs-theme="dark"] .fa-rail-btn::after {
+            background: #1e293b !important;
+            color: #f8fafc !important;
+            border: 1px solid #334155 !important;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.5) !important;
+        }
+        html[data-color-mode="night"] .fa-rail-btn::before,
+        html[data-bs-theme="dark"] .fa-rail-btn::before {
+            border-right-color: #1e293b !important;
+        }
+
+        html[data-color-mode="night"] .fa-subnav,
+        html[data-bs-theme="dark"] .fa-subnav {
+            background: #0d1526 !important;
+            border-right: 1px solid #1e293b !important;
+        }
+        html[data-color-mode="night"] .fa-subnav-brand,
+        html[data-bs-theme="dark"] .fa-subnav-brand {
+            border-bottom: 1px solid #1e293b !important;
+            margin-bottom: 8px !important;
+            padding-bottom: 6px !important;
+        }
+        html[data-color-mode="night"] .fa-subnav-brand img,
+        html[data-bs-theme="dark"] .fa-subnav-brand img {
+            background: #ffffff;
+            padding: 3px 8px;
+            border-radius: 7px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        html[data-color-mode="night"] .fa-subnav-title,
+        html[data-bs-theme="dark"] .fa-subnav-title {
+            color: #38bdf8 !important;
+        }
+        html[data-color-mode="night"] .fa-subnav-link,
+        html[data-bs-theme="dark"] .fa-subnav-link {
+            color: #cbd5e1 !important;
+        }
+        html[data-color-mode="night"] .fa-subnav-link i,
+        html[data-bs-theme="dark"] .fa-subnav-link i {
+            color: #64748b !important;
+        }
+        html[data-color-mode="night"] .fa-subnav-link:hover,
+        html[data-bs-theme="dark"] .fa-subnav-link:hover {
+            background: rgba(255,255,255,0.06) !important;
+            color: #ffffff !important;
+        }
+        html[data-color-mode="night"] .fa-subnav-link:hover i,
+        html[data-bs-theme="dark"] .fa-subnav-link:hover i {
+            color: #38bdf8 !important;
+        }
+        html[data-color-mode="night"] .fa-subnav-link.active,
+        html[data-bs-theme="dark"] .fa-subnav-link.active {
+            background: #1e293b !important;
+            color: #f8fafc !important;
+            box-shadow: inset 3px 0 0 var(--fa-blue, #38bdf8), 0 4px 12px rgba(0,0,0,0.25) !important;
+        }
+        html[data-color-mode="night"] .fa-subnav-link.active i,
+        html[data-bs-theme="dark"] .fa-subnav-link.active i {
+            color: var(--fa-blue, #38bdf8) !important;
+        }
+
+        html[data-color-mode="night"] .fa-collapse-btn,
+        html[data-bs-theme="dark"] .fa-collapse-btn {
+            background: #1e293b !important;
+            border-color: #334155 !important;
+            color: #94a3b8 !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
+        }
+        html[data-color-mode="night"] .fa-collapse-btn:hover,
+        html[data-bs-theme="dark"] .fa-collapse-btn:hover {
+            background: #334155 !important;
+            border-color: #38bdf8 !important;
+            color: #38bdf8 !important;
         }
 
         /* Document browser fixes for night mode */
@@ -1745,14 +1847,84 @@
                                     @click="open = !open" title="เปลี่ยนโหมดสี">
                                 <i class="bi" :class="getIcon()"></i>
                             </button>
-                            <ul x-show="open" @click.outside="open = false" x-cloak 
-                                class="dropdown-menu dropdown-menu-end shadow border-0" 
-                                style="position: absolute; right: 0; top: 100%; min-width: 150px; z-index: 1000; margin-top: .5rem;"
-                                :class="open ? 'show' : ''">
-                                <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" @click.prevent="setTheme('light'); open = false" :class="currentTheme === 'light' ? 'bg-light' : ''"><i class="bi bi-sun-fill text-warning"></i> สว่าง (ปกติ)</a></li>
-                                <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" @click.prevent="setTheme('sepia'); open = false" :class="currentTheme === 'sepia' ? 'bg-light text-dark' : ''"><i class="bi bi-eye-fill text-success"></i> สบายตา</a></li>
-                                <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" @click.prevent="setTheme('night'); open = false" :class="currentTheme === 'night' ? 'bg-secondary' : ''"><i class="bi bi-moon-stars-fill text-primary"></i> กลางคืน</a></li>
-                            </ul>
+                            <div x-show="open" @click.outside="open = false" x-cloak 
+                                 class="dropdown-menu dropdown-menu-end shadow-lg border-0 p-3" 
+                                 style="position: absolute; right: 0; top: 100%; min-width: 270px; z-index: 1050; margin-top: .5rem; border-radius: 16px;"
+                                 :class="open ? 'show' : ''">
+                                <div class="fw-bold small text-muted mb-2 text-uppercase d-flex align-items-center justify-content-between">
+                                    <span>🎨 โทนสีระบบ</span>
+                                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1.5" style="font-size:11px" @click="showCustomPicker = !showCustomPicker">
+                                        <i class="bi bi-sliders2-vertical me-1"></i>ผสมแม่สีเอง
+                                    </button>
+                                </div>
+
+                                {{-- ฟังก์ชันผสมแม่สีอิสระตามต้องการ --}}
+                                <div x-show="showCustomPicker" x-cloak class="p-2.5 mb-2 bg-light rounded-3 border" style="font-size:12px">
+                                    <div class="fw-bold text-dark mb-2"><i class="bi bi-palette2 text-primary me-1"></i>ปรับแม่สีตามต้องการ:</div>
+                                    <div class="d-flex align-items-center justify-content-between mb-2">
+                                        <span class="text-muted">1. สีแถบเมนู (Sidebar):</span>
+                                        <input type="color" x-model="customColors.rail" @input="applyCustomColors()" class="form-control form-control-color form-control-sm border-0 p-0" style="width:34px;height:26px;cursor:pointer">
+                                    </div>
+                                    <div class="d-flex align-items-center justify-content-between mb-2">
+                                        <span class="text-muted">2. สีปุ่มหลัก (Primary):</span>
+                                        <input type="color" x-model="customColors.primary" @input="applyCustomColors()" class="form-control form-control-color form-control-sm border-0 p-0" style="width:34px;height:26px;cursor:pointer">
+                                    </div>
+                                    <div class="d-flex align-items-center justify-content-between mb-2">
+                                        <span class="text-muted">3. สีพื้นหลัง (Background):</span>
+                                        <input type="color" x-model="customColors.bg" @input="applyCustomColors()" class="form-control form-control-color form-control-sm border-0 p-0" style="width:34px;height:26px;cursor:pointer">
+                                    </div>
+                                    <div class="text-end">
+                                        <button type="button" class="btn btn-xs btn-secondary py-0 px-2" style="font-size:11px" @click="resetCustomColors()">รีเซ็ตค่าเดิม</button>
+                                    </div>
+                                </div>
+
+                                <div class="d-grid gap-1 mb-3">
+                                    <button type="button" class="btn btn-sm text-start d-flex align-items-center gap-2 px-2 py-1.5 rounded"
+                                            :class="activePalette === 'slate' ? 'btn-primary text-white fw-bold' : 'btn-light'"
+                                            @click="setPalette('slate')">
+                                        <span style="width:14px;height:14px;border-radius:50%;background:#475569;display:inline-block"></span>
+                                        <span>เทาสเลต สบายตา (Slate)</span>
+                                    </button>
+                                    <button type="button" class="btn btn-sm text-start d-flex align-items-center gap-2 px-2 py-1.5 rounded"
+                                            :class="activePalette === 'ocean' ? 'btn-primary text-white fw-bold' : 'btn-light'"
+                                            @click="setPalette('ocean')">
+                                        <span style="width:14px;height:14px;border-radius:50%;background:#1a9bdc;display:inline-block"></span>
+                                        <span>ฟ้า JET ผ่อนคลาย (Ocean)</span>
+                                    </button>
+                                    <button type="button" class="btn btn-sm text-start d-flex align-items-center gap-2 px-2 py-1.5 rounded"
+                                            :class="activePalette === 'emerald' ? 'btn-primary text-white fw-bold' : 'btn-light'"
+                                            @click="setPalette('emerald')">
+                                        <span style="width:14px;height:14px;border-radius:50%;background:#23966c;display:inline-block"></span>
+                                        <span>เขียวมรกต ธรรมชาติ (Emerald)</span>
+                                    </button>
+                                    <button type="button" class="btn btn-sm text-start d-flex align-items-center gap-2 px-2 py-1.5 rounded"
+                                            :class="activePalette === 'navy' ? 'btn-primary text-white fw-bold' : 'btn-light'"
+                                            @click="setPalette('navy')">
+                                        <span style="width:14px;height:14px;border-radius:50%;background:#244768;display:inline-block"></span>
+                                        <span>กรมท่า สุขุม (Navy)</span>
+                                    </button>
+                                    <button type="button" class="btn btn-sm text-start d-flex align-items-center gap-2 px-2 py-1.5 rounded"
+                                            :class="activePalette === 'clear' ? 'btn-primary text-white fw-bold' : 'btn-light'"
+                                            @click="setPalette('clear')">
+                                        <span style="width:14px;height:14px;border-radius:50%;background:#2563eb;display:inline-block"></span>
+                                        <span>ฟ้าสดใส คมชัด (Clear)</span>
+                                    </button>
+                                </div>
+                                <div class="border-top pt-2">
+                                    <div class="fw-bold small text-muted mb-2 text-uppercase">โหมดแสงหน้าจอ</div>
+                                    <div class="btn-group w-100" role="group">
+                                        <button type="button" class="btn btn-sm" :class="currentTheme === 'light' ? 'btn-dark' : 'btn-outline-secondary'" @click="setTheme('light')" title="แสงสว่างปกติ">
+                                            <i class="bi bi-sun-fill text-warning me-1"></i>สว่าง
+                                        </button>
+                                        <button type="button" class="btn btn-sm" :class="currentTheme === 'sepia' ? 'btn-success' : 'btn-outline-secondary'" @click="setTheme('sepia')" title="โทนกระดาษถนอมสายตา">
+                                            <i class="bi bi-eye-fill me-1"></i>ถนอมตา
+                                        </button>
+                                        <button type="button" class="btn btn-sm" :class="currentTheme === 'night' ? 'btn-secondary text-white' : 'btn-outline-secondary'" @click="setTheme('night')" title="โหมดมืดกลางคืน">
+                                            <i class="bi bi-moon-stars-fill text-info me-1"></i>มืด
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </li>
                     {{-- กระดิ่งแจ้งเตือน: แต่ละส่วนงานเห็นเฉพาะเรื่องตามหน้าที่ --}}
@@ -2476,10 +2648,73 @@
 document.addEventListener('alpine:init', () => {
     Alpine.data('themeToggle', () => ({
         open: false,
+        showCustomPicker: false,
         currentTheme: 'light',
+        activePalette: 'slate',
+        customColors: {
+            rail: '#1e293b',
+            primary: '#334155',
+            bg: '#f8fafc'
+        },
         initTheme() {
             const savedTheme = localStorage.getItem('erp_color_mode') || 'light';
             this.setTheme(savedTheme);
+            const savedPalette = localStorage.getItem('erp_custom_theme') || document.documentElement.getAttribute('data-theme') || 'slate';
+            this.activePalette = savedPalette;
+
+            // Load custom colors if any
+            const savedCustom = localStorage.getItem('erp_custom_colors');
+            if (savedCustom) {
+                try {
+                    this.customColors = JSON.parse(savedCustom);
+                    this.applyCustomColors(false);
+                } catch(e) {}
+            }
+        },
+        setPalette(palette) {
+            this.activePalette = palette;
+            localStorage.setItem('erp_custom_theme', palette);
+            document.documentElement.setAttribute('data-theme', palette);
+            this.clearCustomStyles();
+        },
+        applyCustomColors(save = true) {
+            let styleEl = document.getElementById('erp-custom-color-style');
+            if (!styleEl) {
+                styleEl = document.createElement('style');
+                styleEl.id = 'erp-custom-color-style';
+                document.head.appendChild(styleEl);
+            }
+            styleEl.innerHTML = `
+                :root {
+                    --erp-bg: ${this.customColors.bg} !important;
+                    --erp-primary-dark: ${this.customColors.primary} !important;
+                    --fa-blue-deep: ${this.customColors.primary} !important;
+                    --erp-primary-ink: ${this.customColors.primary} !important;
+                }
+                .fa-rail {
+                    background: ${this.customColors.rail} !important;
+                }
+                .btn-primary, .btn-primary:hover, .btn-primary:focus {
+                    background-color: ${this.customColors.primary} !important;
+                    border-color: ${this.customColors.primary} !important;
+                }
+                body, .content-wrapper {
+                    background-color: ${this.customColors.bg} !important;
+                }
+            `;
+            if (save) {
+                localStorage.setItem('erp_custom_colors', JSON.stringify(this.customColors));
+            }
+        },
+        resetCustomColors() {
+            this.clearCustomStyles();
+            localStorage.removeItem('erp_custom_colors');
+            this.customColors = { rail: '#1e293b', primary: '#334155', bg: '#f8fafc' };
+            this.setPalette(this.activePalette || 'slate');
+        },
+        clearCustomStyles() {
+            const styleEl = document.getElementById('erp-custom-color-style');
+            if (styleEl) styleEl.remove();
         },
         setTheme(theme) {
             this.currentTheme = theme;
@@ -2496,7 +2731,7 @@ document.addEventListener('alpine:init', () => {
         getIcon() {
             if (this.currentTheme === 'sepia') return 'bi-eye-fill text-success';
             if (this.currentTheme === 'night') return 'bi-moon-stars-fill text-primary';
-            return 'bi-sun-fill text-warning';
+            return 'bi-palette-fill text-primary';
         }
     }));
 

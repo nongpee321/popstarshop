@@ -26,6 +26,7 @@ class FlashSaleController extends Controller
     {
         $data = $this->validateFlashSale($request);
         $flashSale = FlashSale::create($data);
+        \App\Support\PosSyncNotifier::notifyChange();
 
         return redirect()->route('flash-sales.show', $flashSale)->with('success', "สร้างแคมเปญนาทีทอง {$flashSale->code} แล้ว");
     }
@@ -55,6 +56,7 @@ class FlashSaleController extends Controller
     {
         $data = $this->validateFlashSale($request, $flashSale->id);
         $flashSale->update($data);
+        \App\Support\PosSyncNotifier::notifyChange();
 
         return redirect()->route('flash-sales.show', $flashSale)->with('success', 'บันทึกแคมเปญนาทีทองแล้ว');
     }
@@ -72,6 +74,7 @@ class FlashSaleController extends Controller
             ['flash_sale_id' => $flashSale->id, 'product_id' => $data['product_id']],
             ['flash_price' => $data['flash_price'], 'max_qty_per_bill' => $data['max_qty_per_bill'] ?? null]
         );
+        \App\Support\PosSyncNotifier::notifyChange();
 
         return response()->json(['success' => true, 'id' => $item->id]);
     }
@@ -80,6 +83,7 @@ class FlashSaleController extends Controller
     {
         abort_unless($item->flash_sale_id === $flashSale->id, 404);
         $item->delete();
+        \App\Support\PosSyncNotifier::notifyChange();
 
         return redirect()->route('flash-sales.show', $flashSale)->with('success', 'ลบสินค้าออกจากแคมเปญแล้ว');
     }
@@ -97,7 +101,7 @@ class FlashSaleController extends Controller
             ))
             ->orderBy('sku_code')
             ->limit(20)
-            ->get(['id', 'sku_code', 'name_th', 'default_price']);
+            ->get(['id', 'sku_code', 'name_th', 'default_price', 'average_cost', 'minimum_margin_percent', 'margin_control_policy']);
 
         return response()->json($products);
     }

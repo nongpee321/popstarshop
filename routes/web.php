@@ -103,7 +103,7 @@ Route::post('/security/mfa', [AuthController::class, 'enableMfa'])->name('mfa.en
 Route::delete('/security/mfa', [AuthController::class, 'disableMfa'])->name('mfa.disable');
 
 Route::get('/portal', [PortalController::class, 'index'])->name('portal');
-Route::get('/', fn () => auth()->check() ? redirect()->route('dashboard') : redirect()->route('portal'))->name('home');
+Route::get('/', fn () => auth()->check() ? redirect()->route('dashboard') : redirect()->route('login'))->name('home');
 Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');
 Route::post('/employees', [EmployeeController::class, 'store'])->name('employees.store');
 // หน้าตัวอย่างการออกแบบระบบหลังบ้าน — ข้อมูลจำลองล้วน ไม่แตะฐานข้อมูล
@@ -190,10 +190,13 @@ Route::prefix('pos')->name('pos.')->group(function () {
     Route::post('/held-bills', [PosController::class, 'holdBill'])->name('held-bills.store');
     Route::post('/held-bills/{heldBill}/resume', [PosController::class, 'resumeHeldBill'])->name('held-bills.resume');
     Route::post('/receipts/{receipt}/void', [PosController::class, 'voidReceipt'])->name('receipts.void');
-    Route::get('/checkout', fn () => redirect()->route('pos.index'))->name('checkout.redirect');
+    Route::post('/drawer/verify-pin', [PosController::class, 'verifyDrawerPin'])->name('drawer.verify-pin');
+    Route::post('/drawer/update-pin', [PosController::class, 'updateDrawerPin'])->name('drawer.update-pin');
     Route::post('/checkout', [PosController::class, 'checkout'])->name('checkout');
+    Route::post('/activate-token', [PosController::class, 'activateToken'])->name('activate-token');
+    Route::post('/unbind-device', [PosController::class, 'unbindDevice'])->name('unbind-device');
 });
-// คลังมือถือ: หน้าเดียวสำหรับมือถือ/PDA — รับเข้า (ใบซื้อ/รับตาม PO) + เช็คสต๊อก
+// คลังมือถือ: หน้าเดียวสำหรับมือถือ/PDA — รับเข้า (ใบซื้อ/รับตาม PO) + เช็คสต๊อก + ตรวจนับสินค้า
 Route::prefix('wh')->name('wh.')->group(function () {
     Route::get('/', [WarehouseMobileController::class, 'index'])->name('index');
     Route::get('/lookup', [WarehouseMobileController::class, 'lookup'])->name('lookup');
@@ -203,6 +206,10 @@ Route::prefix('wh')->name('wh.')->group(function () {
     Route::get('/purchase-orders', [WarehouseMobileController::class, 'purchaseOrders'])->name('purchase-orders');
     Route::get('/purchase-orders/{purchaseOrder}', [WarehouseMobileController::class, 'purchaseOrderDetail'])->name('purchase-orders.detail');
     Route::post('/purchase-orders/{purchaseOrder}/receive', [WarehouseMobileController::class, 'purchaseOrderReceive'])->name('purchase-orders.receive');
+    Route::get('/stock-counts', [WarehouseMobileController::class, 'stockCounts'])->name('stock-counts');
+    Route::get('/stock-counts/{stockCount}', [WarehouseMobileController::class, 'stockCountDetail'])->name('stock-counts.detail');
+    Route::post('/stock-counts/{stockCount}/save', [WarehouseMobileController::class, 'stockCountSave'])->name('stock-counts.save');
+    Route::post('/stock-counts/{stockCount}/submit', [WarehouseMobileController::class, 'stockCountSubmit'])->name('stock-counts.submit');
 });
 
 Route::get('/apps', [AppLauncherController::class, 'index'])->name('apps.launcher');
@@ -539,6 +546,7 @@ Route::prefix('products')->name('products.')->group(function () {
     Route::put('/recall-contacts/{recallContact}', [ProductController::class, 'updateRecallContact'])->name('recall-contacts.update');
     Route::post('/{product}/barcodes', [ProductController::class, 'addBarcode'])->name('barcodes.store');
     Route::put('/{product}/barcodes/{productBarcode}', [ProductController::class, 'updateBarcode'])->name('barcodes.update');
+    Route::get('/{product}/branch-prices', [ProductController::class, 'getBranchPrices'])->name('branch-prices');
     Route::post('/{product}/prices', [ProductController::class, 'upsertPrice'])->name('prices.upsert');
     Route::post('/{product}/pos-price-schedules', [ProductController::class, 'storePosPriceSchedule'])->name('pos-price-schedules.store');
     Route::delete('/{product}/pos-price-schedules/{schedule}', [ProductController::class, 'cancelPosPriceSchedule'])->name('pos-price-schedules.destroy');
@@ -799,7 +807,9 @@ Route::prefix('scale-prices')->name('scale-prices.')->group(function () {
 Route::prefix('promotions')->name('promotions.')->group(function () {
     Route::get('/', [PromotionController::class, 'index'])->name('index');
     Route::post('/', [PromotionController::class, 'store'])->name('store');
+    Route::post('/bulk', [PromotionController::class, 'bulkCreate'])->name('bulk');
     Route::put('/{promotion}', [PromotionController::class, 'update'])->name('update');
+    Route::delete('/{promotion}', [PromotionController::class, 'destroy'])->name('destroy');
 });
 
 // Flash sale (ราคานาทีทอง): time-boxed special prices on specific products,
@@ -855,6 +865,7 @@ Route::prefix('qty-promotions')->name('qty-promotions.')->group(function () {
 Route::prefix('settings')->name('settings.')->group(function () {
     Route::get('/', [SystemSettingController::class, 'index'])->name('index');
     Route::post('/', [SystemSettingController::class, 'update'])->name('update');
+    Route::post('/logo', [SystemSettingController::class, 'updateLogo'])->name('logo.update');
     Route::post('/layout', [SystemSettingController::class, 'updateLayout'])->name('layout.update');
     Route::get('/pos-designer', [SystemSettingController::class, 'posDesigner'])->name('pos-designer');
     Route::post('/pos-designer', [SystemSettingController::class, 'savePosLayout'])->name('pos-designer.save');
@@ -873,6 +884,8 @@ Route::prefix('settings')->name('settings.')->group(function () {
     Route::post('/receipt-template', [ReceiptTemplateController::class, 'update'])->name('receipt-template.update');
     Route::post('/pos-token', [SystemSettingController::class, 'issuePosToken'])->name('pos-token.issue');
     Route::post('/pos-token/rotate', [SystemSettingController::class, 'rotatePosToken'])->name('pos-token.rotate');
+    Route::post('/pos-token/change-branch', [SystemSettingController::class, 'updatePosDeviceBranch'])->name('pos-token.change-branch');
+    Route::post('/pos-token/destroy', [SystemSettingController::class, 'destroyPosDevice'])->name('pos-token.destroy');
     Route::post('/pos-terminal/hardware', [SystemSettingController::class, 'updatePosTerminalHardware'])->name('pos-terminal.hardware');
     Route::post('/pos-release', [SystemSettingController::class, 'publishPosRelease'])->name('pos-release.publish');
 });

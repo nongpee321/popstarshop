@@ -20,6 +20,7 @@ Route::prefix('pos')->middleware('pos.device')->name('api.pos.')->group(function
     Route::get('/products', [PosController::class, 'products'])->name('products');
     Route::post('/products', [PosOfflineProductController::class, 'store'])->name('products.store');
     Route::get('/promotions', [PosController::class, 'promotions'])->name('promotions');
+    Route::post('/coupon/verify', [PosController::class, 'verifyCoupon'])->name('coupon.verify');
     Route::get('/members', [PosController::class, 'members'])->name('members');
     Route::get('/shift', [PosController::class, 'activeShift'])->name('shift');
     Route::post('/shift/open', [PosController::class, 'openShift'])->name('shift.open');

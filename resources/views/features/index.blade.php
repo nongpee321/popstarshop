@@ -1,377 +1,417 @@
 @extends('layout')
 
-@section('title', 'PopCentral Flow')
-@section('page-title', 'PopCentral Flow')
-@section('page-subtitle', 'เมนู ERP แบบใช้งานง่าย อิงลำดับงานจาก BPlus')
+@section('title', 'Workflow ผังงานระบบ - PopCentral Flow')
+@section('page-title', 'ผังการทำงานระบบ (Workflow & Modules)')
+@section('page-subtitle', 'ศูนย์รวมผังการทำงานและจุดเชื่อมต่อโมดูล ERP / POS อิงลำดับงานมาตรฐาน')
 
 @push('head')
 <style>
-    .app-content {
-        padding: 18px;
+    .flow-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
     }
 
     .flow-shell {
-        height: calc(100vh - 108px);
-        min-height: 680px;
         display: grid;
-        grid-template-columns: minmax(360px, 460px) 1fr;
-        gap: 14px;
+        grid-template-columns: 380px 1fr;
+        gap: 20px;
+        align-items: start;
     }
 
-
-    .flow-panel {
-        background: #fff;
-        border: 1px solid var(--erp-border);
-        border-radius: 8px;
-        box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
-        min-height: 0;
+    /* Left Sidebar: Workflow Navigation */
+    .flow-nav-panel {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+        display: flex;
+        flex-direction: column;
         overflow: hidden;
     }
-
-    .flow-head {
-        padding: 14px 16px;
-        border-bottom: 1px solid var(--erp-primary-soft);
-        background: var(--erp-surface-2);
+    .flow-nav-header {
+        padding: 18px 20px 14px;
+        border-bottom: 1px solid #f1f5f9;
+        background: #fafbfc;
     }
-
-    .flow-head-title {
+    .flow-nav-title {
         font-size: 16px;
-        font-weight: 800;
-        color: var(--erp-text);
-        margin: 0;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0 0 4px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .flow-search-box {
+        position: relative;
+        margin-top: 10px;
+    }
+    .flow-search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+        font-size: 14px;
+        pointer-events: none;
+    }
+    .flow-search-input {
+        width: 100%;
+        padding: 9px 12px 9px 36px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 13px;
+        color: #1e293b;
+        background: #ffffff;
+        transition: all 0.15s ease;
+    }
+    .flow-search-input:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+        outline: none;
     }
 
-    .flow-head-sub {
-        color: var(--erp-muted);
-        font-size: 12px;
-        margin-top: 3px;
-    }
-
-    .flow-tabs {
+    /* Module Tabs Scroller */
+    .flow-tabs-scroll {
         display: flex;
         gap: 6px;
         overflow-x: auto;
-        padding: 10px 10px 0;
-        background: #fff;
+        padding: 12px 16px;
+        border-bottom: 1px solid #f1f5f9;
+        background: #ffffff;
     }
-
-    .flow-tab {
-        border: 1px solid var(--erp-border);
-        background: #fff;
-        border-radius: 999px;
-        color: var(--erp-text);
-        font-weight: 800;
+    .flow-tab-chip {
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        border-radius: 20px;
+        color: #475569;
+        font-weight: 600;
         font-size: 12px;
-        padding: 7px 10px;
+        padding: 6px 14px;
         white-space: nowrap;
-    }
-
-    .flow-tab.active {
-        border-color: var(--erp-info);
-        background: var(--erp-primary-soft);
-        color: var(--erp-info);
-    }
-
-    .flow-search {
-        border: 1px solid var(--erp-border);
-        border-radius: 8px;
-        padding: 9px 12px;
-        width: 100%;
-        outline: 0;
-    }
-
-    .flow-steps {
-        height: calc(100% - 168px);
-        overflow: auto;
-        padding: 10px;
-    }
-
-    .flow-step {
-        border: 1px solid var(--erp-border);
-        background: #fff;
-        border-radius: 8px;
-        padding: 11px 12px;
-        margin-bottom: 8px;
         cursor: pointer;
-        display: grid;
-        grid-template-columns: 32px 1fr;
-        gap: 10px;
-        color: var(--erp-text);
+        transition: all 0.15s ease;
+    }
+    .flow-tab-chip:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+    .flow-tab-chip.active {
+        background: #dc2626; /* Pop Star primary */
+        color: #ffffff;
+        border-color: #dc2626;
+        box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25);
     }
 
-    .flow-step:hover {
-        border-color: #b9cadf;
-        background: var(--erp-surface-2);
+    /* Items List */
+    .flow-items-list {
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-height: calc(100vh - 280px);
+        overflow-y: auto;
     }
-
-    .flow-step.active {
-        border-color: var(--erp-info);
-        background: var(--erp-primary-soft);
+    .flow-item-card {
+        border: 1px solid #e2e8f0;
+        background: #ffffff;
+        border-radius: 10px;
+        padding: 12px 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        transition: all 0.15s ease;
+        position: relative;
     }
-
-    .step-no {
+    .flow-item-card:hover {
+        border-color: #cbd5e1;
+        background: #f8fafc;
+        transform: translateY(-1px);
+        box-shadow: 0 3px 8px rgba(0,0,0,0.03);
+    }
+    .flow-item-card.active {
+        border-color: #fecaca;
+        background: #fef2f2;
+    }
+    .flow-item-card.active::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        border-radius: 10px 0 0 10px;
+        background: #dc2626;
+    }
+    .flow-item-num {
         width: 28px;
         height: 28px;
-        border-radius: 6px;
-        display: grid;
-        place-items: center;
-        background: var(--erp-border);
-        color: var(--erp-text);
-        font-weight: 900;
+        border-radius: 7px;
+        background: #f1f5f9;
+        color: #475569;
+        font-weight: 700;
         font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
     }
-
-    .flow-step.active .step-no {
-        background: var(--erp-info);
-        color: #fff;
+    .flow-item-card.active .flow-item-num {
+        background: #dc2626;
+        color: #ffffff;
     }
-
-    .step-title {
-        font-weight: 850;
-        line-height: 1.25;
+    .flow-item-name {
+        font-size: 13px;
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.3;
+        margin-bottom: 2px;
     }
-
-    .step-note {
-        color: var(--erp-muted);
+    .flow-item-card.active .flow-item-name {
+        color: #991b1b;
+    }
+    .flow-item-note {
         font-size: 12px;
-        margin-top: 4px;
+        color: #64748b;
         line-height: 1.35;
     }
 
-    .detail-wrap {
-        height: 100%;
-        display: grid;
-        grid-template-rows: auto auto 1fr auto;
-    }
-
-    .detail-hero {
-        padding: 20px 22px;
-        border-bottom: 1px solid var(--erp-primary-soft);
-        background: linear-gradient(180deg, #ffffff 0%, var(--erp-surface-2) 100%);
-    }
-
-    .detail-kicker {
-        color: var(--erp-info);
-        font-size: 12px;
-        font-weight: 900;
-        letter-spacing: .04em;
-        text-transform: uppercase;
-    }
-
-    .detail-title {
-        font-size: 28px;
-        font-weight: 900;
-        color: var(--erp-text);
-        margin: 4px 0 6px;
-    }
-
-    .detail-summary {
-        color: var(--erp-text);
-        font-size: 15px;
-        max-width: 760px;
-    }
-
-    .action-strip {
-        padding: 14px 22px;
+    /* Right Main Panel: Detail & Actions */
+    .flow-detail-panel {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.03);
         display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        border-bottom: 1px solid var(--erp-primary-soft);
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .flow-hero-header {
+        padding: 24px 28px;
+        background: #ffffff;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .flow-hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        background: #fef2f2;
+        color: #dc2626;
+        margin-bottom: 8px;
+    }
+    .flow-hero-title {
+        font-size: 24px;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0 0 6px;
+        line-height: 1.25;
+    }
+    .flow-hero-sub {
+        font-size: 14px;
+        color: #475569;
+        line-height: 1.5;
+        max-width: 800px;
+        margin: 0;
     }
 
-    .action-button {
-        border: 1px solid var(--erp-info);
-        background: var(--erp-info);
-        color: #fff;
+    /* Action Ribbon */
+    .flow-action-strip {
+        padding: 14px 28px;
+        background: #fafbfc;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .btn-flow-launch {
+        background: #dc2626;
+        color: #ffffff;
+        font-weight: 600;
+        font-size: 13px;
         border-radius: 8px;
-        padding: 9px 14px;
-        font-weight: 800;
-        text-decoration: none;
+        padding: 8px 18px;
         display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: none;
+        box-shadow: 0 2px 6px rgba(220, 38, 38, 0.2);
+        transition: all 0.15s ease;
+        text-decoration: none;
+    }
+    .btn-flow-launch:hover {
+        background: #b91c1c;
+        color: #ffffff;
+        transform: translateY(-1px);
+    }
+    .btn-flow-sec {
+        background: #ffffff;
+        color: #334155;
+        font-weight: 600;
+        font-size: 13px;
+        border-radius: 8px;
+        padding: 8px 16px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid #cbd5e1;
+        transition: all 0.15s ease;
+        text-decoration: none;
+    }
+    .btn-flow-sec:hover {
+        background: #f1f5f9;
+        color: #0f172a;
+    }
+
+    /* Content Area */
+    .flow-detail-content {
+        padding: 24px 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    /* Section Boxes */
+    .content-box {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 18px 20px;
+    }
+    .content-box-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: #334155;
+        margin-bottom: 12px;
+        display: flex;
         align-items: center;
         gap: 8px;
     }
 
-    .action-button:hover {
-        color: #fff;
-        background: var(--erp-info);
-    }
-
-    .secondary-button {
-        background: #fff;
-        color: var(--erp-info);
-    }
-
-    .secondary-button:hover {
-        color: var(--erp-info);
-        background: var(--erp-primary-soft);
-    }
-
-    .detail-body {
-        padding: 18px 22px;
-        overflow: auto;
-    }
-
-    .quick-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
-    }
-
-    .legacy-doc-box {
-        border: 1px solid var(--erp-border);
-        background: var(--erp-surface-2);
-        border-radius: 8px;
-        padding: 12px;
-        margin-bottom: 16px;
-    }
-
-    .legacy-doc-title {
-        color: var(--erp-text);
-        font-size: 13px;
-        font-weight: 900;
-        margin-bottom: 8px;
-    }
-
-    .legacy-code-grid {
+    /* Document Code Chips */
+    .code-chips-wrap {
         display: flex;
         flex-wrap: wrap;
-        gap: 6px;
-    }
-
-    .legacy-code-chip {
-        border: 1px solid var(--erp-border);
-        background: #fff;
-        color: var(--erp-text);
-        border-radius: 7px;
-        padding: 5px 9px;
-        font-size: 12px;
-        font-weight: 900;
-        text-decoration: none;
-        line-height: 1;
-    }
-
-    .legacy-code-chip:hover {
-        border-color: var(--erp-info);
-        color: var(--erp-info);
-        background: var(--erp-primary-soft);
-    }
-
-    .bplus-flow-box {
-        border: 1px solid var(--erp-border);
-        border-radius: 8px;
-        background: #fff;
-        padding: 12px;
-        margin-bottom: 16px;
-    }
-
-    .bplus-flow-title {
-        color: var(--erp-text);
-        font-size: 13px;
-        font-weight: 900;
-        margin-bottom: 10px;
-    }
-
-    .bplus-flow-list {
-        display: grid;
         gap: 8px;
     }
-
-    .bplus-flow-row {
-        display: grid;
-        grid-template-columns: 28px minmax(0, 1fr);
-        gap: 9px;
-        align-items: start;
-    }
-
-    .bplus-flow-no {
-        width: 26px;
-        height: 26px;
-        border-radius: 7px;
-        display: grid;
-        place-items: center;
-        background: var(--erp-primary-soft);
-        color: var(--erp-primary-dark);
-        font-size: 11px;
-        font-weight: 900;
-    }
-
-    .bplus-flow-name {
-        color: var(--erp-text);
-        font-size: 13px;
-        font-weight: 850;
-        line-height: 1.25;
-    }
-
-    .bplus-flow-codes {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 5px;
-        margin-top: 5px;
-    }
-
-    .quick-link {
-        border: 1px solid var(--erp-border);
-        border-radius: 8px;
-        padding: 12px;
-        text-decoration: none;
-        color: var(--erp-text);
-        background: #fff;
-        min-height: 78px;
-    }
-
-    .quick-link:hover {
-        border-color: var(--erp-info);
-        background: var(--erp-surface-2);
-        color: var(--erp-text);
-    }
-
-    .quick-title {
-        font-weight: 850;
-        line-height: 1.25;
-    }
-
-    .quick-note {
-        color: var(--erp-muted);
+    .doc-code-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 12px;
+        border-radius: 6px;
+        font-family: ui-monospace, SFMono-Regular, monospace;
         font-size: 12px;
-        margin-top: 5px;
+        font-weight: 700;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        color: #0f172a;
+        text-decoration: none;
+        transition: all 0.15s ease;
+    }
+    .doc-code-pill:hover {
+        border-color: #3b82f6;
+        color: #1d4ed8;
+        background: #eff6ff;
+        transform: translateY(-1px);
     }
 
-    .flow-footer {
-        padding: 10px 22px;
-        border-top: 1px solid var(--erp-primary-soft);
-        color: var(--erp-muted);
+    /* Workflow Stepper */
+    .bplus-stepper {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .bplus-step-row {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    .bplus-step-num {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        background: #eff6ff;
+        color: #2563eb;
+        font-weight: 800;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    /* Quick Grid Cards */
+    .quick-tiles-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+    .quick-tile-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 14px 16px;
+        text-decoration: none;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 6px;
+        transition: all 0.15s ease;
+    }
+    .quick-tile-card:hover {
+        border-color: #cbd5e1;
+        background: #f8fafc;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    }
+    .quick-tile-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: #0f172a;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .quick-tile-desc {
+        font-size: 12px;
+        color: #64748b;
+        line-height: 1.4;
+    }
+
+    /* Footer */
+    .flow-footer-bar {
+        padding: 12px 28px;
+        background: #fafbfc;
+        border-top: 1px solid #f1f5f9;
         display: flex;
         justify-content: space-between;
-        gap: 12px;
+        align-items: center;
         font-size: 12px;
-        background: var(--erp-surface-2);
+        color: #64748b;
     }
 
-@media (max-width: 1199.98px) {
+    @media (max-width: 1100px) {
         .flow-shell {
             grid-template-columns: 1fr;
-            height: auto;
         }
-
-        .detail-wrap {
-            min-height: 520px;
+        .flow-items-list {
+            max-height: 320px;
         }
     }
-
-    @media (max-width: 767.98px) {
-        .app-content { padding: 12px; }
-        .flow-shell {
-            grid-template-columns: 1fr;
-            min-height: 0;
-        }
-
-        .flow-steps {
-            height: auto;
-            max-height: 360px;
-        }
-
-        .quick-grid {
+    @media (max-width: 640px) {
+        .quick-tiles-grid {
             grid-template-columns: 1fr;
         }
     }
@@ -417,102 +457,139 @@
     $totalItems = collect($flowModules)->sum(fn ($module) => count($module['items']));
 @endphp
 
-<div class="flow-shell" x-data="popstarFlow(@js($flowModules))" x-cloak>
-    <section class="flow-panel">
-        <div class="flow-head">
-            <h2 class="flow-head-title">Workflow</h2>
-            <div class="flow-head-sub">เมนูโมดูลอยู่ด้านซ้ายของระบบแล้ว หน้านี้ใช้ค้นหาและเปิดงาน</div>
-            <div class="mt-2">
-                <input class="flow-search" x-model="query" placeholder="ค้นหางาน เช่น ใบจอง, ภาษี, QR">
-            </div>
-        </div>
-        <div class="flow-tabs">
-            <template x-for="module in modules" :key="module.key">
-                <button type="button" class="flow-tab" :class="{ active: activeKey === module.key }" @click="selectModule(module.key)" x-text="module.title"></button>
-            </template>
-        </div>
-        <div class="flow-steps">
-            <template x-for="item in filteredItems" :key="item.code + item.name">
-                <div class="flow-step" :class="{ active: activeItem?.name === item.name }" @click="selectItem(item)">
-                    <span class="step-no" x-text="item.code"></span>
-                    <span>
-                        <span class="step-title" x-text="item.name"></span>
-                        <span class="step-note" x-text="item.note"></span>
-                    </span>
-                </div>
-            </template>
-            <div class="text-center text-muted py-5" x-show="filteredItems.length === 0">ไม่พบรายการที่ค้นหา</div>
-        </div>
-    </section>
-
-    <section class="flow-panel detail-wrap">
-        <div class="detail-hero">
-            <div class="detail-kicker" x-text="activeModule.title"></div>
-            <h2 class="detail-title" x-text="activeItem?.name || activeModule.title"></h2>
-            <div class="detail-summary" x-text="activeItem?.note || activeModule.summary"></div>
-        </div>
-
-        <div class="action-strip">
-            <a class="action-button" :href="activeItem?.url || '#'">
-                <i class="bi bi-box-arrow-up-right"></i>
-                เปิดหน้าจอ
-            </a>
-            <a class="action-button secondary-button" href="{{ route('reports.index') }}">
-                <i class="bi bi-clipboard-data"></i>
-                รายงาน
-            </a>
-            <a class="action-button secondary-button" href="{{ route('dashboard') }}">
-                <i class="bi bi-bar-chart-line"></i>
-                แดชบอร์ด
-            </a>
-        </div>
-
-        <div class="detail-body">
-            <div class="legacy-doc-box" x-show="activeModule.legacy_codes?.length">
-                <div class="legacy-doc-title">
-                    รหัสเอกสาร BPlus ในหมวดนี้
-                    <span class="text-muted fw-semibold" x-text="activeModule.legacy_title ? '· ' + activeModule.legacy_title : ''"></span>
-                </div>
-                <div class="legacy-code-grid">
-                    <template x-for="docCode in activeModule.legacy_codes" :key="docCode.code">
-                        <a class="legacy-code-chip" :href="docCode.url" x-text="docCode.code"></a>
-                    </template>
+<div class="flow-wrapper" x-data="popstarFlow(@js($flowModules))" x-cloak>
+    <div class="flow-shell">
+        {{-- Left: Workflow Navigation Sidebar --}}
+        <section class="flow-nav-panel">
+            <div class="flow-nav-header">
+                <h2 class="flow-nav-title">
+                    <i class="bi bi-diagram-3-fill text-danger"></i> ผังงาน Workflow
+                </h2>
+                <div class="text-muted small">ค้นหาและเลือกเปิดงานตามขั้นตอน</div>
+                <div class="flow-search-box">
+                    <i class="bi bi-search flow-search-icon"></i>
+                    <input class="flow-search-input" x-model="query" placeholder="ค้นหา เช่น ใบจอง, ภาษี, QR, สต็อก...">
                 </div>
             </div>
-            <h3 class="h6 fw-bold mb-3">งานในหมวดนี้</h3>
-            <div class="bplus-flow-box" x-show="activeModule.bplus_flow?.length">
-                <div class="bplus-flow-title">ลำดับงานอิง BPlus</div>
-                <div class="bplus-flow-list">
-                    <template x-for="step in activeModule.bplus_flow" :key="step.no + step.name">
-                        <div class="bplus-flow-row">
-                            <span class="bplus-flow-no" x-text="step.no"></span>
-                            <span>
-                                <span class="bplus-flow-name" x-text="step.name"></span>
-                                <span class="bplus-flow-codes">
-                                    <template x-for="docCode in step.codes" :key="docCode.code">
-                                        <a class="legacy-code-chip" :href="docCode.url" x-text="docCode.code"></a>
-                                    </template>
-                                </span>
-                            </span>
-                        </div>
-                    </template>
-                </div>
-            </div>
-            <div class="quick-grid">
-                <template x-for="item in activeModule.items" :key="item.code + item.name">
-                    <a class="quick-link" :href="item.url" @mouseenter="activeItem = item">
-                        <div class="quick-title"><span x-text="item.code"></span> · <span x-text="item.name"></span></div>
-                        <div class="quick-note" x-text="item.note"></div>
-                    </a>
+
+            {{-- Module Category Pills --}}
+            <div class="flow-tabs-scroll">
+                <template x-for="module in modules" :key="module.key">
+                    <button type="button" class="flow-tab-chip" :class="{ active: activeKey === module.key }" @click="selectModule(module.key)" x-text="module.title"></button>
                 </template>
             </div>
-        </div>
 
-        <div class="flow-footer">
-            <span>PopCentral Flow · อิงลำดับงาน BPlus</span>
-            <span>{{ count($flowModules) }} โมดูล · {{ $totalItems }} งาน</span>
-        </div>
-    </section>
+            {{-- Step Items List --}}
+            <div class="flow-items-list">
+                <template x-for="item in filteredItems" :key="item.code + item.name">
+                    <div class="flow-item-card" :class="{ active: activeItem?.name === item.name }" @click="selectItem(item)">
+                        <div class="flow-item-num" x-text="item.code"></div>
+                        <div class="flex-grow-1 min-w-0">
+                            <div class="flow-item-name" x-text="item.name"></div>
+                            <div class="flow-item-note" x-text="item.note"></div>
+                        </div>
+                    </div>
+                </template>
+                <div class="text-center text-muted py-5" x-show="filteredItems.length === 0">
+                    <i class="bi bi-search fs-3 text-secondary opacity-50 d-block mb-1"></i>
+                    ไม่พบรายการที่ตรงกับคำค้นหา
+                </div>
+            </div>
+        </section>
+
+        {{-- Right: Detail & Actions Panel --}}
+        <section class="flow-detail-panel">
+            {{-- Hero Header --}}
+            <div class="flow-hero-header">
+                <div class="flow-hero-badge">
+                    <i class="bi bi-folder2-open"></i>
+                    <span x-text="activeModule.title"></span>
+                </div>
+                <h2 class="flow-hero-title" x-text="activeItem?.name || activeModule.title"></h2>
+                <p class="flow-hero-sub" x-text="activeItem?.note || activeModule.summary"></p>
+            </div>
+
+            {{-- Action Buttons Ribbon --}}
+            <div class="flow-action-strip">
+                <a class="btn-flow-launch" :href="activeItem?.url || '#'">
+                    <i class="bi bi-box-arrow-up-right"></i>
+                    เปิดหน้าจอทำงาน
+                </a>
+                <a class="btn-flow-sec" href="{{ route('reports.index') }}">
+                    <i class="bi bi-clipboard-data text-primary"></i>
+                    ศูนย์รายงาน
+                </a>
+                <a class="btn-flow-sec" href="{{ route('dashboard') }}">
+                    <i class="bi bi-bar-chart-line text-success"></i>
+                    แดชบอร์ดภาพรวม
+                </a>
+            </div>
+
+            {{-- Body Content --}}
+            <div class="flow-detail-content">
+                {{-- Document Codes Box --}}
+                <div class="content-box" x-show="activeModule.legacy_codes?.length">
+                    <div class="content-box-title">
+                        <i class="bi bi-file-earmark-code text-primary"></i>
+                        <span>รหัสเอกสาร BPlus ในหมวดนี้</span>
+                        <span class="text-muted fw-normal" x-text="activeModule.legacy_title ? '· ' + activeModule.legacy_title : ''"></span>
+                    </div>
+                    <div class="code-chips-wrap">
+                        <template x-for="docCode in activeModule.legacy_codes" :key="docCode.code">
+                            <a class="doc-code-pill" :href="docCode.url" x-text="docCode.code" title="คลิกเพื่อเปิดดูเอกสาร"></a>
+                        </template>
+                    </div>
+                </div>
+
+                {{-- BPlus Stepper List --}}
+                <div class="content-box" x-show="activeModule.bplus_flow?.length">
+                    <div class="content-box-title">
+                        <i class="bi bi-diagram-2 text-danger"></i>
+                        <span>ลำดับงานอิงมาตรฐาน BPlus</span>
+                    </div>
+                    <div class="bplus-stepper">
+                        <template x-for="step in activeModule.bplus_flow" :key="step.no + step.name">
+                            <div class="bplus-step-row">
+                                <div class="bplus-step-num" x-text="step.no"></div>
+                                <div class="flex-grow-1">
+                                    <div class="fw-bold text-dark fs-6" x-text="step.name"></div>
+                                    <div class="code-chips-wrap mt-1">
+                                        <template x-for="docCode in step.codes" :key="docCode.code">
+                                            <a class="doc-code-pill" :href="docCode.url" x-text="docCode.code"></a>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                {{-- Quick Access Grid --}}
+                <div>
+                    <h3 class="h6 fw-bold text-dark mb-3">
+                        <i class="bi bi-grid-fill text-secondary me-1"></i> งานทั้งหมดในหมวดนี้
+                    </h3>
+                    <div class="quick-tiles-grid">
+                        <template x-for="item in activeModule.items" :key="item.code + item.name">
+                            <a class="quick-tile-card" :href="item.url" @mouseenter="activeItem = item">
+                                <div class="quick-tile-title">
+                                    <span class="badge bg-light text-dark border" x-text="item.code"></span>
+                                    <span x-text="item.name"></span>
+                                </div>
+                                <div class="quick-tile-desc" x-text="item.note"></div>
+                            </a>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Footer Info --}}
+            <div class="flow-footer-bar">
+                <span><i class="bi bi-info-circle me-1"></i>PopCentral Flow · อิงลำดับงานมาตรฐาน BPlus</span>
+                <span>{{ count($flowModules) }} หมวดหมู่โมดูล · {{ $totalItems }} รายการงาน</span>
+            </div>
+        </section>
+    </div>
 </div>
 @endsection
 

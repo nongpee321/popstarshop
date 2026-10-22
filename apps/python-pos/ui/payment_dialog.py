@@ -50,12 +50,13 @@ class IdleTimeoutDialog(QDialog):
             self.reject()
 
 class PaymentDialog(QDialog):
-    def __init__(self, parent=None, total_amount=0.0, total_items=0, total_qty=0.0):
+    def __init__(self, parent=None, total_amount=0.0, total_items=0, total_qty=0.0, discount_amount=0.0):
         super().__init__(parent)
         self.setWindowTitle("รับชำระเงิน")
         self.setFixedSize(850, 600)
         self.setStyleSheet("background-color: white; color: #111827;")
         
+        self.discount_amount = discount_amount
         self.total_amount = total_amount
         self.total_items = total_items
         self.total_qty = total_qty
@@ -137,6 +138,8 @@ class PaymentDialog(QDialog):
             
         add_summary_row("จำนวนรายการ", f"{self.total_items}")
         add_summary_row("จำนวนชิ้น", f"{self.total_qty:g}")
+        if self.discount_amount > 0:
+            add_summary_row("ส่วนลด", f"-฿{self.discount_amount:,.2f}")
         
         total_lbl = QLabel(f"฿ {self.total_amount:,.2f}")
         total_lbl.setStyleSheet("font-size: 32px; font-weight: bold; color: #10b981; margin-top: 10px; border: none;")

@@ -19,10 +19,10 @@ class ErpAuthorize
         'home',
         'login', 'login.attempt', 'logout', 'pos.download', 'python-pos.download',
         'pos.release.latest', 'pos.release.download',
+        'pos.activate-token',
         'mfa.challenge', 'mfa.verify',
         'portal',
         'manual',
-        'core-modules.index',
         'settings.preview',
         'settings.module-preview',
         'settings.pos-designer-preview',
@@ -85,6 +85,28 @@ class ErpAuthorize
             return $next($request);
         }
 
+        // ตรวจสอบ POS Device Token (Magic Link หรือ Session ประจำเครื่อง)
+        $posToken = $request->query('pos_token') ?: $request->query('token') ?: $request->cookie('pos_device_token');
+        if ($posToken && str_starts_with($routeName ?? '', 'pos.')) {
+            $device = \App\Models\PosDevice::with(['user', 'branch'])
+                ->where('token_hash', \App\Models\PosDevice::hashToken($posToken))
+                ->first();
+
+            if ($device && $device->isActive() && $device->user && $device->user->is_active) {
+                if (! Auth::check() || Auth::id() !== $device->user_id) {
+                    Auth::login($device->user);
+                }
+                $request->attributes->set('pos_device', $device);
+                $device->forceFill([
+                    'last_seen_at' => now(),
+                    'last_ip' => $request->ip(),
+                ])->saveQuietly();
+
+                // จำ token ลง cookie ประจำเครื่องนี้ 365 วัน (httpOnly=false เพื่อให้ JS/Tauri เข้าถึงได้ถ้าจำเป็น)
+                \Illuminate\Support\Facades\Cookie::queue('pos_device_token', $posToken, 60 * 24 * 365);
+            }
+        }
+
         $user = Auth::user();
 
         if (! $user) {
@@ -107,7 +129,16 @@ class ErpAuthorize
 
         $permission = RoutePermissions::resolve($routeName);
         if ($permission && ! $user->hasPermission($permission)) {
+            // ถ้าเป็นพนักงานแคชเชียร์และหลุดไปเข้าหน้าอื่นของ ERP ให้ส่งกลับมาที่หน้า /pos
+            if ($user->hasPermission('pos.sell') && ! str_starts_with($routeName ?? '', 'pos.')) {
+                return redirect()->route('pos.index')->with('warning', 'คุณมีสิทธิ์เข้าใช้งานเฉพาะระบบขายหน้าร้าน (POS) เท่านั้น');
+            }
             abort(403, 'บัญชีของคุณไม่มีสิทธิ์ใช้เมนูนี้ ติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์เพิ่ม');
+        }
+
+        // หากผู้ใช้มีเฉพาะสิทธิ์ POS และพยายามเข้าหน้า Dashboard หรือเมนูอื่นๆ ที่ไม่มีสิทธิ์เฉพาะ
+        if ($routeName === 'dashboard' && $user->hasPermission('pos.sell') && ! $user->hasPermission('settings.manage') && ! $user->hasPermission('reports.view') && ! $user->hasPermission('accounting.view')) {
+            return redirect()->route('pos.index');
         }
 
         return $next($request);

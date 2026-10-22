@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt
 from ui.customer_display import CustomerDisplayWindow
 import traceback
 
-app = QApplication([])
+app = QApplication.instance() or QApplication([])
 
 class DummyMainWindow(QMainWindow):
     def __init__(self):

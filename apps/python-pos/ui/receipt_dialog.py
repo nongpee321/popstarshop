@@ -96,12 +96,13 @@ def _receipt_raster_commands(document):
     image.fill(0xFFFFFFFF)
 
     painter = QPainter(image)
-    painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+    painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, False)
     painter.scale(scale, scale)
     document.drawContents(painter, QRectF(0, 0, source_width, source_height))
     painter.end()
 
     row_bytes = (paper_width + 7) // 8
+    # ESC @ (init), ESC a 1 (center)
     commands = bytearray(b'\x1b@\x1ba\x01')
     for start_y in range(0, image_height, 128):
         band_height = min(128, image_height - start_y)
@@ -115,7 +116,8 @@ def _receipt_raster_commands(document):
                 value = 0
                 for bit in range(8):
                     x = byte_index * 8 + bit
-                    if x < paper_width and image.pixelColor(x, y).value() < 192:
+                    # Threshold 225: any pixel darker than near-white turns solid black
+                    if x < paper_width and image.pixelColor(x, y).value() < 225:
                         value |= 1 << (7 - bit)
                 commands.append(value)
 
@@ -279,6 +281,13 @@ def print_escpos_receipt(printer_name, receipt_data, config):
         cmds += enc(f"  {qty} x {price:,.2f}") + LINE_FEED
     
     cmds += enc('-' * 48) + LINE_FEED
+    
+    subtotal = sum(float(it.get('total', 0.0)) for it in receipt_data.get('items', []))
+    discount = float(receipt_data.get('discount_amount', 0.0))
+    if discount > 0:
+        cmds += enc(f"รวมเป็นเงิน: {subtotal:,.2f}") + LINE_FEED
+        cmds += enc(f"ส่วนลด: -{discount:,.2f}") + LINE_FEED
+        cmds += enc('-' * 48) + LINE_FEED
     
     vat_rate = _receipt_amount(receipt_data.get('vat_rate', 7))
     net_amount = _receipt_amount(total_amount)
@@ -855,24 +864,24 @@ class ReceiptDialog(QDialog):
 
         receipt_html = f"""
         <html><head><style>
-            body {{ font-family: Tahoma, sans-serif; font-size: 13px; color: #111; margin: 0; }}
+            body {{ font-family: 'Tahoma', 'Arial', sans-serif; font-size: 13.5px; font-weight: 700; color: #000000; margin: 0; line-height: 1.3; }}
             .receipt {{ width: 100%; }}
             .center {{ text-align: center; }}
             .logo {{ margin-bottom: 2px; }}
-            .shop {{ font-size: 12px; font-weight: bold; line-height: 1.2; }}
-            .document {{ font-weight: bold; margin: 5px 0 3px; }}
-            .meta {{ line-height: 1.35; }}
+            .shop {{ font-size: 13.5px; font-weight: 900; line-height: 1.25; color: #000; }}
+            .document {{ font-size: 15px; font-weight: 900; margin: 6px 0 4px; color: #000; }}
+            .meta {{ line-height: 1.35; font-size: 13px; font-weight: 700; }}
             .meta table td:last-child {{ text-align: right; }}
-            .customer {{ margin-top: 4px; padding-top: 4px; line-height: 1.35; }}
-            .rule {{ color: #64748b; font-family: "Courier New", monospace; font-size: 11px; line-height: 1; margin: 5px 0; }}
-            table {{ width: 100%; border-collapse: collapse; }}
+            .customer {{ margin-top: 4px; padding-top: 4px; line-height: 1.35; font-size: 12.5px; font-weight: 700; }}
+            .rule {{ font-family: "Courier New", monospace; font-size: 13px; font-weight: 900; line-height: 1; margin: 5px 0; color: #000; }}
+            table {{ width: 100%; border-collapse: collapse; font-weight: 700; color: #000; }}
             td {{ padding: 2px 0; vertical-align: top; }}
-            .item-name {{ padding-top: 4px; font-weight: bold; }}
-            .item-detail {{ padding-left: 8px; color: #475569; }}
-            .item-total, .summary td:last-child {{ text-align: right; white-space: nowrap; }}
-            .summary td {{ padding: 2px 0; }}
-            .grand-total {{ margin-top: 3px; padding-top: 3px; font-size: 16px; font-weight: bold; text-align: center; }}
-            .footer {{ margin-top: 5px; padding-top: 5px; line-height: 1.35; }}
+            .item-name {{ padding-top: 4px; font-size: 13.5px; font-weight: 900; }}
+            .item-detail {{ padding-left: 8px; font-size: 12.5px; font-weight: 700; color: #000; }}
+            .item-total, .summary td:last-child {{ text-align: right; white-space: nowrap; font-weight: 800; }}
+            .summary td {{ padding: 2px 0; font-size: 13px; }}
+            .grand-total {{ margin-top: 4px; padding-top: 4px; font-size: 18px; font-weight: 900; text-align: center; color: #000; }}
+            .footer {{ margin-top: 6px; padding-top: 6px; line-height: 1.35; font-size: 12.5px; font-weight: 700; }}
         </style></head><body>
             <div class="receipt">
                 <div class="center logo">{logo_html}</div>
@@ -885,11 +894,11 @@ class ReceiptDialog(QDialog):
                     </table>
                 </div>
                 {customer_html}
-                <div class="rule">----------------------------------------</div>
+                <div class="rule">========================================</div>
                 <table>
                     <tbody>{items_html}</tbody>
                 </table>
-                <div class="rule">----------------------------------------</div>
+                <div class="rule">========================================</div>
                 <table class="summary">
                     <tr><td>มูลค่าสินค้า (ก่อน VAT)</td><td align="right">{before_vat:,.2f}</td></tr>
                     <tr><td>ภาษีมูลค่าเพิ่ม {vat_rate}%</td><td align="right">{vat_amount:,.2f}</td></tr>
@@ -897,11 +906,11 @@ class ReceiptDialog(QDialog):
                 <table class="grand-total">
                     <tr><td colspan="2" class="center">ยอดสุทธิ {total_amount:,.2f} บาท</td></tr>
                 </table>
-                <div class="center" style="margin-top: 5px;">
+                <div class="center" style="margin-top: 5px; font-weight: 700;">
                     (รวมภาษีมูลค่าเพิ่มแล้ว)<br>
                     ชำระโดย: {safe(method_str)}
                 </div>
-                <div class="center rule">----------------------------------------</div>
+                <div class="center rule">========================================</div>
                 <div class="center footer">{footer_html}</div>
             </div>
         </body></html>
@@ -976,4 +985,318 @@ class ReceiptDialog(QDialog):
 
         except Exception as e:
 
-            QMessageBox.critical(self, "Error", f"เกิดข้อผิดพลาดในการพิมพ์:\n{traceback.format_exc()}")
+            QMessageBox.critical(self, "Error", f"เกิดข้อผิดพลาดในการพิมพ์:\n{str(e)}")
+
+
+class ShiftReportDialog(QDialog):
+    """
+    หน้าต่างแสดงตัวอย่างและสั่งพิมพ์ใบรายงานสรุปกะ (Z-Report)
+    แสดงผลรูปแบบกระดาษความร้อน (Thermal Paper Slip) พร้อมปุ่มสั่งพิมพ์ลงเครื่องพิมพ์ใบเสร็จ
+    """
+    def __init__(self, parent=None, shift_data=None):
+        super().__init__(parent)
+        self.setWindowTitle("รายงานปิดกะการขาย (Z-Report)")
+        self.setFixedWidth(460)
+        self.setMinimumHeight(400)
+        self.setMaximumHeight(780)
+        self.setStyleSheet("background-color: #f1f5f9; color: #0f172a; font-family: 'Sarabun', Tahoma, sans-serif;")
+        
+        self.shift_data = shift_data or {}
+        self.init_ui()
+
+    def init_ui(self):
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(12)
+
+        # Header Title
+        top_header = QHBoxLayout()
+        title_lbl = QLabel("🧾 สรุปยอดขายประจำกะ (Z-Report)")
+        title_lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #0f172a;")
+        top_header.addWidget(title_lbl)
+        top_header.addStretch()
+
+        close_btn = QPushButton("✕")
+        close_btn.setFixedSize(28, 28)
+        close_btn.setStyleSheet("QPushButton { background: white; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: bold; } QPushButton:hover { background: #fee2e2; color: #dc2626; }")
+        close_btn.clicked.connect(self.accept)
+        top_header.addWidget(close_btn)
+        main_layout.addLayout(top_header)
+
+        # Scroll Container for Paper (Prevents buttons being pushed off screen)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("""
+            QScrollArea { border: none; background: transparent; }
+            QScrollBar:vertical {
+                width: 8px; background: #e2e8f0; border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background: #94a3b8; border-radius: 4px; min-height: 24px;
+            }
+            QScrollBar::handle:vertical:hover { background: #64748b; }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+        """)
+
+        # Paper Container Frame
+        paper = QFrame()
+        paper.setStyleSheet("""
+            QFrame {
+                background-color: white;
+                border: 1px solid #cbd5e1;
+                border-radius: 8px;
+            }
+        """)
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(16)
+        shadow.setColor(QColor(0, 0, 0, 35))
+        shadow.setOffset(0, 4)
+        paper.setGraphicsEffect(shadow)
+
+        paper_layout = QVBoxLayout(paper)
+        paper_layout.setContentsMargins(16, 18, 16, 18)
+        paper_layout.setSpacing(8)
+
+        self.report_text = QTextEdit()
+        self.report_text.setReadOnly(True)
+        self.report_text.setFont(QFont("Tahoma", 13))
+        self.report_text.setStyleSheet("border: none; background: transparent;")
+        self.report_text.setFixedWidth(380)
+        self.report_text.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        self.report_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.report_text.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        paper_layout.setAlignment(self.report_text, Qt.AlignmentFlag.AlignHCenter)
+
+        paper_layout.addWidget(self.report_text)
+        scroll.setWidget(paper)
+        main_layout.addWidget(scroll)
+
+        # Action Buttons Layout
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(10)
+
+        self.print_btn = QPushButton("🖨️ พิมพ์ใบกะ (Print)")
+        self.print_btn.setFixedHeight(44)
+        self.print_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.print_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0284c7; color: white; border: none; border-radius: 8px;
+                padding: 8px 18px; font-weight: bold; font-size: 15px;
+            }
+            QPushButton:hover { background-color: #0369a1; }
+            QPushButton:pressed { background-color: #075985; }
+        """)
+        self.print_btn.clicked.connect(self.print_report)
+
+        self.drawer_btn = QPushButton("💵 ลิ้นชัก")
+        self.drawer_btn.setFixedHeight(44)
+        self.drawer_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.drawer_btn.setStyleSheet("""
+            QPushButton {
+                background-color: white; border: 1px solid #cbd5e1; border-radius: 8px;
+                padding: 8px 14px; font-weight: bold; font-size: 14px; color: #334155;
+            }
+            QPushButton:hover { background-color: #f8fafc; border-color: #94a3b8; }
+        """)
+        self.drawer_btn.clicked.connect(self.open_drawer)
+
+        self.done_btn = QPushButton("ปิดหน้าต่าง")
+        self.done_btn.setFixedHeight(44)
+        self.done_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.done_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #334155; color: white; border: none; border-radius: 8px;
+                padding: 8px 16px; font-weight: bold; font-size: 14px;
+            }
+            QPushButton:hover { background-color: #1e293b; }
+        """)
+        self.done_btn.clicked.connect(self.accept)
+
+        btn_layout.addWidget(self.drawer_btn)
+        btn_layout.addWidget(self.print_btn, stretch=2)
+        btn_layout.addWidget(self.done_btn)
+        main_layout.addLayout(btn_layout)
+
+        parent_window = self.parent()
+        config = getattr(parent_window, 'config', {}) if parent_window else {}
+        self.render_html_report(config)
+
+        self.adjustSize()
+        QTimer.singleShot(0, self._fit_report_layout)
+
+    def render_html_report(self, config):
+        shift = self.shift_data
+        branch_name = shift.get('branch_name') or config.get('branch_name') or 'สำนักงานใหญ่'
+        cashier_name = shift.get('cashier_name') or shift.get('cashier_user_name') or config.get('cashier_name') or 'พนักงาน'
+        shift_no = shift.get('shift_no') or f"SHIFT-{shift.get('id', '-')}"
+        status = shift.get('status', 'open')
+        status_label = "เปิดอยู่ (ระหว่างกะ)" if status == 'open' else "ปิดกะแล้ว"
+
+        opened_at = str(shift.get('opened_at') or '-')
+        closed_at = str(shift.get('closed_at') or '-') if status != 'open' else 'ยังไม่ปิด'
+
+        opening_cash = float(shift.get('opening_cash') or 0.0)
+        cash_sales = float(shift.get('cash_sales') or 0.0)
+        transfer_sales = float(shift.get('transfer_sales') or 0.0)
+        card_sales = float(shift.get('card_sales') or 0.0)
+        gross_sales = cash_sales + transfer_sales + card_sales
+        total_sales = gross_sales
+        expected_cash = float(shift.get('expected_cash') or (opening_cash + cash_sales))
+        counted_cash = shift.get('counted_cash')
+        cash_difference = shift.get('cash_difference')
+        receipt_count = int(shift.get('receipt_count') or 0)
+
+        # VAT calculation (approx 7% included)
+        vat_amount = round(total_sales * 7 / 107, 2)
+        before_vat = total_sales - vat_amount
+
+        now_str = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+
+        counted_html = ""
+        if counted_cash is not None:
+            c_val = float(counted_cash)
+            counted_html += f'<tr><td style="padding: 2px 0;">เงินสดนับจริง</td><td align="right" style="font-weight: 800;">{c_val:,.2f}</td></tr>'
+        if cash_difference is not None:
+            d_val = float(cash_difference)
+            diff_text = "เงินตรงกะ" if abs(d_val) < 0.01 else ("เงินเกิน (+)" if d_val > 0 else "เงินขาด (-)")
+            counted_html += f'<tr><td style="padding: 2px 0; font-weight: 800;">{diff_text}</td><td align="right" style="font-weight: 900;">{abs(d_val):,.2f}</td></tr>'
+
+        report_html = f"""<!doctype html>
+        <html>
+        <head>
+        <meta charset="utf-8">
+        <style>
+            body {{ font-family: 'Tahoma', 'Arial', sans-serif; font-size: 13px; font-weight: 700; color: #000000; margin: 0; padding: 4px; line-height: 1.3; }}
+            .center {{ text-align: center; }}
+            .bold {{ font-weight: 800; }}
+            .title {{ font-size: 17px; font-weight: 900; margin-bottom: 3px; color: #000; }}
+            .subtitle {{ font-size: 14.5px; font-weight: 900; margin-bottom: 5px; color: #000; }}
+            .rule {{ border-top: 2px dashed #000; margin: 6px 0; }}
+            .rule-solid {{ border-top: 2px solid #000; margin: 6px 0; }}
+            .rule-double {{ border-top: 3px double #000; margin: 6px 0; }}
+            table {{ width: 100%; border-collapse: collapse; font-size: 13px; font-weight: 700; color: #000; }}
+            td {{ vertical-align: top; color: #000; }}
+            .num {{ text-align: right; font-variant-numeric: tabular-nums; font-weight: 800; }}
+            .section {{ font-weight: 900; font-size: 14px; margin-top: 8px; margin-bottom: 4px; text-decoration: underline; color: #000; }}
+        </style>
+        </head>
+        <body>
+            <div class="center">
+                <div class="title">ป๊อปสตาร์ฟู้ดส์ เทรดดิ้ง</div>
+                <div class="subtitle">ใบสรุปการขายประจำกะ (Z-REPORT)</div>
+                <div>สาขา: <strong>{branch_name}</strong></div>
+                <div>รหัสกะ: <strong>{shift_no}</strong> ({status_label})</div>
+            </div>
+            <div class="rule"></div>
+            <table>
+                <tr><td>เปิดกะ:</td><td align="right"><strong>{opened_at}</strong></td></tr>
+                <tr><td>ปิดกะ:</td><td align="right"><strong>{closed_at}</strong></td></tr>
+                <tr><td>แคชเชียร์:</td><td align="right"><strong>{cashier_name}</strong></td></tr>
+            </table>
+            <div class="rule"></div>
+            <div class="section">สรุปการขาย</div>
+            <table>
+                <tr><td style="padding: 2px 0;">จำนวนบิลขาย</td><td align="right" style="font-weight: 800;">{receipt_count} บิล</td></tr>
+                <tr><td style="padding: 2px 0;">ยอดขายก่อน VAT</td><td align="right" style="font-weight: 800;">{before_vat:,.2f}</td></tr>
+                <tr><td style="padding: 2px 0;">ภาษีมูลค่าเพิ่ม (7%)</td><td align="right" style="font-weight: 800;">{vat_amount:,.2f}</td></tr>
+                <tr style="font-weight: 900; font-size: 15px;"><td style="padding: 5px 0;">ยอดขายรวมสุทธิ</td><td align="right" style="padding: 5px 0;">{total_sales:,.2f}</td></tr>
+            </table>
+            <div class="rule"></div>
+            <div class="section">แยกตามช่องทางชำระ</div>
+            <table>
+                <tr><td style="padding: 2px 0;">เงินสด (Cash)</td><td align="right" style="font-weight: 800;">{cash_sales:,.2f}</td></tr>
+                <tr><td style="padding: 2px 0;">โอนเงิน / PromptPay</td><td align="right" style="font-weight: 800;">{transfer_sales:,.2f}</td></tr>
+                <tr><td style="padding: 2px 0;">บัตรเครดิต</td><td align="right" style="font-weight: 800;">{card_sales:,.2f}</td></tr>
+                <tr style="font-weight: 900;"><td style="padding: 4px 0;">รวมยอดชำระ</td><td align="right" style="padding: 4px 0;">{total_sales:,.2f}</td></tr>
+            </table>
+            <div class="rule"></div>
+            <div class="section">การตรวจสอบเงินสด (Cash Audit)</div>
+            <table>
+                <tr><td style="padding: 2px 0;">เงินทอนตั้งต้น (Opening)</td><td align="right" style="font-weight: 800;">{opening_cash:,.2f}</td></tr>
+                <tr><td style="padding: 2px 0;">+ ยอดขายเงินสด</td><td align="right" style="font-weight: 800;">+{cash_sales:,.2f}</td></tr>
+                <tr style="font-weight: 900; font-size: 14px;"><td style="padding: 5px 0;">เงินสดที่ควรมีในลิ้นชัก</td><td align="right" style="padding: 5px 0;">{expected_cash:,.2f}</td></tr>
+                {counted_html}
+            </table>
+            <div class="rule-solid"></div>
+            <div style="font-size: 11px; font-weight: 700; color: #000; margin-top: 6px;">
+                <div>พิมพ์เมื่อ: {now_str}</div>
+            </div>
+            <div style="margin-top: 20px;">
+                <table style="text-align: center; font-size: 11px; font-weight: 700;">
+                    <tr>
+                        <td width="50%" style="padding-top: 30px; border-top: 1.5px solid #000;">(ลงชื่อแคชเชียร์)</td>
+                        <td width="50%" style="padding-top: 30px; border-top: 1.5px solid #000;">(ผู้ตรวจรับ/ผู้จัดการ)</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="center" style="margin-top: 14px; font-size: 11px; font-weight: 700; color: #000;">
+                - จบรายงานสรุปกะ -
+            </div>
+        </body>
+        </html>
+            </div>
+        </body>
+        </html>
+        """
+        self.report_text.setHtml(report_html)
+        document = self.report_text.document()
+        document.setTextWidth(self.report_text.width() - 20)
+        content_height = document.documentLayout().documentSize().height()
+        self.report_text.setFixedHeight(min(max(int(content_height + 36), 260), 1200))
+
+    def _fit_report_layout(self):
+        document = self.report_text.document()
+        document.setTextWidth(self.report_text.viewport().width())
+        content_height = document.documentLayout().documentSize().height()
+        self.report_text.setFixedHeight(min(max(int(content_height + 36), 260), 1200))
+        self.adjustSize()
+
+    def open_drawer(self):
+        parent_window = self.parent()
+        config = getattr(parent_window, 'config', {}) if parent_window else {}
+        printer_name = config.get('receipt_printer', '')
+        if not printer_name:
+            QMessageBox.warning(self, "แจ้งเตือน", "ยังไม่ได้ตั้งค่าเครื่องพิมพ์ในระบบ")
+            return
+
+        expected_pin = config.get('cashier_pin', '')
+        cashier_name = config.get('cashier_name', '')
+        if not expected_pin or cashier_name == 'Unknown' or not cashier_name:
+            QMessageBox.warning(self, "แจ้งเตือน", "กรุณาเข้าสู่ระบบแคชเชียร์ก่อนทำการเปิดลิ้นชัก (Login Required)")
+            return
+
+        from PySide6.QtWidgets import QInputDialog, QLineEdit
+        pwd, ok = QInputDialog.getText(
+            self, 
+            "ยืนยันตัวตน", 
+            f"เปิดลิ้นชักสำหรับ {cashier_name}\nกรุณาใส่รหัสผ่าน/PIN ของคุณ:", 
+            QLineEdit.Password
+        )
+        if not ok:
+            return
+        if pwd != expected_pin:
+            QMessageBox.warning(self, "ข้อผิดพลาด", "รหัสผ่านไม่ถูกต้อง!")
+            return
+
+        try:
+            open_cash_drawer(printer_name)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"ไม่สามารถเปิดลิ้นชักได้:\n{str(e)}")
+
+    def print_report(self):
+        parent_window = self.parent()
+        config = getattr(parent_window, 'config', {}) if parent_window else {}
+        printer_name = config.get('receipt_printer', '')
+        if not printer_name:
+            QMessageBox.warning(self, "แจ้งเตือน", "กรุณาตั้งค่าเครื่องพิมพ์ใบเสร็จในหน้าตั้งค่าก่อนพิมพ์")
+            return
+
+        try:
+            document = self.report_text.document()
+            commands = _receipt_raster_commands(document)
+            _send_raw_to_printer(printer_name, commands)
+            QMessageBox.information(self, "สำเร็จ", "สั่งพิมพ์รายงานกะ (Z-Report) เรียบร้อยแล้ว!")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"เกิดข้อผิดพลาดในการพิมพ์:\n{str(e)}")
+

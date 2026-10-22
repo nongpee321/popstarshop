@@ -24,7 +24,9 @@
 @endphp
 
 @section('content')
-@php($dashboardLogo = \App\Models\AppSetting::logoUrl() ?: asset('images/logo-jet-j-red.png'))
+@php
+    $dashboardLogo = \App\Models\AppSetting::logoUrl() ?: asset('images/logo-jet-j-red.png');
+@endphp
 <div class="od-ctrl">
     <h2 class="od-dashboard-title"><img src="{{ $dashboardLogo }}" alt="โลโก้กิจการ">แผงควบคุม</h2>
     <div class="od-ctrl-right">

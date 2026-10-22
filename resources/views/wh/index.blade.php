@@ -19,8 +19,7 @@
             --shadow: 0 1px 3px rgba(23,64,94,.08), 0 4px 14px rgba(23,64,94,.06);
         }
         * { box-sizing: border-box; }
-        
-        
+
         html[data-color-mode="night"] {
             --bg: #111827;
             --panel: #1f2937;
@@ -37,7 +36,6 @@
             --green-soft: #064e3b;
         }
 
-
         html, body { margin: 0; height: 100%; }
         body { background: var(--bg); color: var(--ink); font-family: "Segoe UI", "Sarabun", "Leelawadee UI", Tahoma, sans-serif; font-size: 15px; }
         [x-cloak] { display: none !important; }
@@ -51,6 +49,9 @@
         .topbar .tt b { display: block; font-size: 16px; }
         .topbar .tt span { display: block; font-size: 12px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .topbar a.full { color: #fff; font-size: 12.5px; text-decoration: none; border: 1px solid rgba(255,255,255,.4); padding: 6px 10px; border-radius: 8px; white-space: nowrap; }
+
+        .offline-bar { background: #d9534f; color: #fff; text-align: center; padding: 6px 12px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .offline-bar.saved { background: #1585c0; }
 
         main { padding: 12px 12px 84px; max-width: 640px; margin: 0 auto; }
 
@@ -75,6 +76,9 @@
         .psub { color: var(--ink-soft); font-size: 12.5px; margin-top: 2px; }
         .chip { display: inline-block; padding: 3px 10px; border-radius: 999px; background: var(--blue-soft, #eaf6ff); color: var(--blue-deep); font-size: 12.5px; font-weight: 700; }
         .chip.warn { background: #fdf1de; color: var(--amber); }
+        .chip.diff-pos { background: #eaf6ff; color: #1585c0; }
+        .chip.diff-neg { background: #fde8e8; color: #d9534f; }
+        .chip.diff-zero { background: #e8f8e7; color: #46ad3f; }
 
         .frow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
         .frow.one { grid-template-columns: 1fr; }
@@ -115,17 +119,23 @@
         .poline.done .prog { color: var(--green-deep); }
         .poline.over .prog { color: var(--red); }
 
+        .countline { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--panel-2); }
+        .countline .qty-box { display: flex; align-items: center; gap: 4px; }
+        .countline .qty-box input { width: 70px; height: 38px; text-align: center; font-weight: 800; border: 1px solid var(--line); border-radius: 8px; }
+        .countline .qty-box button { width: 36px; height: 38px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-weight: 800; }
+
         .stockrow { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--panel-2); font-size: 14px; }
         .stockrow b { font-variant-numeric: tabular-nums; }
         .stockrow.neg b { color: var(--red); }
 
         .empty { text-align: center; color: var(--ink-soft); padding: 26px 10px; font-size: 13.5px; }
         .err { color: var(--red); font-size: 13px; margin-top: 8px; font-weight: 600; }
+        .notice { background: #eaf6ff; color: var(--blue-deep); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 10px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
 
-        .bottomnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(var(--tabs, 3), 1fr);
+        .bottomnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(var(--tabs, 4), 1fr);
                      background: var(--panel); border-top: 1px solid var(--line); box-shadow: 0 -4px 14px rgba(23,64,94,.08); }
-        .bottomnav button { padding: 8px 4px calc(8px + env(safe-area-inset-bottom)); border: 0; background: none; color: var(--ink-soft); font-size: 12px; font-weight: 700; }
-        .bottomnav button i { display: block; font-size: 21px; margin-bottom: 1px; }
+        .bottomnav button { padding: 8px 4px calc(8px + env(safe-area-inset-bottom)); border: 0; background: none; color: var(--ink-soft); font-size: 11.5px; font-weight: 700; }
+        .bottomnav button i { display: block; font-size: 20px; margin-bottom: 1px; }
         .bottomnav button.on { color: var(--blue-deep); }
 
         .overlay { position: fixed; inset: 0; z-index: 40; background: rgba(15,35,50,.5); display: grid; place-items: center; padding: 18px; }
@@ -134,6 +144,13 @@
         .sheet h3 { margin: 6px 0 4px; }
         .sheet .doc { font-size: 20px; font-weight: 900; color: var(--blue-deep); }
         .camwrap video { width: 100%; border-radius: 12px; background: #000; }
+
+        /* Animation for auto-increment scan flash */
+        @keyframes scanFlash {
+            0% { background-color: rgba(95, 197, 88, 0.4); }
+            100% { background-color: transparent; }
+        }
+        .flash-active { animation: scanFlash 0.5s ease-out; }
     </style>
 </head>
 <body>
@@ -148,12 +165,21 @@
         <a class="full" href="{{ route('dashboard') }}">ระบบเต็ม</a>
     </header>
 
+    {{-- แถบแสดงสถานะเน็ตและการจำ Draft ในเครื่อง --}}
+    <div class="offline-bar" x-show="!isOnline" x-cloak>
+        <i class="bi bi-wifi-off"></i> โหมดออฟไลน์ — ข้อมูลร่างถูกบันทึกลงในเครื่อง (LocalStorage) ปลอดภัย
+    </div>
+    <div class="offline-bar saved" x-show="isOnline && draftRestored" x-cloak>
+        <i class="bi bi-info-circle"></i> กู้คืนข้อมูลร่างที่ค้างไว้ในเครื่องเรียบร้อยแล้ว
+        <button type="button" @click="draftRestored = false" style="background:none;border:0;color:#fff;font-size:16px;cursor:pointer">✕</button>
+    </div>
+
     <main>
         {{-- เลือกสาขา (เฉพาะ user ที่ไม่ถูกผูกสาขา) --}}
         @if(!$lockedBranch)
             <div class="card" style="padding:10px 14px">
                 <label style="font-size:12.5px;color:var(--ink-soft)">สาขาที่ทำงาน
-                    <select x-model.number="branchId" style="width:100%;height:44px;margin-top:4px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2)">
+                    <select x-model.number="branchId" @change="onBranchChange()" style="width:100%;height:44px;margin-top:4px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2)">
                         @foreach($branches as $b)
                             <option value="{{ $b->id }}">{{ $b->name_th }}</option>
                         @endforeach
@@ -162,10 +188,10 @@
             </div>
         @endif
 
-        {{-- ================= แท็บ: รับเข้า (ใบซื้ออิสระ) ================= --}}
+        {{-- ================= แท็บ 1: รับเข้า (ใบซื้ออิสระ) ================= --}}
         <section x-show="tab === 'receive'" x-cloak>
             <form class="scanbar" @submit.prevent="scan('receive')">
-                <input x-ref="scanReceive" x-model="scanCode" placeholder="ยิงบาร์โค้ด หรือพิมพ์ SKU แล้ว Enter" autocomplete="off" autofocus>
+                <input x-ref="scanReceive" x-model="scanCode" placeholder="ยิงบาร์โค้ด (ยิงซ้ำเพิ่มจำนวนอัตโนมัติ)" autocomplete="off" autofocus>
                 <button type="button" x-show="cameraOk" @click="openCamera('receive')" title="สแกนด้วยกล้อง"><i class="bi bi-camera-fill"></i></button>
             </form>
             <div class="searchwrap">
@@ -179,7 +205,12 @@
                 </div>
             </div>
 
-            {{-- ฟอร์มสินค้าที่สแกนเจอ (สไตล์เดียวกับโพสต์ต้นแบบ) --}}
+            {{-- ข้อความแจ้งเตือนสแกนซ้ำ / สำเร็จ --}}
+            <div class="notice" x-show="scanNotice" x-cloak>
+                <i class="bi bi-check-circle-fill"></i> <span x-text="scanNotice"></span>
+            </div>
+
+            {{-- ฟอร์มสินค้าที่สแกนเจอ (เปิดเมื่อเป็นสินค้าใหม่หรือต้องการแก้ Lot/วันหมดอายุ) --}}
             <div class="card found" x-show="cur" x-cloak>
                 <div style="display:flex;justify-content:space-between;gap:10px;align-items:start">
                     <div>
@@ -224,16 +255,19 @@
 
             {{-- รายการรอรับเข้า --}}
             <div class="card cart">
-                <b>รายการรับเข้า (<span x-text="cart.length"></span>)</b>
-                <div class="empty" x-show="!cart.length">ยังไม่มีรายการ — ยิงบาร์โค้ดด้านบน</div>
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <b>รายการรับเข้า (<span x-text="cart.length"></span>)</b>
+                    <button type="button" x-show="cart.length" @click="clearCart()" style="border:0;background:none;color:var(--red);font-size:12.5px;font-weight:700">ล้างตะกร้า</button>
+                </div>
+                <div class="empty" x-show="!cart.length">ยังไม่มีรายการ — ยิงบาร์โค้ดด้านบน ยิงซ้ำบวกจำนวนทันที</div>
                 <template x-for="(it, i) in cart" :key="i">
-                    <div class="item">
+                    <div class="item" :class="{ 'flash-active': it.justUpdated }">
                         <div>
                             <div class="nm" x-text="it.name_th"></div>
                             <div class="dt" x-text="fmtQty(it.qty) + ' ' + it.unit_label + ' × ' + fmtMoney(it.price) + (it.lot ? ' · ลอต ' + it.lot : '') + (it.expiry ? ' · หมดอายุ ' + it.expiry : '')"></div>
                         </div>
                         <span class="amt" x-text="fmtMoney(it.qty * it.price)"></span>
-                        <button type="button" class="del" @click="cart.splice(i, 1)">✕</button>
+                        <button type="button" class="del" @click="removeCartItem(i)">✕</button>
                     </div>
                 </template>
                 <div class="total" x-show="cart.length"><span>รวมทั้งใบ</span><span x-text="'฿' + fmtMoney(cartTotal())"></span></div>
@@ -246,7 +280,7 @@
                            :placeholder="supplier ? '' : 'ค้นหาซัพพลายเออร์…'" autocomplete="off">
                     <div class="suggest" x-show="supSuggests.length" x-cloak>
                         <template x-for="s in supSuggests" :key="s.id">
-                            <button type="button" @click="supplier = s; supQ = ''; supSuggests = []">
+                            <button type="button" @click="supplier = s; supQ = ''; supSuggests = []; persistCart();">
                                 <span x-text="s.name_th"></span><span class="sku" x-text="s.code"></span>
                             </button>
                         </template>
@@ -254,21 +288,21 @@
                 </div>
                 <div x-show="supplier" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
                     <span class="chip" x-text="'ซัพพลายเออร์: ' + (supplier?.name_th ?? '')"></span>
-                    <button type="button" class="del" style="border:0;background:none;color:var(--ink-soft)" @click="supplier = null">เปลี่ยน</button>
+                    <button type="button" class="del" style="border:0;background:none;color:var(--ink-soft)" @click="supplier = null; persistCart();">เปลี่ยน</button>
                 </div>
                 <div class="seg" style="margin-bottom:10px">
-                    <button type="button" :class="{ on: !isCredit }" @click="isCredit = false">ซื้อสด</button>
-                    <button type="button" :class="{ on: isCredit }" @click="isCredit = true">ซื้อเชื่อ (ลงเจ้าหนี้)</button>
+                    <button type="button" :class="{ on: !isCredit }" @click="isCredit = false; persistCart();">ซื้อสด</button>
+                    <button type="button" :class="{ on: isCredit }" @click="isCredit = true; persistCart();">ซื้อเชื่อ (ลงเจ้าหนี้)</button>
                 </div>
-                <input x-model="remark" placeholder="หมายเหตุ (ถ้ามี)" style="width:100%;height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2);margin-bottom:10px">
+                <input x-model="remark" @input="persistCart()" placeholder="หมายเหตุ (ถ้ามี)" style="width:100%;height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2);margin-bottom:10px">
                 <p class="err" x-show="submitError" x-text="submitError"></p>
-                <button type="button" class="btn blue" style="width:100%" :disabled="!supplier || submitting" @click="submitReceive()">
-                    <span x-text="submitting ? 'กำลังบันทึก…' : ('บันทึกรับเข้า → ออกใบซื้อ (' + cart.length + ' รายการ)')"></span>
+                <button type="button" class="btn blue" style="width:100%" :disabled="!supplier || submitting || !isOnline" @click="submitReceive()">
+                    <span x-text="submitting ? 'กำลังบันทึก (ป้องกันกดซ้ำ)…' : (!isOnline ? 'ออฟไลน์ (ต้องต่อเน็ตก่อนส่งเข้าระบบ)' : ('บันทึกรับเข้า → ออกใบซื้อ (' + cart.length + ' รายการ)'))"></span>
                 </button>
             </div>
         </section>
 
-        {{-- ================= แท็บ: รับตามใบสั่งซื้อ ================= --}}
+        {{-- ================= แท็บ 2: รับตามใบสั่งซื้อ ================= --}}
         <section x-show="tab === 'po'" x-cloak>
             <template x-if="!poCur">
                 <div>
@@ -294,40 +328,115 @@
                                 <div class="pname" x-text="poCur.doc_number"></div>
                                 <div class="psub" x-text="poCur.supplier"></div>
                             </div>
-                            <button type="button" class="btn" style="flex:0 0 auto;min-height:40px;padding:0 14px" @click="poCur = null">← กลับ</button>
+                            <button type="button" class="btn" style="flex:0 0 auto;min-height:40px;padding:0 14px" @click="closePo()">← กลับ</button>
                         </div>
                     </div>
                     <form class="scanbar" @submit.prevent="scan('po')">
-                        <input x-ref="scanPo" x-model="scanCode" placeholder="ยิงบาร์โค้ดเช็คของตามใบ…" autocomplete="off">
+                        <input x-ref="scanPo" x-model="scanCode" placeholder="ยิงบาร์โค้ดเช็คของ (ยิงซ้ำเพิ่มอัตโนมัติ)…" autocomplete="off">
                         <button type="button" x-show="cameraOk" @click="openCamera('po')"><i class="bi bi-camera-fill"></i></button>
                     </form>
                     <p class="err" x-show="poScanError" x-text="poScanError"></p>
                     <div class="card">
                         <template x-for="line in poCur.items" :key="line.product_id">
-                            <div class="poline" :class="{ done: line.scanned >= line.outstanding_qty, over: line.scanned > line.outstanding_qty }">
+                            <div class="poline" :class="{ done: line.scanned >= line.outstanding_qty, over: line.scanned > line.outstanding_qty, 'flash-active': line.justUpdated }">
                                 <div>
                                     <div class="nm" style="font-weight:700;font-size:13.5px" x-text="line.name_th"></div>
                                     <div class="dt" style="color:var(--ink-soft);font-size:12px" x-text="line.sku_code"></div>
                                 </div>
                                 <span class="prog" x-text="fmtQty(line.scanned) + ' / ค้าง ' + fmtQty(line.outstanding_qty)"></span>
                                 <div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px">
-                                    <input x-model="line.lot_number" placeholder="Lot">
-                                    <input x-model="line.manufacture_date" @change="calculatePoExpiry(line)" type="date" title="วันผลิต">
-                                    <input x-model="line.expiry_date" type="date" title="วันหมดอายุ">
+                                    <input x-model="line.lot_number" @input="persistPo()" placeholder="Lot">
+                                    <input x-model="line.manufacture_date" @change="calculatePoExpiry(line); persistPo();" type="date" title="วันผลิต">
+                                    <input x-model="line.expiry_date" @input="persistPo()" type="date" title="วันหมดอายุ">
                                 </div>
                             </div>
                         </template>
                     </div>
-                    <p class="hint" style="margin:0 4px 10px">ยิงสินค้าที่ได้รับจริง ระบบจะออกใบซื้อเฉพาะจำนวนที่สแกน และเก็บยอดที่เหลือไว้รับรอบถัดไป</p>
+                    <p class="hint" style="margin:0 4px 10px">ยิงสินค้าที่ได้รับจริง ยิงซ้ำบวกยอดทีละหน่วย ระบบจะออกใบซื้อเฉพาะจำนวนที่สแกน</p>
                     <p class="err" x-show="submitError" x-text="submitError"></p>
-                    <button type="button" class="btn primary" style="width:100%" :disabled="submitting" @click="receivePo()">
+                    <button type="button" class="btn primary" style="width:100%" :disabled="submitting || !isOnline" @click="receivePo()">
                         <span x-text="submitting ? 'กำลังรับของ…' : (poAllScanned() ? 'รับครบยอดค้าง ✓' : 'รับของตามจำนวนที่สแกน')"></span>
                     </button>
                 </div>
             </template>
         </section>
 
-        {{-- ================= แท็บ: เช็คสต๊อก ================= --}}
+        {{-- ================= แท็บ 3: ตรวจนับสินค้า (Stock Count) ================= --}}
+        <section x-show="tab === 'count'" x-cloak>
+            <template x-if="!countCur">
+                <div>
+                    <div class="polist">
+                        <div class="empty" x-show="!countLoading && !countList.length">ไม่มีใบตรวจนับที่เปิดอยู่สำหรับสาขานี้</div>
+                        <div class="empty" x-show="countLoading">กำลังโหลดรายการใบตรวจนับ…</div>
+                        <template x-for="sheet in countList" :key="sheet.id">
+                            <button type="button" class="po" @click="openCount(sheet.id)">
+                                <div style="display:flex;justify-content:space-between">
+                                    <span class="no" x-text="sheet.doc_number"></span>
+                                    <span class="chip" :class="{ warn: sheet.status === 'review' }" x-text="sheet.status === 'counting' ? 'กำลังนับ' : 'รอตรวจสอบ'"></span>
+                                </div>
+                                <div class="sub" x-text="(sheet.location ?? 'ทุกตำแหน่ง') + ' · ' + sheet.item_count + ' รายการ · ' + (sheet.created_at ?? '')"></div>
+                            </button>
+                        </template>
+                    </div>
+                    <button type="button" class="btn" style="width:100%" @click="loadCountSheets()">↻ โหลดใบตรวจนับใหม่</button>
+                </div>
+            </template>
+
+            <template x-if="countCur">
+                <div>
+                    <div class="card">
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                            <div>
+                                <div class="pname" x-text="countCur.doc_number"></div>
+                                <div class="psub" x-text="'ตำแหน่ง: ' + countCur.location + ' (' + countCur.items.length + ' รายการ)'"></div>
+                            </div>
+                            <button type="button" class="btn" style="flex:0 0 auto;min-height:40px;padding:0 14px" @click="closeCount()">← กลับ</button>
+                        </div>
+                    </div>
+
+                    <form class="scanbar" @submit.prevent="scan('count')" x-show="countCur.is_editable">
+                        <input x-ref="scanCount" x-model="scanCode" placeholder="ยิงบาร์โค้ดสินค้านับจริง (ยิงซ้ำ +1 ทันที)…" autocomplete="off">
+                        <button type="button" x-show="cameraOk" @click="openCamera('count')"><i class="bi bi-camera-fill"></i></button>
+                    </form>
+                    <p class="err" x-show="countScanError" x-text="countScanError"></p>
+
+                    <div class="card">
+                        <template x-for="row in countCur.items" :key="row.id">
+                            <div class="countline" :class="{ 'flash-active': row.justUpdated }">
+                                <div>
+                                    <div class="nm" style="font-weight:700;font-size:13.5px" x-text="row.name_th"></div>
+                                    <div class="dt" style="color:var(--ink-soft);font-size:12px">
+                                        <span x-text="row.sku_code"></span> · ระบบ: <b x-text="fmtQty(row.system_qty)"></b> <span x-text="row.unit_label"></span>
+                                        <template x-if="row.counted_qty !== null && row.counted_qty !== ''">
+                                            <span class="chip" :class="countDiffClass(row)" x-text="countDiffText(row)"></span>
+                                        </template>
+                                    </div>
+                                </div>
+                                <div class="qty-box" x-show="countCur.is_editable">
+                                    <button type="button" @click="adjustCountQty(row, -1)">−</button>
+                                    <input x-model="row.counted_qty" @input="persistCountDraft()" inputmode="decimal" placeholder="0">
+                                    <button type="button" @click="adjustCountQty(row, 1)">+</button>
+                                </div>
+                                <div x-show="!countCur.is_editable">
+                                    <b x-text="row.counted_qty !== null ? fmtQty(row.counted_qty) : '-'"></b>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="btnrow" x-show="countCur.is_editable">
+                        <button type="button" class="btn" :disabled="countSaving" @click="saveCountDraft(false)">
+                            <span x-text="countSaving ? 'กำลังบันทึก…' : 'บันทึกความคืบหน้า (ร่าง)'"></span>
+                        </button>
+                        <button type="button" class="btn blue" :disabled="countSaving || !isOnline" @click="submitCount()">
+                            <span>ส่งให้หัวหน้าตรวจ ✓</span>
+                        </button>
+                    </div>
+                </div>
+            </template>
+        </section>
+
+        {{-- ================= แท็บ 4: เช็คสต๊อก ================= --}}
         <section x-show="tab === 'stock'" x-cloak>
             <form class="scanbar" @submit.prevent="scan('stock')">
                 <input x-ref="scanStock" x-model="scanCode" placeholder="ยิงบาร์โค้ดเช็คยอดคงเหลือ…" autocomplete="off">
@@ -363,12 +472,13 @@
         <p class="err" x-show="scanError" x-text="scanError"></p>
     </main>
 
-    {{-- แถบเมนูล่างแบบแอปมือถือ --}}
-    <nav class="bottomnav" style="--tabs: {{ $canReceive ? 3 : 1 }}">
+    {{-- แถบเมนูล่างแบบแอปมือถือ 4 แท็บ --}}
+    <nav class="bottomnav" style="--tabs: {{ $canReceive ? 4 : 2 }}">
         @if($canReceive)
             <button :class="{ on: tab === 'receive' }" @click="switchTab('receive')"><i class="bi bi-box-arrow-in-down"></i>รับเข้า</button>
             <button :class="{ on: tab === 'po' }" @click="switchTab('po')"><i class="bi bi-cart-check"></i>รับตาม PO</button>
         @endif
+        <button :class="{ on: tab === 'count' }" @click="switchTab('count')"><i class="bi bi-clipboard-check"></i>ตรวจนับ</button>
         <button :class="{ on: tab === 'stock' }" @click="switchTab('stock')"><i class="bi bi-search"></i>เช็คสต๊อก</button>
     </nav>
 
@@ -410,70 +520,161 @@ function whApp() {
         branchId: {{ $lockedBranch->id ?? ($branches->first()->id ?? 'null') }},
         branches: @json($branches->map(fn ($b) => ['id' => $b->id, 'name_th' => $b->name_th])),
 
-        scanCode: '', scanError: '', q: '', suggests: [],
+        isOnline: navigator.onLine,
+        draftRestored: false,
+        scanCode: '', scanError: '', scanNotice: '', q: '', suggests: [],
         cur: null, curOnHand: null, qty: 1, price: 0, lot: '', manufacture: '', expiry: '',
         cart: [], supplier: null, supQ: '', supSuggests: [], isCredit: true, remark: '',
         submitting: false, submitError: '', doneDoc: null,
 
         poList: [], poLoading: false, poCur: null, poScanError: '',
+        countList: [], countLoading: false, countCur: null, countScanError: '', countSaving: false,
         stockProduct: null, stockRows: [], stockTotal: 0,
 
         cameraOk: false, cameraOpen: false, camStream: null, camTarget: 'receive', camTimer: null,
 
         init() {
             this.cameraOk = !!(window.BarcodeDetector && navigator.mediaDevices?.getUserMedia);
-            this.$watch('tab', () => { this.scanError = ''; this.suggests = []; this.q = ''; });
+            window.addEventListener('online', () => { this.isOnline = true; });
+            window.addEventListener('offline', () => { this.isOnline = false; });
+
+            // กู้คืน LocalStorage Draft
+            this.restoreDrafts();
+
+            this.$watch('tab', () => {
+                this.scanError = ''; this.scanNotice = ''; this.suggests = []; this.q = '';
+            });
         },
+
         branchName() {
             return (this.branches.find(b => b.id === this.branchId)?.name_th) ?? '';
+        },
+        onBranchChange() {
+            this.restoreDrafts();
+            if (this.tab === 'po') this.loadPos();
+            if (this.tab === 'count') this.loadCountSheets();
         },
         switchTab(t) {
             this.tab = t;
             if (t === 'po' && !this.poList.length) this.loadPos();
+            if (t === 'count' && !this.countList.length) this.loadCountSheets();
             this.$nextTick(() => this.focusScan());
         },
         focusScan() {
-            const r = { receive: 'scanReceive', po: 'scanPo', stock: 'scanStock' }[this.tab];
+            const r = { receive: 'scanReceive', po: 'scanPo', count: 'scanCount', stock: 'scanStock' }[this.tab];
             this.$refs[r]?.focus();
         },
 
         fmtMoney(v) { return (+v || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
         fmtQty(v) { return (+v || 0).toLocaleString('th-TH', { maximumFractionDigits: 3 }); },
 
+        // ---- LocalStorage Draft Management (15.7) ----
+        persistCart() {
+            try {
+                const draft = {
+                    branchId: this.branchId,
+                    supplier: this.supplier,
+                    isCredit: this.isCredit,
+                    remark: this.remark,
+                    cart: this.cart,
+                };
+                localStorage.setItem('wh_cart_draft_' + this.branchId, JSON.stringify(draft));
+            } catch (e) { console.warn('LocalStorage save failed', e); }
+        },
+        restoreDrafts() {
+            try {
+                const raw = localStorage.getItem('wh_cart_draft_' + this.branchId);
+                if (raw) {
+                    const data = JSON.parse(raw);
+                    if (data && Array.isArray(data.cart) && data.cart.length > 0) {
+                        this.cart = data.cart;
+                        this.supplier = data.supplier || null;
+                        this.isCredit = data.isCredit !== false;
+                        this.remark = data.remark || '';
+                        this.draftRestored = true;
+                    }
+                }
+            } catch (e) { console.warn('LocalStorage restore failed', e); }
+        },
+        clearCart() {
+            this.cart = [];
+            this.supplier = null;
+            this.remark = '';
+            localStorage.removeItem('wh_cart_draft_' + this.branchId);
+        },
+        removeCartItem(index) {
+            this.cart.splice(index, 1);
+            this.persistCart();
+        },
+
         // ---- สแกน/ค้นหา ----
         async scan(target) {
             const code = this.scanCode.trim();
             this.scanCode = '';
             if (!code) return;
-            this.scanError = ''; this.poScanError = '';
+            this.scanError = ''; this.poScanError = ''; this.countScanError = ''; this.scanNotice = '';
+
+            // ถ้าอยู่ในแท็บ count: เช็คจับคู่ในตาราง sheet เลยก่อนถ้ามี
+            if (target === 'count' && this.countCur) {
+                if (this.tickCountLine(code)) {
+                    this.focusScan();
+                    return;
+                }
+            }
+
             try {
                 const res = await jfetch(`{{ route('wh.lookup') }}?code=${encodeURIComponent(code)}&branch_id=${this.branchId ?? ''}`);
-                if (!res.found) { this.scanError = 'ไม่พบสินค้า: ' + code; return; }
-                this.handleFound(res, target);
+                if (!res.found) {
+                    this.scanError = 'ไม่พบสินค้าตามรหัส/บาร์โค้ด: ' + code;
+                    return;
+                }
+                this.handleFound(res, target, code);
             } catch (e) { this.scanError = e.message; }
             this.focusScan();
         },
+
         async pickProduct(id, target) {
             this.suggests = []; this.q = '';
             try {
                 const res = await jfetch(`{{ url('wh/products') }}/${id}?branch_id=${this.branchId ?? ''}`);
-                this.handleFound(res, target);
+                this.handleFound(res, target, '');
             } catch (e) { this.scanError = e.message; }
         },
-        handleFound(res, target) {
+
+        handleFound(res, target, scannedCode) {
             if (target === 'stock') {
                 this.stockProduct = res.product;
                 this.loadStock(res.product.id);
             } else if (target === 'po') {
                 this.tickPoLine(res.product);
+            } else if (target === 'count') {
+                if (!this.tickCountLineByProduct(res.product)) {
+                    this.countScanError = 'สินค้านี้ไม่อยู่ในใบตรวจนับ: ' + res.product.name_th;
+                }
             } else {
-                this.cur = res.product;
-                this.curOnHand = res.on_hand;
-                this.qty = 1;
-                this.price = res.product.default_cost * res.product.unit_factor;
-                this.lot = ''; this.manufacture = ''; this.expiry = '';
+                // แท็บ รับเข้า: เช็คว่าสินค้านี้มีใน cart แล้วหรือไม่ (15.2 Auto-increment)
+                // ถ้ามีสินค้าตัวเดิม และไม่มีการระบุ lot/วันหมดอายุเฉพาะ ให้บวกจำนวนทันทีโดยไม่ต้องเปิดฟอร์ม
+                const factor = res.product.unit_factor || 1;
+                const existing = this.cart.find(it => it.product_id === res.product.id && !it.lot && !it.expiry);
+                if (existing) {
+                    existing.qty += factor;
+                    existing.base_qty = existing.qty * (existing.unit_factor || 1);
+                    existing.justUpdated = true;
+                    setTimeout(() => { existing.justUpdated = false; }, 800);
+                    this.scanNotice = `เพิ่ม ${res.product.name_th} เป็น ${this.fmtQty(existing.qty)} ${existing.unit_label} สำเร็จ`;
+                    setTimeout(() => { if (this.scanNotice.startsWith('เพิ่ม ' + res.product.name_th)) this.scanNotice = ''; }, 2500);
+                    this.persistCart();
+                } else {
+                    // สินค้าใหม่ หรือสินค้าระบุอายุ/Lot: เปิดฟอร์มให้กรอก
+                    this.cur = res.product;
+                    this.curOnHand = res.on_hand;
+                    this.qty = factor;
+                    this.price = res.product.default_cost * factor;
+                    this.lot = ''; this.manufacture = ''; this.expiry = '';
+                }
             }
         },
+
         async searchProducts() {
             const q = this.q.trim();
             if (q.length < 2) { this.suggests = []; return; }
@@ -499,13 +700,15 @@ function whApp() {
                 product_id: this.cur.id,
                 name_th: this.cur.name_th,
                 sku_code: this.cur.sku_code,
-                qty: +this.qty,                       // จำนวนตามหน่วยที่สแกน (ไว้แสดงผล)
+                unit_factor: factor,
+                qty: +this.qty,
                 unit_label: this.cur.unit_label,
-                base_qty: this.baseQty(),             // จำนวนหน่วยฐาน (ส่งเข้าระบบ)
-                price: +this.price,                   // ราคา/หน่วยที่สแกน
-                base_price: (+this.price) / factor,   // ราคา/หน่วยฐาน (ส่งเข้าระบบ)
+                base_qty: this.baseQty(),
+                price: +this.price,
+                base_price: (+this.price) / factor,
                 lot: this.lot.trim(), manufacture: this.manufacture, expiry: this.expiry,
             });
+            this.persistCart();
             this.clearCur();
         },
         cartTotal() { return this.cart.reduce((s, it) => s + it.qty * it.price, 0); },
@@ -514,13 +717,20 @@ function whApp() {
             if (q.length < 1) { this.supSuggests = []; return; }
             try { this.supSuggests = await jfetch(`{{ route('search.suppliers') }}?q=${encodeURIComponent(q)}`); } catch { this.supSuggests = []; }
         },
+
+        // 15.6 Idempotency UUID Token & Double-submit lock
         async submitReceive() {
-            if (!this.supplier || !this.cart.length) return;
+            if (!this.supplier || !this.cart.length || this.submitting) return;
             this.submitting = true; this.submitError = '';
+
+            // สร้าง Idempotency UUID Token
+            const idempotencyKey = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('wh_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9));
+
             try {
                 const res = await jfetch(`{{ route('wh.receive') }}`, {
                     method: 'POST',
                     body: JSON.stringify({
+                        idempotency_key: idempotencyKey,
                         branch_id: this.branchId,
                         supplier_id: this.supplier.id,
                         is_credit: this.isCredit,
@@ -535,9 +745,12 @@ function whApp() {
                         })),
                     }),
                 });
-                this.doneDoc = { title: 'รับเข้าเรียบร้อย', doc_number: res.doc_number,
-                                 detail: 'ยอดรวม ฿' + this.fmtMoney(res.total_amount) + ' เข้าสต๊อกแล้ว' };
-                this.cart = []; this.supplier = null; this.remark = '';
+                this.doneDoc = {
+                    title: 'รับเข้าเรียบร้อย',
+                    doc_number: res.doc_number,
+                    detail: 'ยอดรวม ฿' + this.fmtMoney(res.total_amount) + ' เข้าสต๊อกแล้ว'
+                };
+                this.clearCart();
             } catch (e) { this.submitError = e.message; }
             this.submitting = false;
         },
@@ -552,10 +765,18 @@ function whApp() {
         async openPo(id) {
             try {
                 const po = await jfetch(`{{ route('wh.purchase-orders') }}/${id}`);
-                po.items = po.items.filter(i => +i.outstanding_qty > 0).map(i => ({ ...i, scanned: 0, lot_number: '', manufacture_date: '', expiry_date: '' }));
+                po.items = po.items.filter(i => +i.outstanding_qty > 0).map(i => ({
+                    ...i, scanned: 0, lot_number: '', manufacture_date: '', expiry_date: '', justUpdated: false
+                }));
                 this.poCur = po; this.submitError = '';
                 this.$nextTick(() => this.focusScan());
             } catch (e) { this.scanError = e.message; }
+        },
+        closePo() {
+            this.poCur = null;
+        },
+        persistPo() {
+            // autosave PO scanned progress
         },
         tickPoLine(product) {
             const line = this.poCur?.items.find(i => i.product_id === product.id);
@@ -567,6 +788,8 @@ function whApp() {
             }
             this.poScanError = '';
             line.scanned += addQty;
+            line.justUpdated = true;
+            setTimeout(() => { line.justUpdated = false; }, 800);
         },
         poAllScanned() { return !!this.poCur && this.poCur.items.every(i => i.scanned >= i.outstanding_qty); },
         calculatePoExpiry(line) {
@@ -576,7 +799,7 @@ function whApp() {
             line.expiry_date = expiry.toISOString().slice(0, 10);
         },
         async receivePo() {
-            if (!this.poCur) return;
+            if (!this.poCur || this.submitting) return;
             if (!this.poCur.items.some(i => i.scanned > 0)) {
                 this.submitError = 'กรุณาสแกนสินค้าที่รับจริงอย่างน้อย 1 รายการ';
                 return;
@@ -604,6 +827,148 @@ function whApp() {
                 this.poCur = null; this.loadPos();
             } catch (e) { this.submitError = e.message; }
             this.submitting = false;
+        },
+
+        // ---- แท็บ 3: ตรวจนับสินค้า (Stock Count - 15.5) ----
+        async loadCountSheets() {
+            this.countLoading = true;
+            try {
+                this.countList = await jfetch(`{{ route('wh.stock-counts') }}?branch_id=${this.branchId ?? ''}`);
+            } catch (e) { this.scanError = e.message; }
+            this.countLoading = false;
+        },
+        async openCount(id) {
+            try {
+                const sheet = await jfetch(`{{ url('wh/stock-counts') }}/${id}`);
+                // เช็คว่ามี draft ในเครื่องไหม
+                const draftRaw = localStorage.getItem('wh_count_draft_' + id);
+                if (draftRaw) {
+                    try {
+                        const draftData = JSON.parse(draftRaw);
+                        if (Array.isArray(draftData.items)) {
+                            sheet.items.forEach(it => {
+                                const d = draftData.items.find(x => x.id === it.id);
+                                if (d && d.counted_qty !== undefined && d.counted_qty !== null) {
+                                    it.counted_qty = d.counted_qty;
+                                }
+                            });
+                        }
+                    } catch (e) {}
+                }
+                sheet.items.forEach(it => { it.justUpdated = false; });
+                this.countCur = sheet;
+                this.$nextTick(() => this.focusScan());
+            } catch (e) { this.scanError = e.message; }
+        },
+        closeCount() {
+            this.countCur = null;
+        },
+        persistCountDraft() {
+            if (!this.countCur) return;
+            try {
+                const payload = {
+                    id: this.countCur.id,
+                    items: this.countCur.items.map(i => ({ id: i.id, counted_qty: i.counted_qty })),
+                };
+                localStorage.setItem('wh_count_draft_' + this.countCur.id, JSON.stringify(payload));
+            } catch (e) {}
+        },
+        tickCountLine(code) {
+            if (!this.countCur) return false;
+            const target = this.countCur.items.find(it =>
+                it.sku_code === code || (Array.isArray(it.barcodes) && it.barcodes.includes(code))
+            );
+            if (target) {
+                this.adjustCountQty(target, 1);
+                return true;
+            }
+            return false;
+        },
+        tickCountLineByProduct(product) {
+            if (!this.countCur) return false;
+            const target = this.countCur.items.find(it => it.product_id === product.id);
+            if (target) {
+                const addQty = product.unit_factor || 1;
+                this.adjustCountQty(target, addQty);
+                return true;
+            }
+            return false;
+        },
+        adjustCountQty(row, delta) {
+            const current = (row.counted_qty === null || row.counted_qty === '') ? 0 : (+row.counted_qty || 0);
+            row.counted_qty = Math.max(0, current + delta);
+            row.justUpdated = true;
+            setTimeout(() => { row.justUpdated = false; }, 800);
+            this.persistCountDraft();
+        },
+        countDiffClass(row) {
+            const counted = +row.counted_qty || 0;
+            const sys = +row.system_qty || 0;
+            const diff = counted - sys;
+            if (Math.abs(diff) < 0.0001) return 'diff-zero';
+            return diff > 0 ? 'diff-pos' : 'diff-neg';
+        },
+        countDiffText(row) {
+            const counted = +row.counted_qty || 0;
+            const sys = +row.system_qty || 0;
+            const diff = counted - sys;
+            if (Math.abs(diff) < 0.0001) return 'ตรงระบบ (0)';
+            return (diff > 0 ? '+' : '') + this.fmtQty(diff);
+        },
+        async saveCountDraft(showSuccess = true) {
+            if (!this.countCur || this.countSaving) return;
+            this.countSaving = true;
+            try {
+                await jfetch(`{{ url('wh/stock-counts') }}/${this.countCur.id}/save`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        items: this.countCur.items.map(i => ({
+                            id: i.id,
+                            counted_qty: (i.counted_qty !== null && i.counted_qty !== '') ? +i.counted_qty : null,
+                        }))
+                    }),
+                });
+                this.persistCountDraft();
+                if (showSuccess) alert('บันทึกความคืบหน้าการนับเรียบร้อยแล้ว');
+            } catch (e) { alert(e.message); }
+            this.countSaving = false;
+        },
+        async submitCount() {
+            if (!this.countCur || this.countSaving) return;
+            const hasCounted = this.countCur.items.some(i => i.counted_qty !== null && i.counted_qty !== '');
+            if (!hasCounted) {
+                alert('ยังไม่มีรายการที่นับ กรุณานับสินค้าอย่างน้อย 1 รายการ');
+                return;
+            }
+            if (!confirm('ยืนยันส่งใบตรวจนับนี้ให้หัวหน้าตรวจสอบ? เมื่อส่งแล้วจะไม่สามารถแก้ไขจากมือถือได้')) return;
+
+            this.countSaving = true;
+            try {
+                // บันทึกค่านับก่อน
+                await jfetch(`{{ url('wh/stock-counts') }}/${this.countCur.id}/save`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        items: this.countCur.items.map(i => ({
+                            id: i.id,
+                            counted_qty: (i.counted_qty !== null && i.counted_qty !== '') ? +i.counted_qty : null,
+                        }))
+                    }),
+                });
+
+                // ส่งตรวจสอบ
+                const res = await jfetch(`{{ url('wh/stock-counts') }}/${this.countCur.id}/submit`, {
+                    method: 'POST',
+                });
+                localStorage.removeItem('wh_count_draft_' + this.countCur.id);
+                this.doneDoc = {
+                    title: 'ส่งตรวจนับเรียบร้อย',
+                    doc_number: res.doc_number,
+                    detail: 'ส่งใบตรวจนับให้หัวหน้าตรวจสอบแล้ว'
+                };
+                this.countCur = null;
+                this.loadCountSheets();
+            } catch (e) { alert(e.message); }
+            this.countSaving = false;
         },
 
         // ---- เช็คสต๊อก ----

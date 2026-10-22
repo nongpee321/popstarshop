@@ -57,6 +57,19 @@
             display: flex; align-items: center;
             padding: 0 10px; gap: 8px;
             box-shadow: 0 10px 30px rgba(2,8,23,.28);
+            -webkit-app-region: drag;
+            user-select: none;
+        }
+
+        .pos-topbar button,
+        .pos-topbar select,
+        .pos-topbar input,
+        .pos-topbar a,
+        .pos-topbar .topbar-btn,
+        .pos-topbar .topbar-select,
+        .pos-topbar .shift-pill,
+        .pos-topbar .pos-clock {
+            -webkit-app-region: no-drag;
         }
 
         .pos-logo {
@@ -1820,10 +1833,18 @@
             <span x-show="autoSyncUpdated" x-cloak style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; background:#10b981; border-radius:50%; box-shadow:0 0 6px #10b981;"></span>
         </button>
 
+        @if(!empty($posDevice))
+            <span class="topbar-locked" style="background: rgba(14,165,233,.18); border-color: rgba(14,165,233,.4); color: #38bdf8;" title="รหัสเครื่อง POS ประจำจุดขาย">
+                <i class="bi bi-display me-1"></i>{{ $posDevice->name }} ({{ $posDevice->terminal_code }})
+            </span>
+        @endif
         
         @if($canSell)
         <button class="topbar-btn" @click="openReceiptSettings()">
             <i class="bi bi-receipt"></i> ใบเสร็จ
+        </button>
+        <button class="topbar-btn" @click="activeShift ? printCurrentShiftReport() : erpToast('warning', 'ยังไม่มีการเปิดกะในขณะนี้')" title="พิมพ์ / ตรวจสอบใบสรุปกะขาย (Z-Report)">
+            <i class="bi bi-file-earmark-text"></i> เช็คบิลกะ
         </button>
         <button class="topbar-btn" @click="cancelBill()" :disabled="cart.length === 0">
             <i class="bi bi-trash"></i> ยกเลิก
@@ -1835,15 +1856,15 @@
             <i class="bi bi-display"></i> หน้าจอลูกค้า
         </button>
         @endif
+        <button class="topbar-btn" type="button" @click="deviceModalOpen = true" title="จัดการเครื่อง / ย้ายสาขา / ปลดล็อก Token" style="border-color:#475569; color:#94a3b8;">
+            <i class="bi bi-gear-fill"></i> เครื่อง POS
+        </button>
         <button class="topbar-btn" type="button" @click="posHelpModalOpen = true" title="คู่มือวิธีใช้งาน POS" style="background:#fff2f4; color:var(--pos-red); border-color:#e6aab1; font-weight:700;">
             <i class="bi bi-question-circle-fill"></i> วิธีใช้
         </button>
-        <form method="post" action="{{ route('logout') }}" x-ref="logoutForm" style="display:contents">
-            @csrf
-            <button type="button" class="topbar-btn" title="ออกจากระบบ" @click="confirmLogout()">
-                <i class="bi bi-box-arrow-right"></i> ออกจากระบบ
-            </button>
-        </form>
+        <button type="button" class="topbar-btn" title="ออกจากระบบ" @click="confirmLogout()">
+            <i class="bi bi-box-arrow-right"></i> ออกจากระบบ
+        </button>
     </div>
 
     <div class="pos-body">
@@ -2029,8 +2050,13 @@
             <div class="pos-search-bar">
                 <div class="search-wrap">
                     <i class="bi bi-search"></i>
-                    <input class="pos-search-input" type="text" placeholder="พิมพ์รหัสหรือชื่อสินค้า..."
-                        x-model="searchQ" @input.debounce.180ms="loadProducts()" @keydown.enter.prevent="scanSearch()" autofocus>
+                    <input class="pos-search-input" type="search" name="pos_product_search_term"
+                        id="pos_product_search_input"
+                        autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false"
+                        data-lpignore="true" data-1p-ignore="true" data-form-type="other"
+                        readonly onfocus="this.removeAttribute('readonly')" onpointerdown="this.removeAttribute('readonly')"
+                        placeholder="พิมพ์รหัสหรือชื่อสินค้า..."
+                        x-model="searchQ" @input.debounce.180ms="loadProducts()" @keydown.enter.prevent="scanSearch()">
                 </div>
             </div>
 
@@ -2266,6 +2292,7 @@
             </label>
             <div class="modal-actions">
                 <button class="btn-cancel" type="button" @click="recordCashDrop()"><i class="bi bi-box-arrow-up"></i> นำส่งเงิน</button>
+                <button class="btn-cancel" type="button" @click="printCurrentShiftReport()"><i class="bi bi-printer"></i> พิมพ์ใบกะ</button>
                 <button class="btn-cancel" @click="closeShiftModalOpen = false">ยกเลิก</button>
                 <button class="btn-confirm" :disabled="shiftProcessing || !activeShift" @click="submitCloseShift()">
                     <span x-show="!shiftProcessing"><i class="bi bi-lock me-1"></i> ปิดกะ</span>
@@ -2602,6 +2629,7 @@
      style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.65);backdrop-filter:blur(6px);"
      @click.self="drawerPinModalOpen = false"
      @keydown.escape.window="drawerPinModalOpen = false">
+    <template x-if="drawerPinModalOpen">
     <div style="background:#1e293b;color:#f1f5f9;border-radius:20px;padding:26px 24px 22px;width:min(92vw,380px);box-shadow:0 25px 60px rgba(0,0,0,.6);border:1px solid #334155;text-align:center;">
         
         {{-- Icon & Title --}}
@@ -2635,7 +2663,8 @@
                    x-model="drawerPinInput"
                    @keydown.enter.prevent="submitDrawerPin()"
                    placeholder="พิมพ์รหัสผ่านของคุณที่นี่"
-                   autocomplete="current-password"
+                   autocomplete="new-password"
+                   data-lpignore="true" data-1p-ignore="true"
                    style="width:100%;background:#0f172a;color:#fff;border:2px solid #334155;border-radius:12px;padding:12px 42px 12px 14px;font-size:16px;letter-spacing:1px;outline:none;box-sizing:border-box;transition:border-color .2s;"
                    :style="drawerPinError ? 'border-color:#ef4444;background:#2d1215;' : ''"
                    onfocus="if(!this.style.borderColor.includes('ef4444')) this.style.borderColor='#38bdf8'"
@@ -2666,6 +2695,96 @@
             </button>
         </div>
     </div>
+    </template>
+</div>
+
+{{-- POS Device / Token Management Modal (สำหรับปลดล็อกเครื่อง หรือผูก Token ใหม่) --}}
+<div x-show="deviceModalOpen" x-cloak
+     style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);"
+     @click.self="deviceModalOpen = false"
+     @keydown.escape.window="deviceModalOpen = false">
+    <div style="background:#1e293b;color:#f1f5f9;border-radius:20px;padding:26px 24px 22px;width:min(94vw,440px);box-shadow:0 25px 60px rgba(0,0,0,.6);border:1px solid #334155;text-align:left;">
+        
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+            <div style="width:48px;height:48px;border-radius:12px;background:rgba(14,165,233,.15);border:1.5px solid #0284c7;display:grid;place-items:center;font-size:22px;color:#38bdf8;flex-shrink:0;">
+                <i class="bi bi-display"></i>
+            </div>
+            <div>
+                <div style="font-size:18px;font-weight:800;color:#fff;">ตั้งค่าเครื่อง POS / ย้ายสาขา</div>
+                <div style="font-size:12px;color:#94a3b8;">จัดการการผูกอุปกรณ์ประจำจุดขายนี้</div>
+            </div>
+        </div>
+
+        {{-- Device Details --}}
+        <div style="background:#0f172a;border:1px solid #334155;border-radius:12px;padding:12px 14px;margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;">
+                <span style="color:#94a3b8;">สถานะเครื่อง:</span>
+                @if(!empty($posDevice))
+                    <span style="color:#10b981;font-weight:700;"><i class="bi bi-check-circle-fill me-1"></i> ผูกกับระบบแล้ว</span>
+                @else
+                    <span style="color:#f59e0b;font-weight:700;"><i class="bi bi-exclamation-circle-fill me-1"></i> โหมดเว็บทั่วไป (ยังไม่ผูก Token)</span>
+                @endif
+            </div>
+            @if(!empty($posDevice))
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;">
+                <span style="color:#94a3b8;">ชื่อเครื่อง:</span>
+                <span style="color:#f1f5f9;font-weight:700;">{{ $posDevice->name }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;">
+                <span style="color:#94a3b8;">รหัสเครื่อง:</span>
+                <span style="color:#38bdf8;font-family:monospace;font-weight:700;">{{ $posDevice->terminal_code }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;">
+                <span style="color:#94a3b8;">สาขาปัจจุบัน:</span>
+                <span style="color:#a78bfa;font-weight:700;">{{ $lockedBranch?->code }} - {{ $lockedBranch?->name_th }}</span>
+            </div>
+            @endif
+        </div>
+
+        {{-- Option A: Activate New Token --}}
+        <div style="margin-bottom:16px;">
+            <label style="font-size:12px;font-weight:700;color:#cbd5e1;display:block;margin-bottom:6px;">
+                กรอกรหัส Token เพื่อผูกเครื่องใหม่ หรือเปลี่ยนสาขา:
+            </label>
+            <div style="display:flex;gap:6px;">
+                <input type="text" x-model="inputNewToken" placeholder="วางรหัส Token ประจำเครื่องที่นี่..."
+                       style="flex:1;background:#0f172a;color:#fff;border:1.5px solid #334155;border-radius:10px;padding:9px 12px;font-size:13px;outline:none;font-family:monospace;">
+                <button type="button" @click="submitActivateToken()" :disabled="deviceSubmitting"
+                        style="background:#0284c7;color:#fff;border:none;border-radius:10px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">
+                    ผูก Token
+                </button>
+            </div>
+        </div>
+
+        {{-- Option B: Unbind Device (Method 2) --}}
+        @if(!empty($posDevice))
+        <div style="border-top:1px solid #334155;padding-top:14px;margin-top:14px;">
+            <div style="font-size:12px;font-weight:700;color:#f87171;margin-bottom:4px;">
+                <i class="bi bi-shield-lock-fill me-1"></i> ปลดการเชื่อมต่อเครื่องนี้ (Reset / Unbind)
+            </div>
+            <div style="font-size:11px;color:#94a3b8;margin-bottom:10px;line-height:1.4;">
+                หากต้องการย้ายเครื่องนี้ไปใช้อีกสาขาโดยไม่ผ่านหน้า ERP คุณสามารถใส่รหัสผ่านผู้ดูแลระบบเพื่อรีเซ็ตเครื่องได้
+            </div>
+            <div style="display:flex;gap:6px;">
+                <input type="password" x-model="adminUnbindPassword" placeholder="รหัสผ่านผู้ดูแลระบบ (Admin Password)"
+                       style="flex:1;background:#0f172a;color:#fff;border:1.5px solid #334155;border-radius:10px;padding:9px 12px;font-size:13px;outline:none;">
+                <button type="button" @click="submitUnbindDevice()" :disabled="deviceSubmitting"
+                        style="background:#dc2626;color:#fff;border:none;border-radius:10px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">
+                    ปลดล็อกเครื่อง
+                </button>
+            </div>
+        </div>
+        @endif
+
+        {{-- Modal Close Button --}}
+        <div style="margin-top:18px;text-align:right;">
+            <button type="button" @click="deviceModalOpen = false"
+                    style="background:#334155;color:#f1f5f9;border:none;border-radius:10px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">
+                ปิดหน้าต่าง
+            </button>
+        </div>
+    </div>
+</div>
 </div>
 
 <style>
@@ -3087,6 +3206,10 @@ function posApp() {
         drawerNewPinConfirm: '',
         drawerPinChangeError: '',
         drawerPinChangeLoading: false,
+        deviceModalOpen: false,
+        inputNewToken: '',
+        adminUnbindPassword: '',
+        deviceSubmitting: false,
         openingCash: 0,
         openingNote: '',
         countedCash: 0,
@@ -3151,6 +3274,24 @@ function posApp() {
                 }
             });
 
+            this.searchQ = '';
+            const clearIfEmail = () => {
+                const searchEl = document.querySelector('.pos-search-input');
+                if (searchEl && (searchEl.value.includes('@') || this.searchQ.includes('@'))) {
+                    searchEl.value = '';
+                    this.searchQ = '';
+                    this.loadProducts();
+                }
+            };
+            setTimeout(clearIfEmail, 50);
+            setTimeout(clearIfEmail, 200);
+            setTimeout(clearIfEmail, 600);
+            setTimeout(() => {
+                const searchEl = document.querySelector('.pos-search-input');
+                if (searchEl && !document.activeElement?.tagName.match(/INPUT|TEXTAREA|SELECT/)) {
+                    searchEl.removeAttribute('readonly');
+                }
+            }, 500);
             this.loadReceiptSettings();
             this.loadHeldBills();
             console.log('[POS] init: initialProducts count =', this.products.length);
@@ -3512,6 +3653,73 @@ function posApp() {
         openCfd() {
             window.open('/pos/customer-display', 'CustomerDisplay', 'width=1024,height=768');
             setTimeout(() => this.broadcastCfd(), 1500);
+        },
+        async submitActivateToken() {
+            if (!this.inputNewToken || !this.inputNewToken.trim()) {
+                erpToast('error', 'กรุณาระบุรหัส Token');
+                return;
+            }
+            this.deviceSubmitting = true;
+            try {
+                const res = await fetch('{{ route("pos.activate-token") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    },
+                    body: JSON.stringify({ token: this.inputNewToken.trim() }),
+                });
+                const data = await res.json();
+                if (data.success) {
+                    erpToast('success', data.message || 'ผูก Token สำเร็จ');
+                    setTimeout(() => { window.location.href = '/pos'; }, 600);
+                } else {
+                    erpToast('error', data.message || 'เกิดข้อผิดพลาดในการผูก Token');
+                }
+            } catch (err) {
+                erpToast('error', 'เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ');
+            } finally {
+                this.deviceSubmitting = false;
+            }
+        },
+        async submitUnbindDevice() {
+            if (!this.adminUnbindPassword) {
+                erpToast('error', 'กรุณากรอกรหัสผ่านผู้ดูแลระบบ');
+                return;
+            }
+            if (!confirm('ยืนยันปลดการเชื่อมต่อเครื่อง POS นี้หรือไม่? เครื่องจะไม่ผูกกับสาขาเดิมอีกต่อไป')) {
+                return;
+            }
+            this.deviceSubmitting = true;
+            try {
+                const res = await fetch('{{ route("pos.unbind-device") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    },
+                    body: JSON.stringify({ admin_password: this.adminUnbindPassword }),
+                });
+                const data = await res.json();
+                if (data.success) {
+                    erpToast('success', data.message || 'ปลดการเชื่อมต่อสำเร็จ');
+                    setTimeout(() => { window.location.href = '/pos'; }, 600);
+                } else {
+                    erpToast('error', data.message || 'รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง');
+                }
+            } catch (err) {
+                erpToast('error', 'เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ');
+            } finally {
+                this.deviceSubmitting = false;
+            }
+        },
+        printCurrentShiftReport() {
+            if (!this.activeShift || !this.activeShift.id) {
+                erpToast('warning', 'ยังไม่มีข้อมูลกะที่เปิดอยู่ในขณะนี้');
+                return;
+            }
+            const reportUrl = this.activeShift.z_report_url || ('/pos/shifts/' + this.activeShift.id + '/z-report');
+            window.open(reportUrl, '_blank', 'width=520,height=800,scrollbars=yes');
         },
         broadcastCfd() {
             if (!this.cfdChannel) {
@@ -4123,7 +4331,23 @@ function posApp() {
             erpConfirm('ต้องการออกจากระบบใช่หรือไม่?', warn.join(' · '), {
                 icon: warn.length ? 'warning' : 'question',
                 confirmButtonText: 'ออกจากระบบ',
-            }).then((r) => { if (r.isConfirmed) this.$refs.logoutForm.submit(); });
+            }).then((r) => {
+                if (r.isConfirmed) {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '{{ route("logout") }}';
+                    const token = document.querySelector('meta[name="csrf-token"]')?.content;
+                    if (token) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = '_token';
+                        input.value = token;
+                        form.appendChild(input);
+                    }
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            });
         },
 
         async loadPromotions() {

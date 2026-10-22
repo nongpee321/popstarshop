@@ -23,14 +23,23 @@ class PosOfflineProductController extends Controller
 
             $sku = $data['barcode'] ?: 'OFFLINE-' . time() . '-' . rand(100, 999);
 
-            // Check if sku exists to prevent duplicates
-            $product = Product::where('sku_code', $sku)->first();
+            // Check if sku exists (including soft-deleted or barcode) to prevent unique violations
+            $product = Product::withTrashed()->where('sku_code', $sku)->first();
+            if (!$product && !empty($data['barcode'])) {
+                $barcodeRecord = ProductBarcode::where('barcode', $data['barcode'])->first();
+                if ($barcodeRecord) {
+                    $product = Product::withTrashed()->find($barcodeRecord->product_id);
+                }
+            }
+
             if ($product) {
+                if ($product->trashed()) {
+                    $product->restore();
+                }
                 return response()->json(['success' => true, 'product_id' => $product->id]);
             }
 
             // Just create a simple product
-            
             $product = Product::create([
                 'name_th' => $data['name_th'],
                 'name_en' => $data['name_th'],

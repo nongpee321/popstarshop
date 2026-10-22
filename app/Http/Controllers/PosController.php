@@ -15,6 +15,7 @@ use App\Models\PosReceipt;
 use App\Models\PosReceiptItem;
 use App\Models\PosShift;
 use App\Models\PosTerminal;
+use App\Models\Coupon;
 use App\Models\PriceTable;
 use App\Models\Product;
 use App\Models\ProductBarcode;
@@ -193,21 +194,16 @@ class PosController extends Controller
     {
         $device = request()->attributes->get('pos_device');
         $authBranch = (int) ($device?->branch_id ?: auth()->user()?->branch_id);
-        
-        if ($requested && $requested !== $authBranch) {
-            if (true) {
-                $requested = null;
-            }
+
+        if ($authBranch > 0) {
+            return $authBranch;
         }
-        
-        if ($requested) {
+
+        if ($requested && $requested > 0) {
             return $requested;
         }
 
-        if (! $authBranch) {
-            $authBranch = (int) \App\Models\Branch::where('is_active', true)->value('id') ?: 1;
-        }
-        return $authBranch;
+        return (int) (\App\Models\Branch::where('is_active', true)->value('id') ?: 1);
     }
 
     private function enforcedCashierId($requested): ?int
@@ -277,6 +273,22 @@ class PosController extends Controller
 
         return response()->json($promotions);
     }
+    // Coupon verification endpoint for POS
+    public function verifyCoupon(Request $request): JsonResponse
+    {
+        $code = trim((string) $request->input('code'));
+        $subtotal = (float) $request->input('subtotal', 0);
+        if ($code === '') {
+            return response()->json(['valid' => false, 'message' => 'กรุณาระบุรหัสคูปอง'], 422);
+        }
+        $coupon = Coupon::where('code', $code)->first();
+        if (! $coupon) {
+            return response()->json(['valid' => false, 'message' => 'ไม่พบรหัสคูปองนี้ในระบบ'], 404);
+        }
+        $result = $coupon->isValidFor($subtotal);
+        return response()->json($result, $result['valid'] ? 200 : 422);
+    }
+
 
     // Member lookup for attaching a member to the bill (à¸ªà¸°à¸ªà¸¡/à¹à¸¥à¸à¹à¸•à¹‰à¸¡)
     public function members(Request $request): JsonResponse
@@ -288,9 +300,9 @@ class PosController extends Controller
 
         $members = Member::where('is_active', true)
             ->where(fn ($w) => $w
-                ->where('member_code', 'ilike', "%{$q}%")
-                ->orWhere('name', 'ilike', "%{$q}%")
-                ->orWhere('phone', 'ilike', "%{$q}%")
+                ->where('member_code', (DB::getDriverName() === 'sqlite' ? 'like' : 'ilike'), "%{$q}%")
+                ->orWhere('name', (DB::getDriverName() === 'sqlite' ? 'like' : 'ilike'), "%{$q}%")
+                ->orWhere('phone', (DB::getDriverName() === 'sqlite' ? 'like' : 'ilike'), "%{$q}%")
             )
             ->orderBy('member_code')
             ->limit(20)
@@ -353,8 +365,8 @@ class PosController extends Controller
         $defaultTableId = PriceTable::where('is_default', true)->value('id');
         // à¸£à¸²à¸„à¸²à¸›à¸à¸•à¸´à¸à¸¥à¸²à¸‡à¹ƒà¸Šà¹‰à¸£à¹ˆà¸§à¸¡à¸à¸±à¸™à¸—à¸¸à¸ POS à¸—à¸¸à¸à¸ªà¸²à¸‚à¸² à¸£à¸²à¸„à¸²à¸—à¸µà¹ˆà¸•à¹ˆà¸²à¸‡à¸•à¸²à¸¡à¸ªà¸²à¸‚à¸²à¸•à¹‰à¸­à¸‡à¸—à¸³à¸œà¹ˆà¸²à¸™
         // à¹‚à¸›à¸£à¹‚à¸¡à¸Šà¸±à¹ˆà¸™/à¸™à¸²à¸—à¸µà¸—à¸­à¸‡à¸—à¸µà¹ˆà¸¡à¸µà¸Šà¹ˆà¸§à¸‡à¹€à¸§à¸¥à¸²à¹€à¸—à¹ˆà¸²à¸™à¸±à¹‰à¸™ à¹€à¸žà¸·à¹ˆà¸­à¹„à¸¡à¹ˆà¹ƒà¸«à¹‰à¸£à¸²à¸„à¸²à¸›à¸à¸•à¸´à¹à¸•à¹ˆà¸¥à¸°à¸ªà¸²à¸‚à¸²à¸ªà¸±à¸šà¸ªà¸™à¸à¸±à¸™.
-        $branchTableId = null;
-        $priceTableIds = array_values(array_filter([$defaultTableId]));
+        $branchTableId = $branch?->price_table_id;
+        $priceTableIds = array_values(array_unique(array_filter([$branchTableId, $defaultTableId])));
 
         $products = Product::where('is_active', true)
             ->with(['barcodes' => fn ($query) => $query->where('is_active', true)->with('unit'), 'category'])
@@ -366,9 +378,9 @@ class PosController extends Controller
                 ->where('sku_code', $q)
                 ->orWhereHas('barcodes', fn ($barcodeQuery) => $barcodeQuery->where('is_active', true)->where('barcode', $q))))
             ->when($q !== '' && ! $exact, fn ($query) => $query->where(fn ($w) => $w
-                ->where('sku_code', 'ilike', "%{$q}%")
-                ->orWhere('name_th', 'ilike', "%{$q}%")
-                ->orWhereHas('barcodes', fn ($barcodeQuery) => $barcodeQuery->where('is_active', true)->where('barcode', 'ilike', "%{$q}%"))
+                ->where('sku_code', (DB::getDriverName() === 'sqlite' ? 'like' : 'ilike'), "%{$q}%")
+                ->orWhere('name_th', (DB::getDriverName() === 'sqlite' ? 'like' : 'ilike'), "%{$q}%")
+                ->orWhereHas('barcodes', fn ($barcodeQuery) => $barcodeQuery->where('is_active', true)->where('barcode', (DB::getDriverName() === 'sqlite' ? 'like' : 'ilike'), "%{$q}%"))
             ))
             ->orderBy('name_th')
             ->when(! $all, fn ($query) => $query->limit(100))
@@ -499,7 +511,8 @@ class PosController extends Controller
 
         // à¸£à¸²à¸„à¸²à¸¥à¸”à¸•à¸²à¸¡à¸Šà¹ˆà¸§à¸‡à¸§à¸±à¸™à¸—à¸µà¹ˆ: à¹ƒà¸Šà¹‰à¸à¹ˆà¸­à¸™à¸£à¸²à¸„à¸²à¸›à¸à¸•à¸´ à¹€à¸‰à¸žà¸²à¸°à¹‚à¸›à¸£à¹‚à¸¡à¸Šà¸±à¸™à¸£à¸²à¸¢à¸ªà¸´à¸™à¸„à¹‰à¸²à¸—à¸µà¹ˆà¹„à¸¡à¹ˆà¸•à¹‰à¸­à¸‡à¸£à¸­
         // à¹€à¸‡à¸·à¹ˆà¸­à¸™à¹„à¸‚à¸¢à¸­à¸”à¸šà¸´à¸¥/à¸ˆà¸³à¸™à¸§à¸™à¸«à¸¥à¸²à¸¢à¸Šà¸´à¹‰à¸™ (à¹€à¸‡à¸·à¹ˆà¸­à¸™à¹„à¸‚à¹€à¸«à¸¥à¹ˆà¸²à¸™à¸±à¹‰à¸™à¸„à¸³à¸™à¸§à¸“à¹ƒà¸™à¸•à¸°à¸à¸£à¹‰à¸²à¹à¸¢à¸à¸•à¹ˆà¸²à¸‡à¸«à¸²à¸).
-        $today = now()->toDateString();
+        $now = now();
+        $today = $now->toDateString();
         $discountsByProduct = Promotion::where('is_active', true)
             ->whereIn('product_id', $products->pluck('id'))
             ->where(fn ($w) => $w->whereNull('starts_at')->orWhere('starts_at', '<=', $today))
@@ -507,6 +520,7 @@ class PosController extends Controller
             ->where(fn ($w) => $w->whereNull('min_qty')->orWhere('min_qty', '<=', 1))
             ->whereNull('min_amount')
             ->get()
+            ->filter(fn ($promotion) => $promotion->isRunningAt($now, $branchId))
             ->groupBy('product_id');
 
         $products = $products->map(function ($p) use ($discountsByProduct) {
@@ -637,7 +651,7 @@ class PosController extends Controller
 
             $ownerId = ProductBarcode::where('barcode', $barcode)->value('product_id');
             if ($ownerId !== null && (int) $ownerId !== (int) $item['product_id']) {
-                return "à¸šà¸²à¸£à¹Œà¹‚à¸„à¹‰à¸” {$barcode} à¹€à¸›à¹‡à¸™à¸‚à¸­à¸‡à¸ªà¸´à¸™à¸„à¹‰à¸²à¸£à¸«à¸±à¸ªà¸­à¸·à¹ˆà¸™à¹à¸¥à¹‰à¸§ à¸à¸£à¸¸à¸“à¸² sync à¹à¸„à¸•à¸•à¸²à¸¥à¹‡à¸­à¸à¹ƒà¸«à¸¡à¹ˆà¸à¹ˆà¸­à¸™à¸‚à¸²à¸¢";
+                return "บาร์โค้ด {$barcode} เป็นของสินค้ารหัสอื่นแล้ว กรุณา sync แคตตาล็อกใหม่ก่อนขาย";
             }
         }
 
@@ -1531,4 +1545,32 @@ class PosController extends Controller
             ? (Salesman::whereKey($cashierId)->value('user_id') ?: auth()->id())
             : auth()->id();
     }
+
+    public function verifyDrawerPin(Request $request): JsonResponse
+    {
+        $request->validate([
+            'password' => 'required|string',
+        ]);
+
+        $user = $request->user();
+        if (!$user) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบใหม่',
+            ], 401);
+        }
+
+        if (!\Illuminate\Support\Facades\Hash::check($request->input('password'), $user->password)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'รหัสผ่านเข้าสู่ระบบไม่ถูกต้อง',
+            ], 422);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'ยืนยันรหัสผ่านสำเร็จ',
+        ]);
+    }
+
 }

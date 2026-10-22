@@ -70,6 +70,7 @@ class PriceTableController extends Controller
         }
 
         $table = PriceTable::create($data);
+        \App\Support\PosSyncNotifier::notifyChange();
 
         return redirect()->route('price-tables.show', $table)->with('success', "สร้างตารางราคา {$table->name} แล้ว");
     }
@@ -114,6 +115,7 @@ class PriceTableController extends Controller
         }
 
         $priceTable->update($data);
+        \App\Support\PosSyncNotifier::notifyChange();
 
         return redirect()->route('price-tables.show', $priceTable)->with('success', 'บันทึกตารางราคาแล้ว');
     }
@@ -153,6 +155,7 @@ class PriceTableController extends Controller
                 'changed_by' => auth()->id(),
             ]);
         }
+        \App\Support\PosSyncNotifier::notifyChange();
 
         return response()->json(['success' => true, 'id' => $pp->id]);
     }
@@ -165,6 +168,7 @@ class PriceTableController extends Controller
         ]);
 
         Branch::whereKey($data['branch_id'])->update(['price_table_id' => $priceTable->id]);
+        \App\Support\PosSyncNotifier::notifyChange();
 
         return redirect()->route('price-tables.show', $priceTable)->with('success', 'กำหนดสาขาแล้ว');
     }

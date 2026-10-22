@@ -195,16 +195,940 @@
     .vg-lightbox-close { position: absolute; top: 20px; right: 20px; width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255,255,255,.2); color: #fff; font-size: 24px; cursor: pointer; display: grid; place-items: center; }
     .vg-lightbox-close:hover { background: rgba(255,255,255,.4); }
 
+    /* ════════════════════════════════════════════════════════════════
+       NIGHT / DARK MODE SUPPORT (โหมดกลางคืน)
+       ════════════════════════════════════════════════════════════════ */
+    html[data-color-mode="night"],
+    html[data-bs-theme="dark"] {
+        --erp-surface-2: #131d31 !important;
+    }
+
+    html[data-color-mode="night"] .manual-shell,
+    html[data-bs-theme="dark"] .manual-shell {
+        color: #e2e8f0 !important;
+    }
+
+    /* ── Panels & Container Surfaces ── */
+    html[data-color-mode="night"] .manual-panel,
+    html[data-bs-theme="dark"] .manual-panel {
+        background-color: #1e293b !important;
+        border-color: #334155 !important;
+        color: #e2e8f0 !important;
+    }
+
+    html[data-color-mode="night"] .manual-header,
+    html[data-bs-theme="dark"] .manual-header {
+        border-top-color: #0284c7 !important;
+    }
+
+    html[data-color-mode="night"] .manual-eyebrow,
+    html[data-bs-theme="dark"] .manual-eyebrow {
+        color: #38bdf8 !important;
+    }
+
+    html[data-color-mode="night"] .manual-title,
+    html[data-bs-theme="dark"] .manual-title {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .manual-lead,
+    html[data-bs-theme="dark"] .manual-lead {
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .manual-icon-button,
+    html[data-bs-theme="dark"] .manual-icon-button {
+        background-color: #1e293b !important;
+        border-color: #334155 !important;
+        color: #e2e8f0 !important;
+    }
+
+    html[data-color-mode="night"] .manual-icon-button:hover,
+    html[data-bs-theme="dark"] .manual-icon-button:hover {
+        background-color: #334155 !important;
+        border-color: #38bdf8 !important;
+        color: #38bdf8 !important;
+    }
+
+    /* ── Toolbar & Search ── */
+    html[data-color-mode="night"] .manual-search i,
+    html[data-bs-theme="dark"] .manual-search i {
+        color: #64748b !important;
+    }
+
+    html[data-color-mode="night"] .manual-search input,
+    html[data-bs-theme="dark"] .manual-search input {
+        background-color: #0f172a !important;
+        border-color: #334155 !important;
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .manual-search input::placeholder,
+    html[data-bs-theme="dark"] .manual-search input::placeholder {
+        color: #64748b !important;
+    }
+
+    html[data-color-mode="night"] .manual-search input:focus,
+    html[data-bs-theme="dark"] .manual-search input:focus {
+        border-color: #38bdf8 !important;
+        outline: 2px solid rgba(56, 189, 248, 0.25) !important;
+    }
+
+    html[data-color-mode="night"] .manual-segments,
+    html[data-bs-theme="dark"] .manual-segments {
+        background-color: #0f172a !important;
+        border-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .manual-segment,
+    html[data-bs-theme="dark"] .manual-segment {
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .manual-segment:hover,
+    html[data-bs-theme="dark"] .manual-segment:hover {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .manual-segment.active,
+    html[data-bs-theme="dark"] .manual-segment.active {
+        background-color: #0284c7 !important;
+        color: #ffffff !important;
+        box-shadow: 0 2px 6px rgba(2, 132, 199, 0.4) !important;
+    }
+
+    /* ── 4M Pillars Summary ── */
+    html[data-color-mode="night"] .pillar-summary,
+    html[data-bs-theme="dark"] .pillar-summary {
+        border-bottom-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .pillar-name,
+    html[data-bs-theme="dark"] .pillar-name {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .pillar-copy,
+    html[data-bs-theme="dark"] .pillar-copy {
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .tone-teal,
+    html[data-bs-theme="dark"] .tone-teal {
+        background-color: rgba(56, 189, 248, 0.15) !important;
+        color: #38bdf8 !important;
+        border: 1px solid rgba(56, 189, 248, 0.3) !important;
+    }
+
+    html[data-color-mode="night"] .tone-red,
+    html[data-bs-theme="dark"] .tone-red {
+        background-color: rgba(239, 68, 68, 0.15) !important;
+        color: #f87171 !important;
+        border: 1px solid rgba(239, 68, 68, 0.3) !important;
+    }
+
+    html[data-color-mode="night"] .tone-blue,
+    html[data-bs-theme="dark"] .tone-blue {
+        background-color: rgba(59, 130, 246, 0.15) !important;
+        color: #60a5fa !important;
+        border: 1px solid rgba(59, 130, 246, 0.3) !important;
+    }
+
+    html[data-color-mode="night"] .tone-amber,
+    html[data-bs-theme="dark"] .tone-amber {
+        background-color: rgba(245, 158, 11, 0.15) !important;
+        color: #fbbf24 !important;
+        border: 1px solid rgba(245, 158, 11, 0.3) !important;
+    }
+
+    /* ── Tables (.manual-table) ── */
+    html[data-color-mode="night"] .manual-table th,
+    html[data-bs-theme="dark"] .manual-table th {
+        background-color: #131d31 !important;
+        color: #cbd5e1 !important;
+        border-bottom-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .manual-table td,
+    html[data-bs-theme="dark"] .manual-table td {
+        background-color: transparent !important;
+        color: #cbd5e1 !important;
+        border-bottom-color: #273549 !important;
+    }
+
+    html[data-color-mode="night"] .manual-table tbody tr:hover td,
+    html[data-bs-theme="dark"] .manual-table tbody tr:hover td {
+        background-color: rgba(255, 255, 255, 0.03) !important;
+    }
+
+    html[data-color-mode="night"] .manual-table strong,
+    html[data-bs-theme="dark"] .manual-table strong {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .program-link,
+    html[data-bs-theme="dark"] .program-link {
+        background-color: rgba(56, 189, 248, 0.12) !important;
+        border: 1px solid rgba(56, 189, 248, 0.3) !important;
+        color: #38bdf8 !important;
+    }
+
+    html[data-color-mode="night"] .program-link:hover,
+    html[data-bs-theme="dark"] .program-link:hover {
+        background-color: #0284c7 !important;
+        border-color: #0284c7 !important;
+        color: #ffffff !important;
+    }
+
+    html[data-color-mode="night"] .program-locked,
+    html[data-bs-theme="dark"] .program-locked {
+        background-color: #1e293b !important;
+        border: 1px solid #334155 !important;
+        color: #475569 !important;
+    }
+
+    /* ── Section Heads ── */
+    html[data-color-mode="night"] .manual-section-head,
+    html[data-bs-theme="dark"] .manual-section-head {
+        border-bottom-color: #334155 !important;
+        border-top-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .manual-section-head h2,
+    html[data-bs-theme="dark"] .manual-section-head h2 {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .manual-section-head span,
+    html[data-bs-theme="dark"] .manual-section-head span {
+        color: #94a3b8 !important;
+    }
+
+    /* ── Workflow Tabs & Steps ── */
+    html[data-color-mode="night"] .flow-tabs,
+    html[data-bs-theme="dark"] .flow-tabs {
+        border-bottom-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .flow-tab,
+    html[data-bs-theme="dark"] .flow-tab {
+        background-color: #0f172a !important;
+        border-color: #334155 !important;
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .flow-tab:hover,
+    html[data-bs-theme="dark"] .flow-tab:hover {
+        color: #f8fafc !important;
+        border-color: #475569 !important;
+    }
+
+    html[data-color-mode="night"] .flow-tab.active,
+    html[data-bs-theme="dark"] .flow-tab.active {
+        background-color: #0284c7 !important;
+        border-color: #0284c7 !important;
+        color: #ffffff !important;
+        box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35) !important;
+    }
+
+    html[data-color-mode="night"] .flow-meta div,
+    html[data-bs-theme="dark"] .flow-meta div {
+        background-color: #131d31 !important;
+        border-left-color: #0284c7 !important;
+    }
+
+    html[data-color-mode="night"] .flow-meta small,
+    html[data-bs-theme="dark"] .flow-meta small {
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .flow-meta strong,
+    html[data-bs-theme="dark"] .flow-meta strong {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .flow-step,
+    html[data-bs-theme="dark"] .flow-step {
+        background-color: #1e293b !important;
+        border-color: #334155 !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+    }
+
+    html[data-color-mode="night"] .flow-step:hover,
+    html[data-bs-theme="dark"] .flow-step:hover {
+        border-color: #38bdf8 !important;
+    }
+
+    html[data-color-mode="night"] .flow-number,
+    html[data-bs-theme="dark"] .flow-number {
+        color: #38bdf8 !important;
+    }
+
+    html[data-color-mode="night"] .flow-step strong,
+    html[data-bs-theme="dark"] .flow-step strong {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .flow-step p,
+    html[data-bs-theme="dark"] .flow-step p {
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .flow-step:not(:last-child)::after,
+    html[data-bs-theme="dark"] .flow-step:not(:last-child)::after {
+        color: #0284c7 !important;
+    }
+
+    /* ── Formulas Section ── */
+    html[data-color-mode="night"] .formula-policy,
+    html[data-bs-theme="dark"] .formula-policy {
+        background-color: #131d31 !important;
+        border-bottom-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .formula-policy div,
+    html[data-bs-theme="dark"] .formula-policy div {
+        border-right-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .formula-policy span,
+    html[data-bs-theme="dark"] .formula-policy span {
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .formula-policy strong,
+    html[data-bs-theme="dark"] .formula-policy strong {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .formula-table code,
+    html[data-bs-theme="dark"] .formula-table code {
+        background-color: rgba(16, 185, 129, 0.15) !important;
+        color: #34d399 !important;
+        border: 1px solid rgba(16, 185, 129, 0.25) !important;
+    }
+
+    html[data-color-mode="night"] .formula-table small,
+    html[data-bs-theme="dark"] .formula-table small {
+        color: #94a3b8 !important;
+    }
+
+    /* ── Coverage Note & Benchmark Badges ── */
+    html[data-color-mode="night"] .coverage-note,
+    html[data-bs-theme="dark"] .coverage-note {
+        background-color: rgba(239, 68, 68, 0.12) !important;
+        border-left-color: #ef4444 !important;
+        color: #fca5a5 !important;
+    }
+
+    html[data-color-mode="night"] .coverage-note strong,
+    html[data-bs-theme="dark"] .coverage-note strong {
+        color: #fecaca !important;
+    }
+
+    html[data-color-mode="night"] .benchmark-ready,
+    html[data-bs-theme="dark"] .benchmark-ready {
+        background-color: rgba(16, 185, 129, 0.15) !important;
+        color: #34d399 !important;
+        border: 1px solid rgba(16, 185, 129, 0.3) !important;
+    }
+
+    html[data-color-mode="night"] .benchmark-partial,
+    html[data-bs-theme="dark"] .benchmark-partial {
+        background-color: rgba(245, 158, 11, 0.15) !important;
+        color: #fbbf24 !important;
+        border: 1px solid rgba(245, 158, 11, 0.3) !important;
+    }
+
+    html[data-color-mode="night"] .benchmark-planned,
+    html[data-bs-theme="dark"] .benchmark-planned {
+        background-color: rgba(239, 68, 68, 0.15) !important;
+        color: #f87171 !important;
+        border: 1px solid rgba(239, 68, 68, 0.3) !important;
+    }
+
+    /* ── UAT Section ── */
+    html[data-color-mode="night"] .uat-summary,
+    html[data-bs-theme="dark"] .uat-summary {
+        border-bottom-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .uat-summary div,
+    html[data-bs-theme="dark"] .uat-summary div {
+        border-right-color: #334155 !important;
+        border-bottom-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .uat-summary span,
+    html[data-bs-theme="dark"] .uat-summary span {
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .uat-summary strong,
+    html[data-bs-theme="dark"] .uat-summary strong {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .uat-summary .pass strong,
+    html[data-bs-theme="dark"] .uat-summary .pass strong {
+        color: #34d399 !important;
+    }
+
+    html[data-color-mode="night"] .uat-summary .fail strong,
+    html[data-bs-theme="dark"] .uat-summary .fail strong {
+        color: #f87171 !important;
+    }
+
+    html[data-color-mode="night"] .uat-policy,
+    html[data-bs-theme="dark"] .uat-policy {
+        background-color: #131d31 !important;
+        border-bottom-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .uat-policy div,
+    html[data-bs-theme="dark"] .uat-policy div {
+        background-color: #1e293b !important;
+        border: 1px solid #334155 !important;
+        border-left: 3px solid #0284c7 !important;
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .uat-policy strong,
+    html[data-bs-theme="dark"] .uat-policy strong {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .uat-toolbar,
+    html[data-bs-theme="dark"] .uat-toolbar {
+        border-bottom-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .uat-tabs,
+    html[data-bs-theme="dark"] .uat-tabs {
+        border-bottom-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .uat-tab,
+    html[data-bs-theme="dark"] .uat-tab {
+        background-color: #0f172a !important;
+        border-color: #334155 !important;
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .uat-tab:hover,
+    html[data-bs-theme="dark"] .uat-tab:hover {
+        color: #f8fafc !important;
+        border-color: #475569 !important;
+    }
+
+    html[data-color-mode="night"] .uat-tab.active,
+    html[data-bs-theme="dark"] .uat-tab.active {
+        background-color: rgba(56, 189, 248, 0.15) !important;
+        border-color: #38bdf8 !important;
+        color: #38bdf8 !important;
+    }
+
+    html[data-color-mode="night"] .uat-suite-head,
+    html[data-bs-theme="dark"] .uat-suite-head {
+        background-color: #131d31 !important;
+        border-bottom-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .uat-suite-head strong,
+    html[data-bs-theme="dark"] .uat-suite-head strong {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .uat-suite-head span,
+    html[data-bs-theme="dark"] .uat-suite-head span {
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .uat-case,
+    html[data-bs-theme="dark"] .uat-case {
+        border-bottom-color: #273549 !important;
+    }
+
+    html[data-color-mode="night"] .uat-case:hover,
+    html[data-bs-theme="dark"] .uat-case:hover {
+        background-color: rgba(255, 255, 255, 0.02) !important;
+    }
+
+    html[data-color-mode="night"] .uat-case-id,
+    html[data-bs-theme="dark"] .uat-case-id {
+        color: #38bdf8 !important;
+    }
+
+    html[data-color-mode="night"] .uat-risk-critical,
+    html[data-bs-theme="dark"] .uat-risk-critical {
+        background-color: rgba(239, 68, 68, 0.15) !important;
+        color: #f87171 !important;
+        border: 1px solid rgba(239, 68, 68, 0.3) !important;
+    }
+
+    html[data-color-mode="night"] .uat-risk-control,
+    html[data-bs-theme="dark"] .uat-risk-control {
+        background-color: rgba(245, 158, 11, 0.15) !important;
+        color: #fbbf24 !important;
+        border: 1px solid rgba(245, 158, 11, 0.3) !important;
+    }
+
+    html[data-color-mode="night"] .uat-case-title,
+    html[data-bs-theme="dark"] .uat-case-title {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .uat-prepare,
+    html[data-bs-theme="dark"] .uat-prepare {
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .uat-prepare strong,
+    html[data-bs-theme="dark"] .uat-prepare strong {
+        color: #cbd5e1 !important;
+    }
+
+    html[data-color-mode="night"] .uat-steps,
+    html[data-bs-theme="dark"] .uat-steps {
+        color: #cbd5e1 !important;
+    }
+
+    html[data-color-mode="night"] .uat-expected,
+    html[data-bs-theme="dark"] .uat-expected {
+        background-color: rgba(22, 160, 133, 0.15) !important;
+        border-left-color: #10b981 !important;
+        color: #e2e8f0 !important;
+    }
+
+    html[data-color-mode="night"] .uat-expected strong,
+    html[data-bs-theme="dark"] .uat-expected strong {
+        color: #34d399 !important;
+    }
+
+    html[data-color-mode="night"] .uat-evidence,
+    html[data-bs-theme="dark"] .uat-evidence {
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .uat-evidence strong,
+    html[data-bs-theme="dark"] .uat-evidence strong {
+        color: #cbd5e1 !important;
+    }
+
+    html[data-color-mode="night"] .uat-status,
+    html[data-bs-theme="dark"] .uat-status {
+        background-color: #0f172a !important;
+        border-color: #334155 !important;
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .uat-status:hover,
+    html[data-bs-theme="dark"] .uat-status:hover {
+        color: #f8fafc !important;
+        border-color: #475569 !important;
+    }
+
+    html[data-color-mode="night"] .uat-status.pass.active,
+    html[data-bs-theme="dark"] .uat-status.pass.active {
+        background-color: rgba(16, 185, 129, 0.2) !important;
+        border-color: #10b981 !important;
+        color: #34d399 !important;
+    }
+
+    html[data-color-mode="night"] .uat-status.fail.active,
+    html[data-bs-theme="dark"] .uat-status.fail.active {
+        background-color: rgba(239, 68, 68, 0.2) !important;
+        border-color: #ef4444 !important;
+        color: #f87171 !important;
+    }
+
+    html[data-color-mode="night"] .uat-status.pending.active,
+    html[data-bs-theme="dark"] .uat-status.pending.active {
+        background-color: #334155 !important;
+        border-color: #475569 !important;
+        color: #f1f5f9 !important;
+    }
+
+    html[data-color-mode="night"] .uat-open,
+    html[data-bs-theme="dark"] .uat-open {
+        background-color: transparent !important;
+        border-color: #0284c7 !important;
+        color: #38bdf8 !important;
+    }
+
+    html[data-color-mode="night"] .uat-open:hover,
+    html[data-bs-theme="dark"] .uat-open:hover {
+        background-color: #0284c7 !important;
+        color: #ffffff !important;
+    }
+
+    /* ── Standards & Sources ── */
+    html[data-color-mode="night"] .benchmark-summary,
+    html[data-bs-theme="dark"] .benchmark-summary {
+        border-bottom-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .benchmark-summary div,
+    html[data-bs-theme="dark"] .benchmark-summary div {
+        background-color: #131d31 !important;
+        border-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .benchmark-summary span,
+    html[data-bs-theme="dark"] .benchmark-summary span {
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .benchmark-summary strong,
+    html[data-bs-theme="dark"] .benchmark-summary strong {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .source-item,
+    html[data-bs-theme="dark"] .source-item {
+        background-color: #131d31 !important;
+        border-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .source-item strong,
+    html[data-bs-theme="dark"] .source-item strong {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .source-item span,
+    html[data-bs-theme="dark"] .source-item span {
+        color: #94a3b8 !important;
+    }
+
+    /* ── Control Manuals ── */
+    html[data-color-mode="night"] .control-manual,
+    html[data-bs-theme="dark"] .control-manual {
+        border-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .control-title,
+    html[data-bs-theme="dark"] .control-title {
+        background-color: #131d31 !important;
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .control-title:hover,
+    html[data-bs-theme="dark"] .control-title:hover {
+        background-color: #1e293b !important;
+    }
+
+    html[data-color-mode="night"] .control-body,
+    html[data-bs-theme="dark"] .control-body {
+        background-color: #1e293b !important;
+    }
+
+    html[data-color-mode="night"] .control-owner,
+    html[data-bs-theme="dark"] .control-owner {
+        background-color: #0f172a !important;
+        border-left-color: #0284c7 !important;
+        color: #cbd5e1 !important;
+    }
+
+    html[data-color-mode="night"] .control-owner strong,
+    html[data-bs-theme="dark"] .control-owner strong {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .control-purpose,
+    html[data-bs-theme="dark"] .control-purpose {
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .control-purpose strong,
+    html[data-bs-theme="dark"] .control-purpose strong {
+        color: #cbd5e1 !important;
+    }
+
+    html[data-color-mode="night"] .control-block h3,
+    html[data-bs-theme="dark"] .control-block h3 {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .control-block ol,
+    html[data-color-mode="night"] .control-block ul,
+    html[data-bs-theme="dark"] .control-block ol,
+    html[data-bs-theme="dark"] .control-block ul {
+        color: #cbd5e1 !important;
+    }
+
+    /* ── Gaps & Routines ── */
+    html[data-color-mode="night"] .gap-row,
+    html[data-bs-theme="dark"] .gap-row {
+        border-bottom-color: #273549 !important;
+    }
+
+    html[data-color-mode="night"] .gap-row h3,
+    html[data-bs-theme="dark"] .gap-row h3 {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .gap-row p,
+    html[data-bs-theme="dark"] .gap-row p {
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .gap-critical,
+    html[data-bs-theme="dark"] .gap-critical {
+        background-color: rgba(239, 68, 68, 0.15) !important;
+        color: #f87171 !important;
+        border: 1px solid rgba(239, 68, 68, 0.3) !important;
+    }
+
+    html[data-color-mode="night"] .gap-control,
+    html[data-bs-theme="dark"] .gap-control {
+        background-color: rgba(245, 158, 11, 0.15) !important;
+        color: #fbbf24 !important;
+        border: 1px solid rgba(245, 158, 11, 0.3) !important;
+    }
+
+    html[data-color-mode="night"] .gap-growth,
+    html[data-bs-theme="dark"] .gap-growth {
+        background-color: rgba(16, 185, 129, 0.15) !important;
+        color: #34d399 !important;
+        border: 1px solid rgba(16, 185, 129, 0.3) !important;
+    }
+
+    html[data-color-mode="night"] .routine-row,
+    html[data-bs-theme="dark"] .routine-row {
+        border-bottom-color: #273549 !important;
+    }
+
+    html[data-color-mode="night"] .routine-meta strong,
+    html[data-bs-theme="dark"] .routine-meta strong {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .routine-meta span,
+    html[data-bs-theme="dark"] .routine-meta span {
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .routine-items,
+    html[data-bs-theme="dark"] .routine-items {
+        color: #cbd5e1 !important;
+    }
+
+    /* ── Visual Guide Cards & Modal ── */
+    html[data-color-mode="night"] .vg-header,
+    html[data-bs-theme="dark"] .vg-header {
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(185, 28, 28, 0.2)) !important;
+        border-bottom-color: #334155 !important;
+    }
+
     html[data-color-mode="night"] .vg-card,
-    html[data-color-mode="night"] .vg-modal-card,
-    html[data-color-mode="night"] .vg-step-tab { background: #2a3441 !important; border-color: #3b4758 !important; }
+    html[data-bs-theme="dark"] .vg-card {
+        background: #1e293b !important;
+        border-color: #334155 !important;
+        box-shadow: 0 4px 18px rgba(0,0,0,0.3) !important;
+    }
+
+    html[data-color-mode="night"] .vg-card:hover,
+    html[data-bs-theme="dark"] .vg-card:hover {
+        border-color: #38bdf8 !important;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
+    }
+
+    html[data-color-mode="night"] .vg-card-thumb,
+    html[data-bs-theme="dark"] .vg-card-thumb {
+        background: #0f172a !important;
+        border-bottom-color: #334155 !important;
+    }
+
     html[data-color-mode="night"] .vg-card-title,
-    html[data-color-mode="night"] .vg-step-title,
-    html[data-color-mode="night"] .vg-step-bullets { color: #f8fafc !important; }
+    html[data-bs-theme="dark"] .vg-card-title {
+        color: #f8fafc !important;
+    }
+
     html[data-color-mode="night"] .vg-card-desc,
-    html[data-color-mode="night"] .vg-step-desc { color: #cbd5e1 !important; }
-    html[data-color-mode="night"] .vg-step-tab.active { background: var(--erp-primary) !important; color: #fff !important; }
-    html[data-color-mode="night"] .vg-step-tip { background: rgba(245,158,11,.15) !important; border-color: rgba(245,158,11,.3) !important; color: #fde68a !important; }
+    html[data-bs-theme="dark"] .vg-card-desc {
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .vg-card-steps-count,
+    html[data-bs-theme="dark"] .vg-card-steps-count {
+        background: rgba(56, 189, 248, 0.12) !important;
+        border: 1px solid rgba(56, 189, 248, 0.25) !important;
+        color: #38bdf8 !important;
+    }
+
+    html[data-color-mode="night"] .vg-modal-card,
+    html[data-bs-theme="dark"] .vg-modal-card {
+        background: #1e293b !important;
+        border: 1px solid #334155 !important;
+    }
+
+    html[data-color-mode="night"] .vg-step-nav,
+    html[data-bs-theme="dark"] .vg-step-nav {
+        background: #0f172a !important;
+        border-bottom-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .vg-step-tab,
+    html[data-bs-theme="dark"] .vg-step-tab {
+        background: #1e293b !important;
+        border-color: #334155 !important;
+        color: #cbd5e1 !important;
+    }
+
+    html[data-color-mode="night"] .vg-step-tab:hover,
+    html[data-bs-theme="dark"] .vg-step-tab:hover {
+        border-color: #38bdf8 !important;
+        color: #38bdf8 !important;
+    }
+
+    html[data-color-mode="night"] .vg-step-tab.active,
+    html[data-bs-theme="dark"] .vg-step-tab.active {
+        background: #0284c7 !important;
+        border-color: #0284c7 !important;
+        color: #ffffff !important;
+        box-shadow: 0 3px 8px rgba(2, 132, 199, 0.35) !important;
+    }
+
+    html[data-color-mode="night"] .vg-modal-body,
+    html[data-bs-theme="dark"] .vg-modal-body {
+        background: #1e293b !important;
+    }
+
+    html[data-color-mode="night"] .vg-modal-img-wrap,
+    html[data-bs-theme="dark"] .vg-modal-img-wrap {
+        border-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .vg-step-badge,
+    html[data-bs-theme="dark"] .vg-step-badge {
+        background: rgba(56, 189, 248, 0.15) !important;
+        border: 1px solid rgba(56, 189, 248, 0.3) !important;
+        color: #38bdf8 !important;
+    }
+
+    html[data-color-mode="night"] .vg-step-title,
+    html[data-bs-theme="dark"] .vg-step-title {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .vg-step-desc,
+    html[data-bs-theme="dark"] .vg-step-desc {
+        color: #cbd5e1 !important;
+    }
+
+    html[data-color-mode="night"] .vg-step-desc strong,
+    html[data-bs-theme="dark"] .vg-step-desc strong {
+        color: #f8fafc !important;
+    }
+
+    html[data-color-mode="night"] .vg-step-desc div,
+    html[data-bs-theme="dark"] .vg-step-desc div {
+        color: #cbd5e1 !important;
+    }
+
+    html[data-color-mode="night"] .vg-step-bullets,
+    html[data-bs-theme="dark"] .vg-step-bullets {
+        color: #cbd5e1 !important;
+    }
+
+    html[data-color-mode="night"] .vg-step-tip,
+    html[data-bs-theme="dark"] .vg-step-tip {
+        background: rgba(245, 158, 11, 0.12) !important;
+        border-color: rgba(245, 158, 11, 0.3) !important;
+        color: #fde68a !important;
+    }
+
+    html[data-color-mode="night"] .vg-step-tip strong,
+    html[data-bs-theme="dark"] .vg-step-tip strong {
+        color: #fef08a !important;
+    }
+
+    html[data-color-mode="night"] .vg-step-tip span,
+    html[data-bs-theme="dark"] .vg-step-tip span {
+        color: #fde68a !important;
+    }
+
+    html[data-color-mode="night"] .vg-modal-foot,
+    html[data-bs-theme="dark"] .vg-modal-foot {
+        background: #0f172a !important;
+        border-top-color: #334155 !important;
+    }
+
+    html[data-color-mode="night"] .vg-modal-foot .btn-outline-secondary,
+    html[data-bs-theme="dark"] .vg-modal-foot .btn-outline-secondary {
+        border-color: #475569 !important;
+        color: #cbd5e1 !important;
+    }
+
+    html[data-color-mode="night"] .vg-modal-foot .btn-outline-secondary:hover,
+    html[data-bs-theme="dark"] .vg-modal-foot .btn-outline-secondary:hover {
+        background-color: #334155 !important;
+        color: #ffffff !important;
+    }
+
+    html[data-color-mode="night"] #vgStepCounter,
+    html[data-bs-theme="dark"] #vgStepCounter {
+        color: #94a3b8 !important;
+    }
+
+    html[data-color-mode="night"] .text-danger,
+    html[data-bs-theme="dark"] .text-danger {
+        color: #f87171 !important;
+    }
+
+    html[data-color-mode="night"] .vg-header h2,
+    html[data-bs-theme="dark"] .vg-header h2 {
+        color: #f8fafc !important;
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       SEPIA MODE SUPPORT (โหมดถนอมสายตา ซีเปีย)
+       ════════════════════════════════════════════════════════════════ */
+    html[data-color-mode="sepia"] {
+        --erp-surface-2: #f4ecd8 !important;
+    }
+    html[data-color-mode="sepia"] .manual-panel {
+        background-color: #fdf6e3 !important;
+        border-color: #e3d5b8 !important;
+        color: #433422 !important;
+    }
+    html[data-color-mode="sepia"] .manual-search input {
+        background-color: #fffaf0 !important;
+        border-color: #e3d5b8 !important;
+        color: #433422 !important;
+    }
+    html[data-color-mode="sepia"] .manual-icon-button {
+        background-color: #fffaf0 !important;
+        border-color: #e3d5b8 !important;
+        color: #5c4326 !important;
+    }
+    html[data-color-mode="sepia"] .flow-step {
+        background-color: #fffaf0 !important;
+        border-color: #e3d5b8 !important;
+    }
+    html[data-color-mode="sepia"] .flow-tab {
+        background-color: #fffaf0 !important;
+        border-color: #e3d5b8 !important;
+        color: #7a6345 !important;
+    }
+    html[data-color-mode="sepia"] .uat-policy div,
+    html[data-color-mode="sepia"] .uat-tab,
+    html[data-color-mode="sepia"] .uat-status {
+        background-color: #fffaf0 !important;
+        border-color: #e3d5b8 !important;
+        color: #7a6345 !important;
+    }
+    html[data-color-mode="sepia"] .vg-card,
+    html[data-color-mode="sepia"] .vg-modal-card {
+        background-color: #fdf6e3 !important;
+        border-color: #e3d5b8 !important;
+    }
+    html[data-color-mode="sepia"] .vg-step-tab {
+        background-color: #fffaf0 !important;
+        border-color: #e3d5b8 !important;
+        color: #433422 !important;
+    }
+
 
     @media (max-width: 820px) {
         .vg-modal-body { grid-template-columns: 1fr; }
@@ -384,12 +1308,12 @@
             {{-- Card 2.1: Python POS --}}
             <div class="vg-card" onclick="openManualReader('python_pos')">
                 <div class="vg-card-thumb">
-                    <img src="{{ asset('images/manual/python_pos_main.png') }}" alt="แอปพลิเคชัน Python POS">
+                    <img src="{{ asset('images/manual/pos.png') }}" alt="แอปพลิเคชัน PopCentral POS">
                     <span class="vg-card-badge"><i class="bi bi-terminal-fill me-1"></i> บทที่ 2.1: 6 ขั้นตอนพร้อมรูปจริง</span>
                 </div>
                 <div class="vg-card-body">
-                    <h3 class="vg-card-title"><i class="bi bi-terminal-fill text-danger"></i> 2.1 แอปแคชเชียร์ (Python POS Desktop v1.12.23)</h3>
-                    <p class="vg-card-desc">คู่มือใช้งานโปรแกรมแคชเชียร์หน้าร้านจริง เข้าสู่ระบบ เปิดกะ ยิงบาร์โค้ด ค้นหาสินค้า ชำระเงินสด/QR Code และปิดกะทำงาน (เวอร์ชันล่าสุด v1.12.23)</p>
+                    <h3 class="vg-card-title"><i class="bi bi-terminal-fill text-danger"></i> 2.1 แอปแคชเชียร์ (PopCentral POS Desktop v1.12.32)</h3>
+                    <p class="vg-card-desc">คู่มือเริ่มต้นใช้งานโปรแกรมแคชเชียร์หน้าร้านจริงตั้งแต่เริ่มต้น ขอรับ Device Token เข้าสู่ระบบ เปิดกะ ยิงบาร์โค้ด รับเงินสด/QR Code และปิดกะสรุปยอด Z-Report</p>
                     <div class="vg-card-steps-count">
                         <i class="bi bi-layers-fill"></i> มีภาพประกอบ 6 ขั้นตอนอย่างละเอียด
                     </div>
@@ -650,62 +1574,53 @@
     <script>
         const manualGuidesData = {
             python_pos: {
-                title: 'คู่มือการใช้งานโปรแกรมแคชเชียร์หน้าร้าน (Python POS v1.12.23)',
+                title: 'คู่มือการใช้งานโปรแกรมแคชเชียร์หน้าร้าน (PopCentral POS v1.12.32)',
                 route: '{{ route('python-pos.download') }}',
                 steps: [
                     {
                         badge: 'ขั้นตอนที่ 1',
-                        title: 'เข้าสู่ระบบแคชเชียร์ (Cashier Login)',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ชื่อผู้ใช้ / รหัสพนักงาน:</strong> ระบุชื่อผู้ใช้งานของแคชเชียร์ประจำเครื่อง</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>รหัสผ่าน (PIN):</strong> กรอกรหัสผ่านเพื่อยืนยันตัวตนพนักงาน</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีน้ำเงิน "เข้าสู่ระบบ":</strong> หรือกด Enter เพื่อตรวจสอบสิทธิ์เข้าใช้งานโปรแกรม</div></div>`,
-                        img: '{{ asset('images/manual/python_pos_step1.png') }}',
-                        tip: 'ผู้ใช้งานต้องมีสิทธิ์แคชเชียร์ที่กำหนดไว้ในระบบ ERP จึงจะสามารถเข้าสู่ระบบ POS ได้'
+                        title: 'ผูก Device Token & เข้าสู่ระบบ (Token & Login)',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>Device Token เครื่อง POS:</strong> คัดลอก Token จากระบบเว็บ ERP (เมนูตั้งค่า > POS Device Token) นำมาวางในช่องแรก</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>ชื่อผู้ใช้งาน & รหัสผ่าน (Username / Password):</strong> กรอกชื่อผู้ใช้และรหัสผ่านแคชเชียร์ของคุณ</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีแดง "เข้าสู่ระบบ":</strong> หรือกดปุ่ม "📖 คู่มือ" เพื่ออ่านขั้นตอนและวิธีแก้ปัญหาเบื้องต้น</div></div>`,
+                        img: '{{ asset('images/manual/pos_step1.png') }}',
+                        tip: 'ระบบจะจำค่า Token และชื่อผู้ใช้งานไว้ให้ ครั้งถัดไปเพียงกรอกรหัสผ่านเพื่อเข้าใช้งานได้ทันที'
                     },
                     {
                         badge: 'ขั้นตอนที่ 2',
                         title: 'เปิดกะขาย & ใส่เงินทอนเริ่มต้น (Shift Open)',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ข้อมูลสาขา & แคชเชียร์:</strong> ตรวจสอบชื่อสาขาและพนักงานผู้รับผิดชอบกะการขาย</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>กรอกเงินทอนตั้งต้น:</strong> ระบุจำนวนเงินสดเริ่มต้นในลิ้นชัก (เช่น 1,000.00 บาท)</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีเขียว "🔓 เปิดกะ":</strong> เพื่อเริ่มต้นรอบการขายและเริ่มคิดเงินลูกค้า</div></div>`,
-                        img: '{{ asset('images/manual/python_pos_step2.png') }}',
-                        tip: 'ยอดเงินทอนตั้งต้นนี้จะถูกนำไปรวมคำนวณกระทบยอดเงินสดเมื่อปิดกะสิ้นวัน'
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ปุ่มสถานะกะ (มุมขวาบน):</strong> สังเกตปุ่มสีส้มเขียนว่า "เปิดกะ" กดเพื่อเปิดรอบการขายประจำวัน</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>กรอกเงินทอนตั้งต้น:</strong> ระบุจำนวนเงินสดเริ่มต้นในลิ้นชัก (เช่น 1,000.00 บาท)</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดยืนยันเปิดกะ:</strong> สถานะจะเปลี่ยนเป็น "เปิดกะแล้ว (สีเขียว)" แสดงชื่อแคชเชียร์และเวลาเปิดกะ</div></div>`,
+                        img: '{{ asset('images/manual/pos_step2.png') }}',
+                        tip: 'จำเป็นต้องเปิดกะก่อนเริ่มขายสินค้าทุกครั้ง เพื่อให้ระบบสามารถบันทึกยอดขายและกระทบยอดเงินสดได้อย่างถูกต้อง'
                     },
                     {
                         badge: 'ขั้นตอนที่ 3',
-                        title: 'หน้าต่างขายหลัก & จัดการตะกร้า (Point of Sale)',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ยิงบาร์โค้ด / ค้นหา SKU / เลือกหมวดหมู่:</strong> สแกนบาร์โค้ดสินค้า หรือคลิกแท็บหมวดหมู่ด้านบนเพื่อเลือกสินค้าลงบิล</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>รายการในตะกร้า & ยอดรวม:</strong> ตรวจสอบรายการในตารางฝั่งขวา ปรับจำนวน แก้ไข หรือลบรายการที่ไม่ต้องการ</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีน้ำเงิน "💳 ชำระเงิน (F12)":</strong> หรือกดปุ่มคีย์ลัด [F12] เพื่อเปิดหน้าต่างรับชำระเงิน</div></div>`,
-                        img: '{{ asset('images/manual/python_pos_step3.png') }}',
-                        tip: 'สามารถกด F12 บนแป้นพิมพ์เพื่อเปิดหน้าชำระเงินได้ทันทีโดยไม่ต้องคลิกเมาส์'
+                        title: 'หน้าต่างขายหลัก, ยิงบาร์โค้ด & เลือกหมวดหมู่สินค้า',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>สแกนบาร์โค้ดสินค้า:</strong> ยิงบาร์โค้ดบนแพ็คสินค้า รายการจะลงตะกร้าฝั่งซ้ายโดยอัตโนมัติ</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>เลือกหมวดหมู่สินค้า:</strong> แตะแท็บหมวดหมู่ (หมู, ไก่, ทะเล, ลูกชิ้น, ของแห้ง) เพื่อเลือกสินค้าหน้าร้าน</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>จัดการตะกร้า:</strong> ปรับเพิ่ม/ลดจำนวนสินค้า หรือกดถังขยะเพื่อลบรายการ และกดปุ่ม "ชำระเงิน"</div></div>`,
+                        img: '{{ asset('images/manual/pos.png') }}',
+                        tip: 'รองรับการขายทั้งแบบออนไลน์และออฟไลน์ หากเน็ตหลุดระบบยังสามารถยิงบาร์โค้ดและขายได้ตามปกติ 100%'
                     },
                     {
                         badge: 'ขั้นตอนที่ 4',
-                        title: 'ชำระเงินด้วยเงินสด & คำนวณเงินทอน (Cash Payment)',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>เลือกวิธีชำระ "เงินสด":</strong> ตรวจสอบการ์ดสรุปยอดเงินและจำนวนชิ้นที่ต้องชำระ</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>ยอดเงินที่รับ & เงินทอน:</strong> กดแป้นตัวเลขหรือปุ่มด่วน (500, 1,000) ระบบจะแสดงเงินทอนสีเขียวอัตโนมัติ</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดยืนยันชำระเงิน (Enter):</strong> บันทึกตัดสต็อก สั่งเปิดลิ้นชักเก็บเงิน และพิมพ์ใบเสร็จอัตโนมัติ</div></div>`,
-                        img: '{{ asset('images/manual/python_pos_step4.png') }}',
-                        tip: 'หากลูกค้าให้เงินสดพอดี สามารถกดปุ่มจำนวนเงินพอดีเพื่อยืนยันได้รวดเร็ว'
+                        title: 'ชำระเงินสด / QR Code & เปิดลิ้นชักอัตโนมัติ',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ชำระด้วยเงินสด (Cash):</strong> กดปุ่มลัดธนบัตร (100, 500, 1000) ระบบคำนวณเงินทอน ดีดลิ้นชัก และพิมพ์ใบเสร็จ</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>ชำระด้วย QR พร้อมเพย์:</strong> กดเลือกแท็บ QR ระบบสร้าง QR Code ตามยอดบิลให้ลูกค้าสแกนจ่ายได้ทันที</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>เมนูควบคุมพิเศษ (☰):</strong> สามารถกดเปิดลิ้นชักด่วน (Open Drawer) หรือกดซิงค์ข้อมูล (Sync Data) ได้ตลอดเวลา</div></div>`,
+                        img: '{{ asset('images/manual/pos_step4.png') }}',
+                        tip: 'สามารถใช้งานร่วมกับจอฝั่งลูกค้า (Customer Display) และเครื่องพิมพ์ใบเสร็จความร้อน 80mm/58mm'
                     },
                     {
                         badge: 'ขั้นตอนที่ 5',
-                        title: 'สแกนจ่ายด้วย Thai QR Code (PromptPay)',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>กดเลือกแท็บ "QR":</strong> สลับเข้าสู่โหมดรับเงินโอนพร้อมเพย์</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>สแกน QR Code:</strong> ระบบจะสร้าง QR Code พร้อมเพย์ตามยอดบิลให้ลูกค้าสแกนจ่ายผ่านแอปธนาคาร</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดยืนยันชำระเงิน (Enter):</strong> เมื่อตรวจสอบสลิปการโอนเรียบร้อย กดยืนยันเพื่อปิดบิลและพิมพ์ใบเสร็จ</div></div>`,
-                        img: '{{ asset('images/manual/python_pos_step5.png') }}',
-                        tip: 'หากมีจอแสดงผลฝั่งลูกค้า (Customer Display) QR Code จะขึ้นแสดงบนจอลูกค้าโดยอัตโนมัติ'
-                    },
-                    {
-                        badge: 'ขั้นตอนที่ 6',
-                        title: 'ปิดกะทำงานสิ้นสุดวัน (Shift Close & Summary)',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ยอดเงินในระบบ:</strong> ตรวจสอบยอดเงินสดที่ระบบคำนวณไว้ (เงินทอนตั้งต้น + ยอดขายเงินสด)</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>ยอดเงินนับจริง:</strong> แคชเชียร์นับเงินสดจริงทั้งหมดในลิ้นชักและกรอกลงในช่อง</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีแดง "ยืนยันปิดกะ":</strong> ระบบจะทำการปิดกะ พิมพ์ใบสรุปยอดขาย Z-Report และส่งยอดซิงค์เข้าสู่ระบบ ERP</div></div>`,
-                        img: '{{ asset('images/manual/python_pos_step6.png') }}',
-                        tip: 'ควรปิดกะทุกครั้งเมื่อเปลี่ยนพนักงานหรือเมื่อสิ้นสุดวันทำการ'
+                        title: 'ปิดกะสรุปยอดประจำวัน & พิมพ์ Z-Report',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>กดปุ่ม "ปิดกะ" (สีแดง):</strong> ที่มุมขวาบนเมื่อสิ้นสุดเวลาปฏิบัติงานหรือเปลี่ยนเวร</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>นับเงินสดจริงในลิ้นชัก:</strong> ป้อนจำนวนเงินสดจริงที่นับได้ลงในช่องยอดเงินสด</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>พิมพ์รายงานปิดกะ (Z-Report):</strong> ระบบจะคำนวณเงินขาด/เกิน พิมพ์สลิปปิดกะ และส่งยอดเข้าบัญชี ERP ส่วนกลางทันที</div></div>`,
+                        img: '{{ asset('images/manual/pos_step5.png') }}',
+                        tip: 'ยอดขายและข้อมูลการปิดกะจะถูกส่งเข้าสมุดรายวันทั่วไปและรายงานผู้บริหารในระบบ ERP แบบอัตโนมัติ'
                     }
                 ]
             },

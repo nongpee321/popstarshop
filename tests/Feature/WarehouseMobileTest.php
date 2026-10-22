@@ -3,22 +3,27 @@
 namespace Tests\Feature;
 
 use App\Models\Branch;
+use App\Models\DocumentType;
 use App\Models\Permission;
 use App\Models\Product;
 use App\Models\ProductUnit;
 use App\Models\Role;
 use App\Models\StockBalance;
+use App\Models\StockCount;
+use App\Models\StockCountItem;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class WarehouseMobileTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_mobile_page_exposes_the_three_workflow_tabs_to_receiving_users(): void
+    public function test_mobile_page_exposes_the_four_workflow_tabs_to_receiving_users(): void
     {
         $user = $this->userWith(['stock.manage', 'purchasing.manage']);
 
@@ -26,10 +31,12 @@ class WarehouseMobileTest extends TestCase
             ->assertOk()
             ->assertSee('รับเข้า')
             ->assertSee('รับตาม PO')
+            ->assertSee('ตรวจนับ')
             ->assertSee('เช็คสต๊อก')
             ->assertSee("tab: 'receive',", false)
             ->assertSee('x-show="tab === \'receive\'"', false)
             ->assertSee('x-show="tab === \'po\'"', false)
+            ->assertSee('x-show="tab === \'count\'"', false)
             ->assertSee('x-show="tab === \'stock\'"', false);
     }
 
@@ -38,6 +45,7 @@ class WarehouseMobileTest extends TestCase
         $this->actingAs($this->userWith(['stock.manage']))->get(route('wh.index'))
             ->assertOk()
             ->assertSee("tab: 'stock',", false)
+            ->assertSee('switchTab(\'count\')', false)
             ->assertDontSee("switchTab('receive')", false)
             ->assertDontSee("switchTab('po')", false);
     }
@@ -84,6 +92,118 @@ class WarehouseMobileTest extends TestCase
             ->assertJsonCount(1, 'locations')
             ->assertJsonPath('locations.0.location_id', $locationA->id)
             ->assertJsonPath('total', 7);
+    }
+
+    public function test_mobile_stock_counts_list_and_counting_workflow(): void
+    {
+        [$branch, $location] = $this->branchWithLocation('STK');
+        $user = $this->userWith(['stock.manage'], $branch);
+
+        $unit = ProductUnit::create(['code' => 'EA-STK', 'name' => 'ชิ้น']);
+        $product = Product::create([
+            'sku_code' => 'STK-001', 'name_th' => 'สินค้าตรวจนับ',
+            'base_unit_id' => $unit->id, 'is_active' => true,
+        ]);
+
+        $stockCount = StockCount::create([
+            'doc_number' => 'SC-202610-0001',
+            'branch_id' => $branch->id,
+            'warehouse_location_id' => $location->id,
+            'status' => 'counting',
+            'count_mode' => 'partial',
+        ]);
+
+        $item = StockCountItem::create([
+            'stock_count_id' => $stockCount->id,
+            'product_id' => $product->id,
+            'system_qty' => 10,
+            'counted_qty' => null,
+        ]);
+
+        // 1. List active stock counts
+        $this->actingAs($user)->getJson(route('wh.stock-counts', ['branch_id' => $branch->id]))
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.doc_number', 'SC-202610-0001')
+            ->assertJsonPath('0.status', 'counting');
+
+        // 2. Fetch stock count detail
+        $this->actingAs($user)->getJson(route('wh.stock-counts.detail', $stockCount))
+            ->assertOk()
+            ->assertJsonPath('doc_number', 'SC-202610-0001')
+            ->assertJsonPath('items.0.sku_code', 'STK-001')
+            ->assertJsonPath('items.0.system_qty', 10);
+
+        // 3. Save counted quantities (Draft)
+        $this->actingAs($user)->postJson(route('wh.stock-counts.save', $stockCount), [
+            'items' => [
+                ['id' => $item->id, 'counted_qty' => 12],
+            ],
+        ])
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('updated', 1);
+
+        $this->assertEquals(12, $item->fresh()->counted_qty);
+
+        // 4. Submit for review
+        $this->actingAs($user)->postJson(route('wh.stock-counts.submit', $stockCount))
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $this->assertEquals('review', $stockCount->fresh()->status);
+    }
+
+    public function test_receive_store_prevents_duplicate_submission_via_idempotency_key(): void
+    {
+        DocumentType::firstOrCreate(['code' => 'PURCHASE'], ['name_th' => 'ใบซื้อ', 'stock_effect' => 'in']);
+        [$branch, $location] = $this->branchWithLocation('RCV');
+        $user = $this->userWith(['purchasing.manage', 'stock.manage'], $branch);
+
+        $supplier = Supplier::create([
+            'code' => 'SUP-001',
+            'name_th' => 'ซัพพลายเออร์ ทดสอบ',
+            'is_active' => true,
+        ]);
+
+        $unit = ProductUnit::create(['code' => 'EA-RCV', 'name' => 'ชิ้น']);
+        $product = Product::create([
+            'sku_code' => 'RCV-001',
+            'name_th' => 'สินค้ารับเข้า',
+            'base_unit_id' => $unit->id,
+            'is_active' => true,
+            'default_price' => 50,
+        ]);
+
+        $idempotencyKey = (string) Str::uuid();
+
+        $payload = [
+            'idempotency_key' => $idempotencyKey,
+            'branch_id' => $branch->id,
+            'supplier_id' => $supplier->id,
+            'is_credit' => true,
+            'remark' => 'ทดสอบ Idempotency',
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'qty' => 5,
+                    'unit_price' => 45,
+                ],
+            ],
+        ];
+
+        // First submit -> creates document
+        $res1 = $this->actingAs($user)->postJson(route('wh.receive'), $payload);
+        $res1->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $docNumber1 = $res1->json('doc_number');
+
+        // Immediate second submit with same idempotency key -> returns same cached response without duplicate creation
+        $res2 = $this->actingAs($user)->postJson(route('wh.receive'), $payload);
+        $res2->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('doc_number', $docNumber1);
     }
 
     private function userWith(array $permissionCodes, ?Branch $branch = null): User

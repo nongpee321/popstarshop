@@ -84,7 +84,8 @@ class OperationsController extends Controller
         $checksumStatus = 'missing';
 
         if (is_file($checksumFile)) {
-            if (! is_readable($checksumFile)) {
+            $perms = fileperms($checksumFile) & 0777;
+            if (! is_readable($checksumFile) || $perms === 0) {
                 $checksumStatus = 'unreadable';
             } else {
                 try {

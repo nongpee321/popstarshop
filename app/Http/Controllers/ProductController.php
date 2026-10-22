@@ -79,7 +79,7 @@ class ProductController extends Controller
 
         $products = (clone $filteredProductScope)
             ->with([
-                'category', 'brand', 'baseUnit',
+                'category', 'brand', 'baseUnit', 'barcodes',
                 'stockBalances' => fn ($query) => $query->when($warehouseId, fn ($q) => $q->where('warehouse_location_id', $warehouseId))
             ])
             ->orderBy('name_th')
@@ -242,9 +242,46 @@ class ProductController extends Controller
     }
 
     // Upsert price from product show page
+    public function getBranchPrices(Product $product): JsonResponse
+    {
+        $branches = Branch::where('is_active', true)->orderBy('code')->get();
+        $defaultTable = PriceTable::where('is_default', true)->first();
+        
+        $tableIds = $branches->pluck('price_table_id')->filter()->push($defaultTable?->id)->unique()->all();
+        
+        $prices = ProductPrice::where('product_id', $product->id)
+            ->whereIn('price_table_id', $tableIds)
+            ->whereNull('unit_id')
+            ->where('is_active', true)
+            ->get()
+            ->keyBy('price_table_id');
+
+        $defaultPrice = (float) ($prices->get($defaultTable?->id)?->price ?? $product->default_price ?? 0);
+
+        $branchList = $branches->map(function ($b) use ($prices, $defaultPrice) {
+            $customPrice = $b->price_table_id ? $prices->get($b->price_table_id) : null;
+            return [
+                'id' => $b->id,
+                'code' => $b->code,
+                'name_th' => $b->name_th,
+                'price' => $customPrice ? (float) $customPrice->price : $defaultPrice,
+                'is_custom' => $customPrice !== null,
+            ];
+        });
+
+        return response()->json([
+            'product_id' => $product->id,
+            'sku_code' => $product->sku_code,
+            'name_th' => $product->name_th,
+            'default_price' => $defaultPrice,
+            'branches' => $branchList,
+        ]);
+    }
+
     public function upsertPrice(Request $request, Product $product): JsonResponse|RedirectResponse
     {
         $data = $request->validate([
+            'branch_id' => ['nullable'],
             'price_table_id' => ['nullable', 'integer', 'exists:price_tables,id'],
             'unit_id' => ['nullable', 'integer', 'exists:product_units,id'],
             'price' => ['required', 'numeric', 'min:0'],
@@ -254,8 +291,55 @@ class ProductController extends Controller
         $defaultTable = PriceTable::where('is_default', true)->first()
             ?? PriceTable::firstOrCreate(['code' => 'DEFAULT'], ['name' => 'ราคามาตรฐาน', 'is_default' => true, 'is_active' => true]);
 
-        $priceTableId = $data['price_table_id'] ?? $defaultTable->id;
+        $branchId = $request->input('branch_id');
 
+        // กรณีเลือกตั้งราคาเฉพาะสาขา
+        if ($branchId && $branchId !== 'all') {
+            $branch = Branch::findOrFail((int) $branchId);
+            if (!$branch->price_table_id) {
+                $pt = PriceTable::firstOrCreate(
+                    ['code' => 'PRICE_' . $branch->code],
+                    ['name' => 'ตารางราคา - ' . $branch->name_th, 'is_default' => false, 'is_active' => true]
+                );
+                $branch->update(['price_table_id' => $pt->id]);
+            }
+            $priceTableId = $branch->price_table_id;
+
+            $identity = [
+                'product_id' => $product->id,
+                'price_table_id' => $priceTableId,
+                'unit_id' => $data['unit_id'] ?? null,
+            ];
+            $pp = ProductPrice::updateOrCreate(
+                $identity,
+                [
+                    'price' => $data['price'],
+                    'cost_price' => $data['cost_price'] ?? 0,
+                    'is_active' => true,
+                ]
+            );
+
+            \App\Support\PosSyncNotifier::notifyChange();
+
+            if ($request->boolean('compact_form') || !$request->expectsJson()) {
+                return redirect()->route('products.show', [
+                    'product' => $product,
+                    'popup' => $request->boolean('popup') ? 1 : null,
+                ])->with('success', "บันทึกราคาเฉพาะ {$branch->name_th} เรียบร้อยแล้ว (฿" . number_format($data['price'], 2) . ")");
+            }
+
+            return response()->json([
+                'success' => true,
+                'scope' => 'branch',
+                'branch_id' => $branch->id,
+                'branch_name' => $branch->name_th,
+                'price' => (float) $pp->price,
+                'message' => "บันทึกราคาเฉพาะ {$branch->name_th} สำเร็จแล้ว",
+            ]);
+        }
+
+        // กรณีเปลี่ยนทุกสาขา (Default Price Table & Master Product Price)
+        $priceTableId = $data['price_table_id'] ?? $defaultTable->id;
         $identity = [
             'product_id' => $product->id,
             'price_table_id' => $priceTableId,
@@ -271,10 +355,11 @@ class ProductController extends Controller
             ]
         );
 
-        // อัปเดตราคา default_price ในตาราง products ให้ตรงกันด้วย
+        // อัปเดตราคา default_price ในตาราง products
         $product->update([
-            'default_price' => $data['price']
+            'default_price' => $data['price'],
         ]);
+
         if ($oldPrice === null || DecimalMath::compare($oldPrice, $data['price']) !== 0) {
             PriceChange::create([
                 'product_id' => $product->id,
@@ -285,14 +370,21 @@ class ProductController extends Controller
             ]);
         }
 
-        if ($request->boolean('compact_form')) {
+        \App\Support\PosSyncNotifier::notifyChange();
+
+        if ($request->boolean('compact_form') || !$request->expectsJson()) {
             return redirect()->route('products.show', [
                 'product' => $product,
                 'popup' => $request->boolean('popup') ? 1 : null,
-            ])->with('success', 'บันทึกราคาขายแล้ว');
+            ])->with('success', 'บันทึกราคามาตรฐาน (ทุกสาขา) เรียบร้อยแล้ว (฿' . number_format($data['price'], 2) . ')');
         }
 
-        return response()->json(['success' => true, 'id' => $pp->id, 'price' => (float) $pp->price]);
+        return response()->json([
+            'success' => true,
+            'scope' => 'all',
+            'price' => (float) $pp->price,
+            'message' => 'บันทึกราคามาตรฐาน (ทุกสาขา) สำเร็จแล้ว',
+        ]);
     }
 
     public function update(Request $request, Product $product): RedirectResponse
@@ -304,7 +396,7 @@ class ProductController extends Controller
             'name_en', 'note', 'product_category_id', 'product_department_id',
             'product_brand_id', 'maximum_sale_price', 'minimum_margin_percent',
             'reorder_point', 'minimum_stock', 'maximum_stock', 'shelf_life_days',
-            'default_price'
+            'default_price', 'average_cost', 'last_purchase_cost'
         ];
         foreach ($nullableFields as $field) {
             if (array_key_exists($field, $data) && ($data[$field] === '' || $data[$field] === null)) {
@@ -660,6 +752,8 @@ class ProductController extends Controller
             'product_brand_id' => ['nullable', 'integer', 'exists:product_brands,id'],
             'base_unit_id' => ['required', 'integer', 'exists:product_units,id'],
             'default_price' => ['nullable', 'numeric', 'min:0'],
+            'average_cost' => ['nullable', 'numeric', 'min:0'],
+            'last_purchase_cost' => ['nullable', 'numeric', 'min:0'],
             'maximum_sale_price' => ['nullable', 'numeric', 'min:0'],
             'minimum_margin_percent' => ['nullable', 'numeric', 'min:-1000', 'max:100'],
             'margin_control_policy' => ['nullable', 'in:warn,block'],

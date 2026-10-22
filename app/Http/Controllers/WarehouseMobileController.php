@@ -7,10 +7,13 @@ use App\Models\Product;
 use App\Models\ProductBarcode;
 use App\Models\PurchaseOrder;
 use App\Models\StockBalance;
+use App\Models\StockCount;
+use App\Models\StockCountItem;
 use App\Services\Purchasing\PurchaseOrderReceivingService;
 use App\Services\Purchasing\PurchaseService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\View\View;
 use RuntimeException;
 
@@ -120,6 +123,7 @@ class WarehouseMobileController extends Controller
     public function receiveStore(Request $request, PurchaseService $service): JsonResponse
     {
         $data = $request->validate([
+            'idempotency_key' => ['nullable', 'string', 'max:64'],
             'branch_id' => ['required', 'integer', 'exists:branches,id'],
             'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
             'is_credit' => ['required', 'boolean'],
@@ -132,6 +136,13 @@ class WarehouseMobileController extends Controller
             'items.*.manufacture_date' => ['nullable', 'date'],
             'items.*.expiry_date' => ['nullable', 'date'],
         ]);
+
+        if (!empty($data['idempotency_key'])) {
+            $cacheKey = 'wh_recv_idem_' . $data['idempotency_key'];
+            if ($cached = Cache::get($cacheKey)) {
+                return response()->json($cached);
+            }
+        }
 
         // user ที่ผูกสาขา: บังคับรับเข้าสาขาตัวเองเสมอ
         $lockedBranchId = auth()->user()?->branchScopeId();
@@ -156,12 +167,18 @@ class WarehouseMobileController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        return response()->json([
+        $payload = [
             'ok' => true,
             'doc_number' => $document->doc_number,
             'document_id' => $document->id,
             'total_amount' => (float) $document->total_amount,
-        ]);
+        ];
+
+        if (!empty($data['idempotency_key'])) {
+            Cache::put('wh_recv_idem_' . $data['idempotency_key'], $payload, 300);
+        }
+
+        return response()->json($payload);
     }
 
     /** ใบสั่งซื้อที่รอรับของ (status=ordered) ของสาขา */
@@ -296,5 +313,135 @@ class WarehouseMobileController extends Controller
         return (float) (StockBalance::where('product_id', $productId)
             ->where('warehouse_location_id', $locationId)
             ->value('on_hand_qty') ?? 0);
+    }
+
+    /** รายการใบตรวจนับสต็อกที่กำลังดำเนินการ (counting) ของสาขา */
+    public function stockCounts(Request $request): JsonResponse
+    {
+        $lockedBranchId = auth()->user()?->branchScopeId();
+        $branchId = $lockedBranchId ?: ($request->integer('branch_id') ?: null);
+
+        $counts = StockCount::query()
+            ->with(['branch:id,name_th', 'warehouseLocation:id,name'])
+            ->withCount('items')
+            ->whereIn('status', ['counting', 'review'])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->orderByDesc('id')
+            ->limit(30)
+            ->get();
+
+        return response()->json($counts->map(fn ($c) => [
+            'id' => $c->id,
+            'doc_number' => $c->doc_number,
+            'status' => $c->status,
+            'count_mode' => $c->count_mode,
+            'branch' => $c->branch?->name_th,
+            'location' => $c->warehouseLocation?->name ?? 'ทั้งหมด',
+            'item_count' => $c->items_count,
+            'is_editable' => $c->isEditable(),
+            'created_at' => $c->created_at?->format('d/m/Y H:i'),
+        ]));
+    }
+
+    /** รายละเอียดสินค้าในใบตรวจนับสำหรับสแกน */
+    public function stockCountDetail(StockCount $stockCount): JsonResponse
+    {
+        $this->guardStockCountBranch($stockCount);
+
+        $items = StockCountItem::where('stock_count_id', $stockCount->id)
+            ->join('products', 'products.id', '=', 'stock_count_items.product_id')
+            ->leftJoin('product_units', 'product_units.id', '=', 'products.base_unit_id')
+            ->orderBy('products.sku_code')
+            ->get([
+                'stock_count_items.id',
+                'stock_count_items.counted_qty',
+                'stock_count_items.system_qty',
+                'products.id as product_id',
+                'products.sku_code',
+                'products.name_th',
+                'product_units.name as unit_name',
+            ]);
+
+        $barcodes = ProductBarcode::whereIn('product_id', $items->pluck('product_id'))
+            ->where('is_active', true)->get(['product_id', 'barcode', 'unit_factor'])
+            ->groupBy('product_id');
+
+        return response()->json([
+            'id' => $stockCount->id,
+            'doc_number' => $stockCount->doc_number,
+            'status' => $stockCount->status,
+            'count_mode' => $stockCount->count_mode,
+            'is_editable' => $stockCount->isEditable(),
+            'location' => $stockCount->warehouseLocation?->name ?? 'ทุกตำแหน่ง',
+            'items' => $items->map(fn ($i) => [
+                'id' => $i->id,
+                'product_id' => $i->product_id,
+                'sku_code' => $i->sku_code,
+                'name_th' => $i->name_th,
+                'unit_label' => $i->unit_name ?: 'หน่วย',
+                'system_qty' => (float) $i->system_qty,
+                'counted_qty' => $i->counted_qty !== null ? (float) $i->counted_qty : null,
+                'barcodes' => ($barcodes[$i->product_id] ?? collect())->pluck('barcode')->all(),
+            ]),
+        ]);
+    }
+
+    /** บันทึกผลการตรวจนับ (ร่าง / อัปเดตระหว่างนับ) */
+    public function stockCountSave(Request $request, StockCount $stockCount): JsonResponse
+    {
+        $this->guardStockCountBranch($stockCount);
+        if (!$stockCount->isEditable()) {
+            return response()->json(['message' => 'ใบตรวจนับนี้อยู่ในสถานะตรวจสอบหรือปิดแล้ว ไม่สามารถแก้ไขได้'], 422);
+        }
+
+        $data = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.id' => ['required', 'integer'],
+            'items.*.counted_qty' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $updated = 0;
+        foreach ($data['items'] as $row) {
+            $updated += StockCountItem::where('stock_count_id', $stockCount->id)
+                ->where('id', $row['id'])
+                ->update(['counted_qty' => $row['counted_qty'] ?? null]);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'บันทึกความคืบหน้าแล้ว',
+            'updated' => $updated,
+        ]);
+    }
+
+    /** ส่งใบตรวจนับให้หัวหน้าตรวจสอบ */
+    public function stockCountSubmit(Request $request, StockCount $stockCount): JsonResponse
+    {
+        $this->guardStockCountBranch($stockCount);
+        if (!$stockCount->isEditable()) {
+            return response()->json(['message' => 'ใบตรวจนับนี้ถูกส่งตรวจสอบแล้ว'], 422);
+        }
+
+        if ($stockCount->items()->whereNotNull('counted_qty')->doesntExist()) {
+            return response()->json(['message' => 'ยังไม่มีรายการที่นับจริง กรุณานับสินค้าอย่างน้อย 1 รายการ'], 422);
+        }
+
+        $stockCount->update([
+            'status' => 'review',
+            'submitted_by' => $request->user()?->id,
+            'submitted_at' => now(),
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'ส่งใบตรวจนับให้หัวหน้าตรวจสอบแล้ว',
+            'doc_number' => $stockCount->doc_number,
+        ]);
+    }
+
+    private function guardStockCountBranch(StockCount $stockCount): void
+    {
+        $lockedBranchId = auth()->user()?->branchScopeId();
+        abort_if($lockedBranchId && $stockCount->branch_id !== $lockedBranchId, 403, 'ใบตรวจนับไม่ใช่ของสาขาคุณ');
     }
 }

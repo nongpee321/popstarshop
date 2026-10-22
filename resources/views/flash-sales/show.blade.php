@@ -69,15 +69,22 @@
                         <div x-show="newResults.length" style="position:absolute;z-index:100;left:0;right:0;top:100%;background:#fff;border:1px solid var(--erp-border);border-radius:10px;box-shadow:0 8px 24px rgba(15,23,42,.12);padding:6px;max-height:240px;overflow-y:auto">
                             <template x-for="p in newResults" :key="p.id">
                                 <div @click="selectNewProduct(p)" style="padding:8px 12px;cursor:pointer;border-radius:7px;font-size:13px" @mouseenter="$el.style.background='var(--erp-surface-2)'" @mouseleave="$el.style.background=''">
-                                    <span class="fw-semibold" x-text="p.sku_code"></span> — <span x-text="p.name_th"></span>
-                                    <span class="text-muted ms-2" x-text="'฿' + Number(p.default_price).toFixed(2)"></span>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <span class="fw-semibold" x-text="p.sku_code"></span> — <span x-text="p.name_th"></span>
+                                        </div>
+                                        <div class="small">
+                                            <span class="text-muted me-2" x-text="'ปกติ ฿' + Number(p.default_price).toFixed(2)"></span>
+                                            <span class="badge bg-light text-dark border" x-text="'ทุน ฿' + Number(p.average_cost || 0).toFixed(2)"></span>
+                                        </div>
+                                    </div>
                                 </div>
                             </template>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label text-muted small">ราคานาทีทอง</label>
-                        <input type="number" step="0.01" min="0" x-model.number="newPrice" class="form-control text-end" placeholder="0.00">
+                        <input type="number" step="0.01" min="0" x-model.number="newPrice" @input="calculateMargin()" class="form-control text-end fw-bold" placeholder="0.00">
                     </div>
                     <div class="col-md-3">
                         <label class="form-label text-muted small">จำกัดจำนวน/บิล (ไม่บังคับ)</label>
@@ -89,8 +96,22 @@
                         </button>
                     </div>
                 </div>
-                <div x-show="newProductName" class="mt-2">
-                    <span class="badge text-bg-info" x-text="newProductName"></span>
+                <div x-show="newProductName" class="mt-2" x-transition>
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 p-2 px-3 rounded-2 border"
+                         :class="marginStatusClass">
+                        <div class="d-flex align-items-center gap-2">
+                            <span x-html="marginStatusIcon"></span>
+                            <span class="fw-bold" x-text="newProductName"></span>
+                            <span class="badge" :class="marginBadgeClass" x-text="marginBadgeText"></span>
+                        </div>
+                        <div class="small d-flex align-items-center gap-3">
+                            <span>ปกติ: <strong x-text="'฿' + Number(newProductOriginalPrice).toFixed(2)"></strong></span>
+                            <span>ทุน: <strong x-text="'฿' + Number(newProductCost).toFixed(2)"></strong></span>
+                            <span>กำไร/ชิ้น: <strong :class="profitPerUnit >= 0 ? 'text-success' : 'text-danger'" x-text="(profitPerUnit >= 0 ? '+฿' : '-฿') + Math.abs(profitPerUnit).toFixed(2)"></strong></span>
+                            <span>Margin: <strong :class="profitPerUnit >= 0 ? 'text-success' : 'text-danger'" x-text="profitMarginPct.toFixed(1) + '%'"></strong></span>
+                        </div>
+                    </div>
+                    <div class="mt-1 small" :class="profitPerUnit < 0 ? 'text-danger fw-bold' : 'text-muted'" x-text="marginStatusDesc"></div>
                 </div>
                 <div x-show="saveMsg" class="mt-2 text-success small" x-text="saveMsg"></div>
             </div>
@@ -160,6 +181,68 @@ function flashSaleShow() {
         newProductQuery: '', newProductId: null, newProductName: '',
         newPrice: 0, newMaxQty: null,
         newResults: [], saveMsg: '',
+        newProductOriginalPrice: 0,
+        newProductCost: 0,
+        newProductMinMargin: 0,
+        profitPerUnit: 0,
+        profitMarginPct: 0,
+        marginStatusDesc: '',
+        marginStatusClass: 'bg-light text-dark',
+        marginBadgeClass: 'bg-secondary',
+        marginBadgeText: '',
+        marginStatusIcon: '',
+
+        calculateMargin() {
+            if (!this.newProductId) return;
+            const price = Number(this.newPrice) || 0;
+            const cost = Number(this.newProductCost) || 0;
+            const base = Number(this.newProductOriginalPrice) || 0;
+
+            this.profitPerUnit = price - cost;
+            this.profitMarginPct = price > 0 ? ((price - cost) / price) * 100 : 0;
+            const maxDiscountBaht = Math.max(0, base - cost);
+
+            if (price <= 0) {
+                this.marginStatusClass = 'bg-danger text-white border-danger shadow-sm';
+                this.marginBadgeClass = 'bg-white text-danger fw-bold';
+                this.marginBadgeText = 'ลด 100% แจกฟรี!';
+                this.marginStatusIcon = '<i class="bi bi-exclamation-octagon-fill text-white fs-4"></i>';
+                this.marginStatusDesc = cost > 0
+                    ? `🚨 ตั้งราคานาทีทอง 0 บาท! จะขาดทุนเต็มต้นทุน -฿${cost.toFixed(2)} / ชิ้น (แจกฟรี ลูกค้าไม่ต้องจ่ายเงิน)`
+                    : `🚨 ตั้งราคานาทีทอง 0 บาท! สินค้านี้จะแจกฟรีโดยร้านค้าไม่มีรายรับ`;
+            } else if (cost <= 0) {
+                this.marginStatusClass = 'bg-warning-subtle border-warning text-dark';
+                this.marginBadgeClass = 'bg-warning text-dark fw-bold';
+                this.marginBadgeText = 'ยังไม่ทราบต้นทุน';
+                this.marginStatusIcon = '<i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>';
+                this.marginStatusDesc = '⚠️ สินค้านี้ยังไม่ได้ระบุต้นทุนในระบบ ไม่สามารถคำนวณกำไร/ขาดทุนได้ กรุณาระมัดระวังการตั้งราคา';
+            } else if (price < cost) {
+                const loss = Math.abs(this.profitPerUnit);
+                this.marginStatusClass = 'bg-danger-subtle border-danger text-danger';
+                this.marginBadgeClass = 'bg-danger text-white';
+                this.marginBadgeText = 'ขาดทุน!';
+                this.marginStatusIcon = '<i class="bi bi-exclamation-octagon-fill text-danger fs-5"></i>';
+                this.marginStatusDesc = `⚠️ ตั้งราคานาทีทองต่ำกว่าทุน ฿${cost.toFixed(2)} (ขาดทุนชิ้นละ -฿${loss.toFixed(2)})! หากต้องการเท่าทุน ควรตั้งราคาไม่ต่ำกว่า ฿${cost.toFixed(2)}`;
+            } else if (price === cost) {
+                this.marginStatusClass = 'bg-warning-subtle border-warning text-dark';
+                this.marginBadgeClass = 'bg-warning text-dark';
+                this.marginBadgeText = 'เท่าทุน 0 บาท';
+                this.marginStatusIcon = '<i class="bi bi-dash-circle-fill text-warning fs-5"></i>';
+                this.marginStatusDesc = `⚖️ ขายเท่าทุนพอดี (Break-even): ต้นทุน ฿${cost.toFixed(2)} กำไร 0 บาท`;
+            } else if (this.newProductMinMargin > 0 && this.profitMarginPct < this.newProductMinMargin) {
+                this.marginStatusClass = 'bg-warning-subtle border-warning text-dark';
+                this.marginBadgeClass = 'bg-warning text-dark';
+                this.marginBadgeText = 'กำไรต่ำกว่าเกณฑ์';
+                this.marginStatusIcon = '<i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>';
+                this.marginStatusDesc = `⚡ กำไร ฿${this.profitPerUnit.toFixed(2)} (${this.profitMarginPct.toFixed(1)}%) ต่ำกว่าเกณฑ์เป้าหมายขั้นต่ำ ${this.newProductMinMargin}%`;
+            } else {
+                this.marginStatusClass = 'bg-success-subtle border-success text-success';
+                this.marginBadgeClass = 'bg-success text-white';
+                this.marginBadgeText = 'มีกำไรปลอดภัย';
+                this.marginStatusIcon = '<i class="bi bi-check-circle-fill text-success fs-5"></i>';
+                this.marginStatusDesc = `✓ กำไรดี: +฿${this.profitPerUnit.toFixed(2)} / ชิ้น (ลดราคาได้ต่ำสุดถึง ฿${cost.toFixed(2)} ก่อนจะเท่าทุน)`;
+            }
+        },
 
         async searchNewProduct() {
             if (!this.newProductQuery) { this.newResults = []; this.newProductId = null; this.newProductName = ''; return; }
@@ -172,7 +255,11 @@ function flashSaleShow() {
             this.newProductName = p.sku_code + ' ' + p.name_th;
             this.newProductQuery = p.sku_code + ' - ' + p.name_th;
             this.newPrice = Number(p.default_price) || 0;
+            this.newProductOriginalPrice = Number(p.default_price) || 0;
+            this.newProductCost = Number(p.average_cost) || 0;
+            this.newProductMinMargin = Number(p.minimum_margin_percent) || 0;
             this.newResults = [];
+            this.calculateMargin();
         },
 
         editExisting(productId, sku, name, price, maxQty) {

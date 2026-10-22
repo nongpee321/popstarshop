@@ -26,6 +26,7 @@ class ReportController extends Controller
             abort(403, 'ไม่มีสิทธิ์ดูรายงาน');
         }
 
+        $isHub = ! $request->filled('category') && ! $request->filled('report');
         $category = $request->input('category', 'sales');
         if (! isset($catalog[$category])) {
             $category = array_key_first($catalog);
@@ -82,6 +83,7 @@ class ReportController extends Controller
         }
 
         return view('reports.index', [
+            'isHub' => $isHub,
             'catalog' => $catalog,
             'selectedCategory' => $category,
             'selectedReport' => $report,
@@ -95,7 +97,7 @@ class ReportController extends Controller
             'canExport' => $user === null || $user->hasPermission('reports.export'),
             'branchLocked' => ! $canSeeAllBranches && $user?->branch_id === null,
             'branches' => DB::table('branches')->orderBy('code')->get(['id', 'code', 'name_th']),
-            'result' => $this->runReport($category, $report, $from, $to, $filters),
+            'result' => $isHub ? ['title' => 'ศูนย์รวมรายงาน', 'columns' => [], 'rows' => [], 'total' => 0] : $this->runReport($category, $report, $from, $to, $filters),
         ]);
     }
 

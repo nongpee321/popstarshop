@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,6 +11,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['code', 'name_th', 'name_en', 'is_active', 'default_warehouse_location_id', 'price_table_id'])]
 class Branch extends Model
 {
+    protected static function booted(): void
+    {
+        static::addGlobalScope('active', function (Builder $builder) {
+            $builder->where('branches.is_active', true);
+        });
+    }
+
+    public function getNameAttribute(): string
+    {
+        return (string) ($this->name_th ?: $this->code);
+    }
+
     public function defaultWarehouseLocation(): BelongsTo
     {
         return $this->belongsTo(WarehouseLocation::class, 'default_warehouse_location_id');

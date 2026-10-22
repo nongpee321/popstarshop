@@ -1,4 +1,4 @@
-@extends('layout')
+﻿@extends('layout')
 @section('title', 'การตั้งค่า - PopCentral')
 @section('page-title', 'การตั้งค่า')
 @section('page-subtitle', 'ตั้งค่าเอกสาร ข้อมูลกิจการ ภาษี และการรับชำระ')
@@ -6,6 +6,8 @@
 
 <form id="layout-form" method="post" action="{{ route('settings.layout.update') }}" class="d-none">
     @csrf
+    <input type="hidden" name="erp_theme" :value="theme">
+    <input type="hidden" name="erp_layout" :value="layout">
 </form>
 
 @if(session('success'))
@@ -19,9 +21,112 @@
     </div>
 @endif
 
-<form method="post" action="{{ route('settings.update') }}" enctype="multipart/form-data"
-      x-data="{ tab: @js(session('pos_token') || $errors->has('pos_version') || $errors->has('pos_installer') ? 'pos-download' : (request('tab') ?: 'func')), choice: @js($currentLogo ?? '__none__'), theme: @js($erpTheme), layout: @js($erpLayout), copied: false, menuOrder: @js($menuOrder), moveMenu(i, d) { const n=i+d; if(n<0 || n>=this.menuOrder.length) return; const a=[...this.menuOrder]; [a[i],a[n]]=[a[n],a[i]]; this.menuOrder=a; } }">
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('settingsManager', () => ({
+        tab: @js(session('pos_token') || $errors->has('pos_version') || $errors->has('pos_installer') ? 'pos-download' : (request('tab') ?: 'func')),
+        choice: @js($currentLogo ?? '__none__'),
+        theme: @js($erpTheme),
+        layout: @js($erpLayout),
+        copied: false,
+        savingLogo: false,
+        logoSuccess: false,
+        logoMessage: '',
+        menuOrder: @js($menuOrder),
+        customColors: JSON.parse(localStorage.getItem('erp_custom_colors') || '{"rail":"#1e293b","primary":"#334155","bg":"#f8fafc"}'),
+        applyCustomColors() {
+            let styleEl = document.getElementById('erp-custom-color-style');
+            if (!styleEl) {
+                styleEl = document.createElement('style');
+                styleEl.id = 'erp-custom-color-style';
+                document.head.appendChild(styleEl);
+            }
+            styleEl.innerHTML = `
+                :root {
+                    --erp-bg: ${this.customColors.bg} !important;
+                    --erp-primary-dark: ${this.customColors.primary} !important;
+                    --fa-blue-deep: ${this.customColors.primary} !important;
+                    --erp-primary-ink: ${this.customColors.primary} !important;
+                }
+                .fa-rail {
+                    background: ${this.customColors.rail} !important;
+                }
+                .btn-primary, .btn-primary:hover, .btn-primary:focus {
+                    background-color: ${this.customColors.primary} !important;
+                    border-color: ${this.customColors.primary} !important;
+                }
+                body, .content-wrapper {
+                    background-color: ${this.customColors.bg} !important;
+                }
+            `;
+            localStorage.setItem('erp_custom_colors', JSON.stringify(this.customColors));
+        },
+        resetCustomColors() {
+            const el = document.getElementById('erp-custom-color-style');
+            if (el) el.remove();
+            localStorage.removeItem('erp_custom_colors');
+            this.customColors = { rail: '#1e293b', primary: '#334155', bg: '#f8fafc' };
+            alert('คืนค่าสีเริ่มต้นเรียบร้อยแล้ว');
+            location.reload();
+        },
+        selectTheme(t) {
+            this.theme = t;
+            localStorage.setItem('erp_custom_theme', t);
+            document.documentElement.setAttribute('data-theme', t);
+            const el = document.getElementById('erp-custom-color-style');
+            if (el) el.remove();
+            localStorage.removeItem('erp_custom_colors');
+        },
+        saveThemeAndColors() {
+            this.selectTheme(this.theme);
+            document.getElementById('layout-form').submit();
+        },
+        moveMenu(i, d) {
+            const n = i + d;
+            if (n < 0 || n >= this.menuOrder.length) return;
+            const a = [...this.menuOrder];
+            [a[i], a[n]] = [a[n], a[i]];
+            this.menuOrder = a;
+        },
+        async selectAndSaveLogo(preset) {
+            this.choice = preset;
+            this.savingLogo = true;
+            this.logoSuccess = false;
+            try {
+                const token = document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || '{{ csrf_token() }}';
+                const res = await fetch('{{ route('settings.logo.update') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': token
+                    },
+                    body: JSON.stringify({ logo_choice: preset })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.logoSuccess = true;
+                    this.logoMessage = data.message || 'เปลี่ยนโลโก้ระบบเรียบร้อยแล้ว';
+                    const newSrc = data.logo_url;
+                    if (newSrc) {
+                        document.querySelectorAll('.fa-rail-logo img, .fa-subnav-brand img').forEach(el => el.src = newSrc);
+                    }
+                    setTimeout(() => { this.logoSuccess = false; }, 3500);
+                }
+            } catch (err) {
+                console.error('Logo update failed', err);
+            } finally {
+                this.savingLogo = false;
+            }
+        }
+    }));
+});
+</script>
+
+<form method="post" action="{{ route('settings.update') }}" enctype="multipart/form-data" x-data="settingsManager">
     @csrf
+    <input type="hidden" name="active_tab" :value="tab">
+    <input type="hidden" name="erp_theme" :value="theme">
     <input type="hidden" name="menu_order" :value="JSON.stringify(menuOrder)">
 
     <div class="set-shell">
@@ -56,7 +161,7 @@
                 <h2 class="h4 fw-bold mb-0" style="color:var(--erp-primary-dark)"
                     x-text="{ func: 'ฟังก์ชั่นเอกสาร', numbering: 'เลขรันเอกสาร', logo: 'โลโก้และตราประทับ', note: 'หมายเหตุเอกสาร', company: 'ข้อมูลกิจการ', menu: 'จัดลำดับเมนูหลัก', theme: 'ปรับธีมระบบ', payment: 'ข้อมูลการรับชำระ', accounting: 'บันทึกบัญชี', 'pos-download': 'ตั้งค่า PopCentral POS' }[tab]"></h2>
                 <button x-show="tab !== 'pos-download' && tab !== 'theme'" type="submit" class="btn btn-success px-4"><i class="bi bi-check-lg me-1"></i>บันทึกข้อมูล</button>
-                <button x-show="tab === 'theme'" type="submit" form="layout-form" class="btn btn-success px-4"><i class="bi bi-check-lg me-1"></i>บันทึก Layout</button>
+                <button x-show="tab === 'theme'" type="button" @click="saveThemeAndColors()" class="btn btn-success px-4"><i class="bi bi-check-lg me-1"></i>บันทึกการตั้งค่าธีม</button>
             </div>
 
             {{-- ฟังก์ชั่นเอกสาร --}}
@@ -121,17 +226,61 @@
                     <div class="theme-choice-grid">
                         @foreach([
                             'ocean' => ['ฟ้า JET', '#1a9bdc', 'var(--erp-primary)', 'var(--erp-primary-soft)'],
+                            'popstar' => ['PopStar ดั้งเดิม', '#e11d48', '#be123c', '#fff1f2'],
                             'navy' => ['กรมท่า', '#315b86', '#244768', 'var(--erp-surface-2)'],
                             'emerald' => ['เขียวมรกต', '#23966c', '#187653', '#eef7f3'],
                             'slate' => ['เทาสเลต', 'var(--erp-muted)', 'var(--erp-text)', '#f1f3f5'],
                             'clear' => ['อ่านง่าย', '#2563eb', 'var(--erp-info)', '#f4f6f8'],
                         ] as $key => [$label, $primary, $deep, $bg])
-                            <label class="theme-choice" :class="theme === '{{ $key }}' && 'active'">
+                            <label class="theme-choice" :class="theme === '{{ $key }}' && 'active'" @click="selectTheme('{{ $key }}')">
                                 <input type="radio" name="erp_theme" value="{{ $key }}" x-model="theme">
                                 <span class="theme-preview" style="--preview-primary:{{ $primary }};--preview-deep:{{ $deep }};--preview-bg:{{ $bg }}"><i></i><b></b></span>
                                 <strong>{{ $label }}</strong>
                             </label>
                         @endforeach
+                    </div>
+                    <div class="card border-0 shadow-sm mt-4 p-3 bg-light" style="border-radius: 14px;">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div>
+                                <h6 class="fw-bold mb-1 text-dark"><i class="bi bi-palette2 text-primary me-2"></i>ปรับแต่งแม่สีอิสระตามใจชอบ (Custom Colors)</h6>
+                                <p class="text-muted small mb-0">เลือกเฉดสีที่ต้องการด้วย Color Picker ระบบจะบันทึกและแสดงผลทันที</p>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" @click="resetCustomColors()">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>คืนค่าเริ่มต้น
+                            </button>
+                        </div>
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold text-dark d-flex align-items-center justify-content-between">
+                                    <span>1. สีแถบเมนู (Sidebar/Rail)</span>
+                                    <span class="badge bg-white text-dark border font-monospace" x-text="customColors.rail"></span>
+                                </label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <input type="color" x-model="customColors.rail" @input="applyCustomColors()" class="form-control form-control-color border-0 p-0" style="width:48px;height:38px;border-radius:8px;cursor:pointer">
+                                    <input type="text" x-model="customColors.rail" @input="applyCustomColors()" class="form-control font-monospace form-control-sm" style="text-transform:uppercase">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold text-dark d-flex align-items-center justify-content-between">
+                                    <span>2. สีปุ่มและไฮไลต์หลัก (Primary)</span>
+                                    <span class="badge bg-white text-dark border font-monospace" x-text="customColors.primary"></span>
+                                </label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <input type="color" x-model="customColors.primary" @input="applyCustomColors()" class="form-control form-control-color border-0 p-0" style="width:48px;height:38px;border-radius:8px;cursor:pointer">
+                                    <input type="text" x-model="customColors.primary" @input="applyCustomColors()" class="form-control font-monospace form-control-sm" style="text-transform:uppercase">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold text-dark d-flex align-items-center justify-content-between">
+                                    <span>3. สีพื้นหลังของระบบ (Background)</span>
+                                    <span class="badge bg-white text-dark border font-monospace" x-text="customColors.bg"></span>
+                                </label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <input type="color" x-model="customColors.bg" @input="applyCustomColors()" class="form-control form-control-color border-0 p-0" style="width:48px;height:38px;border-radius:8px;cursor:pointer">
+                                    <input type="text" x-model="customColors.bg" @input="applyCustomColors()" class="form-control font-monospace form-control-sm" style="text-transform:uppercase">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="set-title mt-4">รูปแบบหน้าหลังบ้าน</div>
                     <div class="set-desc mb-3">เปลี่ยนเฉพาะ Layout และสี ไม่กระทบข้อมูลขาย สต๊อก บัญชี หรือสิทธิ์</div>
@@ -164,26 +313,87 @@
             {{-- โลโก้ --}}
             <div x-show="tab === 'logo'" x-cloak>
                 <div class="set-card">
-                    <div class="set-title mb-1">โลโก้ระบบ</div>
-                    <div class="set-desc mb-3">ใช้แสดงบนเมนูซ้าย หน้า POS และหัวเอกสาร/รายงานตอนพิมพ์ — เลือกจากชุดที่มี หรืออัปโหลดไฟล์ใหม่</div>
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <div>
+                            <div class="set-title mb-1">โลโก้ระบบ</div>
+                            <div class="set-desc">คลิกเลือกโลโก้ที่ต้องการเพื่อเปลี่ยนทันที หรืออัปโหลดไฟล์ใหม่ด้านล่าง (มีผลกับเมนูซ้าย, หน้าร้าน POS และหัวเอกสารพิมพ์ทั้งหมด)</div>
+                        </div>
+                        <div x-show="savingLogo" class="spinner-border spinner-border-sm text-primary" role="status" style="display:none">
+                            <span class="visually-hidden">กำลังบันทึก...</span>
+                        </div>
+                    </div>
 
-                    <div class="logo-grid mb-3">
-                        <label class="logo-option" :class="{ active: choice === '__none__' }">
+                    <div x-show="logoSuccess" x-transition class="alert alert-success py-2 px-3 d-flex align-items-center gap-2 mb-3" style="display:none">
+                        <i class="bi bi-check-circle-fill"></i>
+                        <span x-text="logoMessage"></span>
+                    </div>
+
+                    <div class="logo-grid mb-4">
+                        <label class="logo-option" :class="{ active: choice === '__none__' }" @click="selectAndSaveLogo('__none__')">
                             <input type="radio" name="logo_choice" value="__none__" x-model="choice" class="d-none">
                             <div class="logo-thumb logo-thumb-text">pop<span>star</span></div>
                             <div class="logo-caption">ไม่ใช้รูป (ตัวอักษรเดิม)</div>
                         </label>
                         @foreach($presets as $preset)
-                            <label class="logo-option" :class="{ active: choice === '{{ $preset }}' }">
+                            <label class="logo-option" :class="{ active: choice === '{{ $preset }}' }" @click="selectAndSaveLogo('{{ $preset }}')">
                                 <input type="radio" name="logo_choice" value="{{ $preset }}" x-model="choice" class="d-none">
                                 <div class="logo-thumb"><img src="{{ asset($preset) }}" alt=""></div>
                                 <div class="logo-caption">{{ basename($preset) }}</div>
                             </label>
                         @endforeach
                     </div>
+                    <div class="card border-0 shadow-sm mt-4 p-3 bg-light" style="border-radius: 14px;">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div>
+                                <h6 class="fw-bold mb-1 text-dark"><i class="bi bi-palette2 text-primary me-2"></i>ปรับแต่งแม่สีอิสระตามใจชอบ (Custom Colors)</h6>
+                                <p class="text-muted small mb-0">เลือกเฉดสีที่ต้องการด้วย Color Picker ระบบจะบันทึกและแสดงผลทันที</p>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" @click="resetCustomColors()">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>คืนค่าเริ่มต้น
+                            </button>
+                        </div>
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold text-dark d-flex align-items-center justify-content-between">
+                                    <span>1. สีแถบเมนู (Sidebar/Rail)</span>
+                                    <span class="badge bg-white text-dark border font-monospace" x-text="customColors.rail"></span>
+                                </label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <input type="color" x-model="customColors.rail" @input="applyCustomColors()" class="form-control form-control-color border-0 p-0" style="width:48px;height:38px;border-radius:8px;cursor:pointer">
+                                    <input type="text" x-model="customColors.rail" @input="applyCustomColors()" class="form-control font-monospace form-control-sm" style="text-transform:uppercase">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold text-dark d-flex align-items-center justify-content-between">
+                                    <span>2. สีปุ่มและไฮไลต์หลัก (Primary)</span>
+                                    <span class="badge bg-white text-dark border font-monospace" x-text="customColors.primary"></span>
+                                </label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <input type="color" x-model="customColors.primary" @input="applyCustomColors()" class="form-control form-control-color border-0 p-0" style="width:48px;height:38px;border-radius:8px;cursor:pointer">
+                                    <input type="text" x-model="customColors.primary" @input="applyCustomColors()" class="form-control font-monospace form-control-sm" style="text-transform:uppercase">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold text-dark d-flex align-items-center justify-content-between">
+                                    <span>3. สีพื้นหลังของระบบ (Background)</span>
+                                    <span class="badge bg-white text-dark border font-monospace" x-text="customColors.bg"></span>
+                                </label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <input type="color" x-model="customColors.bg" @input="applyCustomColors()" class="form-control form-control-color border-0 p-0" style="width:48px;height:38px;border-radius:8px;cursor:pointer">
+                                    <input type="text" x-model="customColors.bg" @input="applyCustomColors()" class="form-control font-monospace form-control-sm" style="text-transform:uppercase">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-                    <label class="form-label small text-muted">หรืออัปโหลดโลโก้ใหม่ (png / jpg / webp / svg ไม่เกิน 4MB)</label>
-                    <input type="file" name="logo_file" accept=".png,.jpg,.jpeg,.webp,.svg" class="form-control" style="max-width:420px">
+                    <div class="border-top pt-3">
+                        <label class="form-label fw-bold text-dark mb-1">อัปโหลดโลโก้ใหม่จากเครื่องของคุณ</label>
+                        <div class="text-muted small mb-2">รองรับไฟล์ภาพ PNG, JPG, WEBP, SVG ขนาดไม่เกิน 4MB</div>
+                        <div class="d-flex gap-2 align-items-center" style="max-width:540px">
+                            <input type="file" name="logo_file" accept=".png,.jpg,.jpeg,.webp,.svg" class="form-control">
+                            <button type="submit" class="btn btn-outline-primary text-nowrap"><i class="bi bi-cloud-arrow-up me-1"></i>อัปโหลดโลโก้</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -324,49 +534,72 @@
                 @endif
 
                 <div class="set-card">
-                    <div class="set-title pt-2">การผูก Token กับเครื่อง POS</div>
+                    <div class="d-flex justify-content-between align-items-center pt-2 mb-2">
+                        <div class="set-title mb-0">📖 คู่มือการผูก Token & เข้าสู่ระบบ PopCentral POS (v1.21.0)</div>
+                        <a href="{{ route('core-modules.index') }}#pos" class="btn btn-sm btn-outline-danger">
+                            <i class="bi bi-book-half me-1"></i> เปิดคู่มือฉบับเต็มในระบบ
+                        </a>
+                    </div>
                     <div class="set-desc mb-3">
-                        Device token คือกุญแจของ <strong>เครื่อง POS และสาขา</strong> ไม่ใช่รหัสของแคชเชียร์ ระบบใช้ token เพื่อรู้ว่าเครื่องนี้เป็น POS ใด อยู่สาขาใด และมีสิทธิ์ sync ข้อมูลของสาขาใดเท่านั้น
+                        Device Token คือกุญแจยืนยันตัวตนของ <strong>เครื่อง POS และสาขา</strong> โดยโปรแกรมเวอร์ชันใหม่รวมขั้นตอนการใส่ Token และเข้าสู่ระบบของแคชเชียร์ไว้ในหน้าเดียวกันเพื่อความสะดวกและรวดเร็ว
                     </div>
                     <div class="row g-3 small mb-3">
-                        <div class="col-md-4">
-                            <div class="fw-semibold text-primary mb-1">1. ออก token ให้เครื่อง</div>
-                            <div class="text-muted">เลือกสาขา ตั้งชื่อเครื่อง เช่น POS001 แล้วกด <strong>สร้างอัตโนมัติ</strong> ระบบเก็บเฉพาะ hash ของ token บน ERP และแสดงค่าเต็มให้คัดลอกในครั้งนั้น</div>
+                        <div class="col-md-3">
+                            <div class="fw-semibold text-danger mb-1">1. สร้าง Token เครื่อง</div>
+                            <div class="text-muted">เลือกสาขาด้านล่าง แล้วกด <strong>"สร้างอัตโนมัติ"</strong> ระบบจะจ่าย Token ประจำสาขาขึ้นมาให้คัดลอกทันที</div>
                         </div>
-                        <div class="col-md-4">
-                            <div class="fw-semibold text-primary mb-1">2. ตั้งค่าเครื่องครั้งแรก</div>
-                            <div class="text-muted">เปิด PopCentral POS → <strong>ตั้งค่าเครื่องนี้</strong> กรอก ERP <code>{{ request()->getSchemeAndHttpHost() }}</code> และวาง token แล้วกดตรวจสอบ</div>
+                        <div class="col-md-3">
+                            <div class="fw-semibold text-danger mb-1">2. เปิดโปรแกรม POS</div>
+                            <div class="text-muted">เปิดแอป PopCentral POS จะมีหน้าต่าง <strong>เข้าสู่ระบบ (ธีมแดง-ขาว)</strong> ปรากฏขึ้นมาให้กรอกข้อมูล</div>
                         </div>
-                        <div class="col-md-4">
-                            <div class="fw-semibold text-primary mb-1">3. Sync และเริ่มขาย</div>
-                            <div class="text-muted">POS ตรวจ token, สาขา และรหัสเครื่องก่อน sync สินค้า ราคา layout และแคชเชียร์ จากนั้นผู้ใช้เข้าเครื่องด้วย <strong>รหัสพนักงาน + PIN POS</strong></div>
+                        <div class="col-md-3">
+                            <div class="fw-semibold text-danger mb-1">3. กรอก Token & บัญชีผู้ใช้</div>
+                            <div class="text-muted">วาง Device Token จากข้อ 1 และกรอก <strong>ชื่อผู้ใช้ (Username) และรหัสผ่าน</strong> แคชเชียร์ของคุณ แล้วกด <strong>"เข้าสู่ระบบ"</strong></div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="fw-semibold text-danger mb-1">4. เปิดกะขายประจำวัน</div>
+                            <div class="text-muted">เมื่อเข้าหน้าหลัก กดปุ่มสีส้ม <strong>"เปิดกะ"</strong> ระบุเงินสดยกมาเริ่มต้นในลิ้นชัก แล้วเริ่มยิงบาร์โค้ดขายได้ทันที</div>
                         </div>
                     </div>
-                    <div class="alert alert-info py-2 mb-3 small">
-                        <strong>แยกหน้าที่ชัดเจน:</strong> token ยืนยันตัวตนของเครื่องเพื่อเชื่อม ERP; PIN POS ยืนยันตัวตนของคนขายเพื่อเปิดกะและบันทึกผู้รับผิดชอบในบิล. การเปลี่ยนรหัสผ่านเข้าเว็บ ERP ไม่เปลี่ยน PIN POS.
+                    <div class="alert alert-danger bg-danger-subtle border-danger-subtle py-2 mb-3 small text-dark">
+                        <strong>คำแนะนำ:</strong> สามารถกดปุ่ม <strong>"📖 คู่มือ"</strong> บนหน้าต่างล็อกอินของโปรแกรม POS เพื่อดูรูปภาพและคำอธิบายขั้นตอนอย่างละเอียดได้ทุกเวลา
                     </div>
-                    <div class="set-title fs-6">หลังผูกครั้งแรก</div>
+                    <div class="set-title fs-6">ความปลอดภัยและข้อควรรู้</div>
                     <ul class="mb-3 ps-3 small text-muted">
-                        <li>เมื่อ online POS จะ sync ข้อมูลและ credential ของแคชเชียร์ก่อน login; หลังจากนั้นยังขายและดูยอดใน SQLite ของเครื่องได้เมื่อ offline</li>
-                        <li>หาก reset PIN บน ERP ขณะที่เครื่อง offline เครื่องยังใช้ PIN ที่ sync ล่าสุดได้จนถึงวันหมดอายุของสิทธิ์ offline; PIN ใหม่จะเริ่มใช้หลัง POS sync สำเร็จ</li>
-                        <li>IT เท่านั้นที่เปิด <strong>IT Maintenance</strong> เพื่อเปลี่ยน token, ทดสอบการเชื่อมต่อ, sync แคชเชียร์, สำรองฐานข้อมูล หรือดู log ได้</li>
+                        <li>โปรแกรมจะจดจำ Token และชื่อผู้ใช้ไว้ให้อัตโนมัติ ครั้งต่อไปเพียงกรอกรหัสผ่านเพื่อเข้าใช้งานได้ทันที</li>
+                        <li>หากต้องการย้ายเครื่องหรือเปลี่ยนสาขา ให้กดลบ Token เดิมในตารางด้านล่าง แล้วสร้าง Token ประจำสาขาใหม่</li>
+                        <li>ระบบรองรับการขายแบบออฟไลน์ 100% แม้อินเทอร์เน็ตหลุดชั่วคราว ข้อมูลบิลจะถูกส่งขึ้นคลาวด์อัตโนมัติเมื่อสัญญาณเน็ตกลับมา</li>
                     </ul>
-                    <div class="alert alert-warning py-2 mb-0 small">
-                        <strong>ความปลอดภัย:</strong> ห้ามใช้ token เดียวกับหลายเครื่องหรือส่งผ่านแชต หากเครื่องสูญหาย ย้ายสาขา หรือสงสัยว่ารหัสหลุด ให้กด <strong>ออก Token ใหม่</strong> หรือเพิกถอนเครื่องเดิมทันที แล้ววาง token ใหม่ใน IT Maintenance ของเครื่องนั้น. การออก token ใหม่ไม่ต้องรีเซ็ต PIN ของพนักงาน
-                    </div>
                 </div>
 
                 @if(session('pos_token'))
-                    <div class="set-card pos-token-result">
-                        <div>
-                            <div class="set-title">Token ใหม่ — {{ session('pos_device_name') }}</div>
-                            <div class="set-desc">Token แสดงครั้งเดียว คัดลอกไปวางในหน้าตั้งค่าของ PopCentral POS ได้เลย</div>
+                    <div class="set-card pos-token-result" style="border-left: 4px solid #10b981; background: rgba(16,185,129,0.06); padding: 18px 20px;">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div>
+                                <div class="set-title text-success"><i class="bi bi-check-circle-fill me-1"></i> ออก Token สำเร็จ — {{ session('pos_device_name') }}</div>
+                                <div class="set-desc">สามารถคัดลอก Token หรือคัดลอก "ลิงก์เข้าใช้งานอัตโนมัติ" เพื่อส่งให้เครื่องหน้าร้านเปิดใช้งานได้ทันที</div>
+                            </div>
                         </div>
-                        <div class="pos-token-copy-row">
-                            <input id="new-pos-token" class="form-control font-monospace" readonly value="{{ session('pos_token') }}">
-                            <button type="button" class="btn btn-success text-nowrap" @click="copyPosToken(document.getElementById('new-pos-token').value).then(ok => copied = ok)">
-                                <i class="bi bi-clipboard-check me-1"></i><span x-text="copied ? 'คัดลอกแล้ว' : 'คัดลอก Token'"></span>
-                            </button>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold">รหัส Token ประจำเครื่อง (สำหรับกรอกในหน้าตั้งค่าเครื่อง):</label>
+                            <div class="pos-token-copy-row">
+                                <input id="new-pos-token" class="form-control font-monospace" readonly value="{{ session('pos_token') }}">
+                                <button type="button" class="btn btn-outline-success text-nowrap" @click="copyPosToken(document.getElementById('new-pos-token').value).then(ok => copied = ok)">
+                                    <i class="bi bi-clipboard-check me-1"></i><span x-text="copied ? 'คัดลอกแล้ว' : 'คัดลอก Token'"></span>
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label text-muted small fw-bold">ลิงก์เข้า POS หน้าร้านอัตโนมัติ (Magic Link ประจำเครื่องนี้):</label>
+                            <div class="pos-token-copy-row">
+                                <input id="new-pos-link" class="form-control font-monospace text-primary" readonly value="{{ url('/pos?token=' . session('pos_token')) }}">
+                                <button type="button" class="btn btn-primary text-nowrap" onclick="copyPosToken(document.getElementById('new-pos-link').value).then(ok => { if(ok) this.innerHTML='<i class=&quot;bi bi-check-lg&quot;></i> คัดลอกลิงก์แล้ว'; })">
+                                    <i class="bi bi-link-45deg me-1"></i> คัดลอกลิงก์เข้าใช้งาน
+                                </button>
+                                <a href="{{ url('/pos?token=' . session('pos_token')) }}" target="_blank" class="btn btn-outline-primary text-nowrap">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i> เปิดดูหน้านี้
+                                </a>
+                            </div>
                         </div>
                     </div>
                 @endif
@@ -400,30 +633,52 @@
                     <div class="set-title pt-2 mb-2">เครื่องที่ออก Token แล้ว</div>
                     <div class="table-responsive pb-2">
                         <table class="table table-sm align-middle mb-0">
-                            <thead><tr><th>ชื่อเครื่อง</th><th>ผู้ใช้</th><th>สาขา</th><th>รหัสเครื่อง</th><th>ใช้งานล่าสุด</th><th>สถานะ</th><th class="text-end">Token</th></tr></thead>
+                            <thead><tr><th>ชื่อเครื่อง</th><th>ผู้ใช้</th><th>สาขา</th><th>รหัสเครื่อง</th><th>ใช้งานล่าสุด</th><th>สถานะ</th><th class="text-end">Token</th><th class="text-center" style="width: 70px;">จัดการ</th></tr></thead>
                             <tbody>
                             @forelse($posDevices as $device)
                                 <tr>
                                     <td class="fw-semibold">{{ $device->name }}</td>
                                     <td>{{ $device->user?->name ?? $device->user?->username ?? '-' }}</td>
-                                    <td>{{ $device->branch?->name_th ?? '-' }}</td>
+                                    <td>
+                                        <form method="POST" action="{{ route('settings.pos-token.change-branch') }}" class="d-inline-flex align-items-center gap-1 m-0">
+                                            @csrf
+                                            <input type="hidden" name="pos_device_id" value="{{ $device->id }}">
+                                            <select name="branch_id" class="form-select form-select-sm" style="min-width: 140px; font-size: 12px; padding: 2px 24px 2px 8px;" onchange="if(confirm('ต้องการย้ายเครื่องนี้ไปยังสาขาใหม่ทันทีหรือไม่?')) { this.form.submit(); } else { this.value='{{ $device->branch_id }}'; }">
+                                                @foreach($posBranches as $pb)
+                                                    <option value="{{ $pb->id }}" @selected($device->branch_id === $pb->id)>
+                                                        {{ $pb->code }} - {{ $pb->name_th }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </form>
+                                    </td>
                                     <td><code>{{ $device->terminal_code ?: '-' }}</code></td>
                                     <td>{{ $device->last_seen_at?->diffForHumans() ?? 'ยังไม่เคย' }}</td>
                                     <td><span class="badge {{ $device->isActive() ? 'text-bg-success' : 'text-bg-secondary' }}">{{ $device->isActive() ? 'ใช้งาน' : 'เพิกถอน' }}</span></td>
                                     <td class="text-end">
                                         @if($device->token_encrypted)
-                                            <button type="button" class="btn btn-sm btn-outline-success" data-token="{{ $device->token_encrypted }}" onclick="copyPosToken(this.dataset.token).then(ok => { if (ok) this.innerHTML='<i class=&quot;bi bi-check-lg&quot;></i> คัดลอกแล้ว'; })">
-                                                <i class="bi bi-clipboard"></i> คัดลอก
-                                            </button>
+                                            <div class="d-inline-flex gap-1">
+                                                <button type="button" class="btn btn-sm btn-outline-primary" data-url="{{ url('/pos?token=' . $device->token_encrypted) }}" onclick="copyPosToken(this.dataset.url).then(ok => { if (ok) this.innerHTML='<i class=&quot;bi bi-check-lg&quot;></i> ลิงก์แล้ว'; })" title="คัดลอกลิงก์ล็อกอินหน้าร้าน (Magic Link)">
+                                                    <i class="bi bi-link-45deg"></i> ลิงก์เข้า POS
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-success" data-token="{{ $device->token_encrypted }}" onclick="copyPosToken(this.dataset.token).then(ok => { if (ok) this.innerHTML='<i class=&quot;bi bi-check-lg&quot;></i> คัดลอกแล้ว'; })" title="คัดลอกรหัส Token">
+                                                    <i class="bi bi-clipboard"></i> Token
+                                                </button>
+                                            </div>
                                         @else
                                             <button type="submit" name="pos_device_id" value="{{ $device->id }}" formaction="{{ route('settings.pos-token.rotate') }}" formnovalidate class="btn btn-sm btn-outline-primary" onclick="return confirm('ออก Token ใหม่ให้เครื่องนี้? Token เดิมจะใช้งานไม่ได้')">
                                                 <i class="bi bi-arrow-repeat"></i> ออกใหม่ + คัดลอก
                                             </button>
                                         @endif
                                     </td>
+                                    <td class="text-center">
+                                        <button type="submit" name="pos_device_id" value="{{ $device->id }}" formaction="{{ route('settings.pos-token.destroy') }}" formnovalidate class="btn btn-sm btn-outline-danger" onclick="return confirm('ยืนยันลบเครื่อง {{ $device->name }} ({{ $device->terminal_code }}) หรือไม่?')">
+                                            <i class="bi bi-trash"></i> ลบ
+                                        </button>
+                                    </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="7" class="text-center text-muted py-3">ยังไม่มี Token อุปกรณ์</td></tr>
+                                <tr><td colspan="8" class="text-center text-muted py-3">ยังไม่มี Token อุปกรณ์</td></tr>
                             @endforelse
                             </tbody>
                         </table>

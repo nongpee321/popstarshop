@@ -154,7 +154,15 @@
                                 <td>{{ $product->brand?->name_th ?? '-' }}</td>
                                 <td>{{ $product->baseUnit?->displayLabel() ?? '-' }}</td>
                                 <td class="text-end fw-semibold">{{ rtrim(rtrim(number_format((float) $product->stockBalances->sum('on_hand_qty'), 4), '0'), '.') }}</td>
-                                <td class="text-end">{{ number_format($product->default_price ?? 0, 2) }}</td>
+                                <td class="text-end">
+                                    <button type="button" 
+                                            class="btn btn-sm btn-link p-0 text-decoration-none fw-bold text-dark font-monospace" 
+                                            @click="openPriceModal({{ $product->id }}, '{{ addslashes($product->name_th) }}', '{{ $product->sku_code }}', {{ (float)($product->default_price ?? 0) }})"
+                                            title="คลิกเพื่อเปลี่ยนราคา (ทุกสาขา / เฉพาะสาขา)">
+                                        <span id="price-val-{{ $product->id }}">฿{{ number_format($product->default_price ?? 0, 2) }}</span>
+                                        <i class="bi bi-pencil-square text-danger ms-1" style="font-size: 11px;"></i>
+                                    </button>
+                                </td>
                                 <td class="text-center">
                                     <span class="badge {{ $product->is_active ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }} rounded-pill px-3">
                                         {{ $product->is_active ? 'ใช้งาน' : 'ปิดใช้งาน' }}
@@ -162,6 +170,11 @@
                                 </td>
                                 <td class="text-center">
                                     <div class="d-flex gap-1 justify-content-center">
+                                        <button type="button" class="btn btn-sm btn-outline-warning text-dark bg-warning-subtle border-warning-subtle px-2 py-1 rounded fw-bold" style="font-size:10px;"
+                                            @click="openPriceModal({{ $product->id }}, '{{ addslashes($product->name_th) }}', '{{ $product->sku_code }}', {{ (float)($product->default_price ?? 0) }})"
+                                            title="เปลี่ยนราคาขาย (ทุกสาขา / เฉพาะสาขา)">
+                                            <i class="bi bi-tag-fill text-danger me-1"></i> ปรับราคา
+                                        </button>
                                         <a href="{{ route('products.show', $product) }}" class="btn btn-sm btn-danger px-2 py-1 rounded border-0" style="font-size:10px;" @click.prevent="openProduct('{{ route('products.show', $product) }}?popup=1')">
                                             <i class="bi bi-pencil-square me-1"></i> แก้ไข
                                         </a>
@@ -185,6 +198,103 @@
                 </table>
             </div>
             <div class="product-pagination">{{ $products->links() }}</div>
+        </div>
+
+        {{-- Modal ปรับราคาขาย (เปลี่ยนทุกสาขา / เฉพาะสาขา) --}}
+        <div class="booking-modal-backdrop" x-show="priceModalOpen" x-cloak x-transition.opacity @keydown.escape.window="priceModalOpen = false" style="z-index: 1080;">
+            <div class="booking-modal" style="width: min(560px, 95vw);" @click.outside="priceModalOpen = false" x-transition>
+                <div class="modal-header border-bottom px-4 py-3 d-flex justify-content-between align-items-center bg-danger text-white rounded-top-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-tags-fill fs-5"></i>
+                        <div>
+                            <h5 class="fw-bold mb-0 text-white" style="font-size: 16px;">ปรับราคาขายสินค้า</h5>
+                            <span class="small opacity-75" x-text="targetProductSku + ' · ' + targetProductName"></span>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" @click="priceModalOpen = false" aria-label="Close"></button>
+                </div>
+
+                <form @submit.prevent="savePrice()">
+                    <div class="modal-body p-4">
+                        {{-- ข้อความแจ้งเตือนผลลัพธ์ --}}
+                        <div x-show="priceModalNotice" x-transition class="alert py-2 px-3 small mb-3 rounded-3" :class="priceModalSuccess ? 'alert-success' : 'alert-danger'" x-text="priceModalNotice"></div>
+
+                        {{-- เลือกขอบเขตสาขา --}}
+                        <label class="form-label small fw-bold text-dark mb-2">
+                            <i class="bi bi-shop me-1 text-danger"></i>ต้องการเปลี่ยนราคาที่สาขาใด:
+                        </label>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="border p-2 rounded-3 w-100 d-flex align-items-center gap-2 cursor-pointer"
+                                       :class="priceScope === 'all' ? 'bg-primary-subtle border-primary text-primary fw-bold' : 'bg-light text-muted'"
+                                       style="cursor: pointer;">
+                                    <input type="radio" name="scope" value="all" x-model="priceScope" class="form-check-input mt-0" @change="onScopeChange()">
+                                    <span>ทุกสาขา (ราคามาตรฐาน)</span>
+                                </label>
+                            </div>
+                            <div class="col-6">
+                                <label class="border p-2 rounded-3 w-100 d-flex align-items-center gap-2 cursor-pointer"
+                                       :class="priceScope === 'branch' ? 'bg-danger-subtle border-danger text-danger fw-bold' : 'bg-light text-muted'"
+                                       style="cursor: pointer;">
+                                    <input type="radio" name="scope" value="branch" x-model="priceScope" class="form-check-input mt-0" @change="onScopeChange()">
+                                    <span>เฉพาะสาขานี้</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        {{-- กรณีเลือกเฉพาะสาขา --}}
+                        <div class="mb-3 p-3 bg-light rounded-3 border" x-show="priceScope === 'branch'" x-transition>
+                            <label class="form-label small fw-bold text-dark mb-1">เลือกสาขาที่ต้องการปรับราคา:</label>
+                            <select x-model="selectedBranchId" @change="onBranchChange()" class="form-select form-select-sm mb-2">
+                                <template x-for="b in branchList" :key="b.id">
+                                    <option :value="b.id" x-text="'[' + b.code + '] ' + b.name_th + ' (ปัจจุบัน ฿' + Number(b.price).toFixed(2) + ')'"></option>
+                                </template>
+                            </select>
+                            <div class="small text-muted d-flex align-items-center justify-content-between">
+                                <span>ราคาขายปัจจุบันของสาขานี้:</span>
+                                <strong class="text-dark" x-text="'฿' + Number(currentBranchPrice).toFixed(2)"></strong>
+                            </div>
+                        </div>
+
+                        {{-- ช่องกรอกราคาขายใหม่ --}}
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-dark mb-1">
+                                ราคาขายใหม่ (บาท) <span class="text-danger">*</span>:
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light fw-bold text-muted">฿</span>
+                                <input type="number" step="0.01" min="0" x-model="newPriceInput" required class="form-control form-control-lg fw-bold text-danger text-end" placeholder="0.00" autofocus>
+                                <span class="input-group-text bg-light small text-muted">บาท / หน่วย</span>
+                            </div>
+                        </div>
+
+                        {{-- สรุปเปรียบเทียบ --}}
+                        <div class="p-3 rounded-3 border bg-light small">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted">ขอบเขตที่จะมีผล:</span>
+                                <strong :class="priceScope === 'all' ? 'text-primary' : 'text-danger'"
+                                        x-text="priceScope === 'all' ? 'มีผลกับทุกสาขาในระบบ' : ('เฉพาะสาขา ' + getSelectedBranchName())"></strong>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">ราคาขายเดิม:</span>
+                                <span class="text-muted text-decoration-line-through" x-text="'฿' + Number(priceScope === 'all' ? targetProductPrice : currentBranchPrice).toFixed(2)"></span>
+                            </div>
+                            <div class="d-flex justify-content-between pt-1 border-top mt-1">
+                                <span class="fw-bold text-dark">ราคาขายใหม่:</span>
+                                <strong class="fs-6 text-danger" x-text="newPriceInput ? ('฿' + Number(newPriceInput).toFixed(2)) : '฿0.00'"></strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer bg-light px-4 py-3 d-flex justify-content-between">
+                        <button type="button" class="btn btn-secondary btn-sm rounded-pill px-3" @click="priceModalOpen = false">ยกเลิก</button>
+                        <button type="submit" class="btn btn-danger btn-sm rounded-pill px-4 fw-bold shadow-sm" :disabled="priceSaving">
+                            <i class="bi bi-check2-circle me-1"></i>
+                            <span x-text="priceSaving ? 'กำลังบันทึก...' : 'บันทึกราคาขาย'"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
 
         <div class="product-popup-backdrop" x-show="productPopupOpen" x-transition.opacity @keydown.escape.window="closeProduct()">
@@ -540,6 +650,115 @@
             deleteName: '',
             productPopupOpen: false,
             productUrl: '',
+            priceModalOpen: false,
+            targetProductId: null,
+            targetProductName: '',
+            targetProductSku: '',
+            targetProductPrice: 0,
+            priceScope: 'all',
+            selectedBranchId: '',
+            currentBranchPrice: 0,
+            newPriceInput: '',
+            branchList: [],
+            priceSaving: false,
+            priceModalNotice: '',
+            priceModalSuccess: false,
+
+            async openPriceModal(id, name, sku, price) {
+                this.targetProductId = id;
+                this.targetProductName = name;
+                this.targetProductSku = sku;
+                this.targetProductPrice = price;
+                this.newPriceInput = Number(price).toFixed(2);
+                this.priceScope = 'all';
+                this.priceModalNotice = '';
+                this.priceModalOpen = true;
+
+                try {
+                    const res = await fetch(`/products/${id}/branch-prices`);
+                    const data = await res.json();
+                    this.branchList = data.branches || [];
+                    if (this.branchList.length > 0) {
+                        this.selectedBranchId = this.branchList[0].id;
+                        this.currentBranchPrice = this.branchList[0].price;
+                    }
+                } catch(e) {}
+            },
+
+            onScopeChange() {
+                if (this.priceScope === 'all') {
+                    this.newPriceInput = Number(this.targetProductPrice).toFixed(2);
+                } else {
+                    this.onBranchChange();
+                }
+            },
+
+            onBranchChange() {
+                const b = this.branchList.find(x => x.id == this.selectedBranchId);
+                if (b) {
+                    this.currentBranchPrice = b.price;
+                    this.newPriceInput = Number(b.price).toFixed(2);
+                }
+            },
+
+            getSelectedBranchName() {
+                const b = this.branchList.find(x => x.id == this.selectedBranchId);
+                return b ? b.name_th : '';
+            },
+
+            async savePrice() {
+                if (!this.newPriceInput || isNaN(this.newPriceInput) || Number(this.newPriceInput) < 0) {
+                    this.priceModalNotice = 'กรุณากรอกราคาให้ถูกต้อง';
+                    this.priceModalSuccess = false;
+                    return;
+                }
+
+                this.priceSaving = true;
+                this.priceModalNotice = '';
+
+                try {
+                    const payload = {
+                        branch_id: this.priceScope === 'all' ? 'all' : this.selectedBranchId,
+                        price: parseFloat(this.newPriceInput)
+                    };
+
+                    const res = await fetch(`/products/${this.targetProductId}/prices`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const data = await res.json();
+                    if (data.success) {
+                        this.priceModalSuccess = true;
+                        this.priceModalNotice = data.message || 'บันทึกราคาเรียบร้อยแล้ว ✓';
+                        
+                        if (this.priceScope === 'all') {
+                            this.targetProductPrice = parseFloat(this.newPriceInput);
+                        }
+                        const cell = document.getElementById(`price-val-${this.targetProductId}`);
+                        if (cell) cell.innerText = '฿' + parseFloat(this.newPriceInput).toFixed(2);
+
+                        setTimeout(() => {
+                            this.priceModalOpen = false;
+                            this.priceSaving = false;
+                            this.priceModalNotice = '';
+                        }, 900);
+                    } else {
+                        this.priceModalSuccess = false;
+                        this.priceModalNotice = data.message || 'เกิดข้อผิดพลาดในการบันทึก';
+                        this.priceSaving = false;
+                    }
+                } catch(e) {
+                    this.priceModalSuccess = false;
+                    this.priceModalNotice = 'ข้อผิดพลาด: ' + e.message;
+                    this.priceSaving = false;
+                }
+            },
             openStockIn(id, name, sku) {
                 this.stockInUrl = `{{ url('/products') }}/${id}/quick-stock-in`;
                 this.stockInName = `${name} (${sku})`;

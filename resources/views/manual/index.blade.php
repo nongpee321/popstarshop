@@ -921,7 +921,7 @@
                 <div class="nav-group-title">🛒 บทที่ 2: ระบบขายหน้าร้าน (POS)</div>
                 <a href="#guide-python-pos" class="nav-link-item" onclick="openManualReader('python_pos'); setActiveNav(this);">
                     <i class="bi bi-terminal-fill text-danger"></i>
-                    <span>2.1 แอปแคชเชียร์ (Python POS v1.12.23)</span>
+                    <span>2.1 แอปแคชเชียร์ (PopCentral POS v1.12.25)</span>
                 </a>
                 <a href="#guide-pos" class="nav-link-item" onclick="openManualReader('pos'); setActiveNav(this);">
                     <i class="bi bi-cart4 text-danger"></i>
@@ -1099,13 +1099,13 @@
                     <!-- บทที่ 2: ระบบขายหน้าร้าน (Point of Sale) -->
                     <div class="vg-card" onclick="openManualReader('python_pos')">
                         <div class="vg-thumb">
-                            <img src="{{ asset('images/manual/python_pos_main.png') }}" alt="แอปพลิเคชัน Python POS">
+                            <img src="{{ asset('images/manual/pos.png') }}" alt="แอปพลิเคชัน PopCentral POS">
                             <span class="vg-badge-step"><i class="bi bi-terminal-fill me-1"></i> บทที่ 2.1: 6 ขั้นตอนพร้อมรูปจริง</span>
                         </div>
                         <div class="vg-body">
                             <div>
-                                <h4 class="vg-title"><i class="bi bi-terminal-fill text-danger"></i> 2.1 แอปแคชเชียร์ (Python POS Desktop v1.12.23)</h4>
-                                <p class="vg-desc">คู่มือใช้งานโปรแกรมแคชเชียร์หน้าร้านจริง เข้าสู่ระบบ เปิดกะ ยิงบาร์โค้ด ค้นหาสินค้า ชำระเงินสด/QR Code และปิดกะทำงาน (เวอร์ชันล่าสุด v1.12.23)</p>
+                                <h4 class="vg-title"><i class="bi bi-terminal-fill text-danger"></i> 2.1 แอปแคชเชียร์ (PopCentral POS Desktop v1.12.32)</h4>
+                                <p class="vg-desc">คู่มือเริ่มต้นใช้งานโปรแกรมแคชเชียร์หน้าร้านจริงตั้งแต่เริ่มต้น ขอรับ Device Token เข้าสู่ระบบ เปิดกะ ยิงบาร์โค้ด รับเงินสด/QR Code และปิดกะสรุปยอด Z-Report</p>
                             </div>
                             <button type="button" class="vg-btn-action">
                                 <i class="bi bi-book-half"></i> เปิดอ่านบทที่ 2.1 (6 ขั้นตอน)
@@ -1626,6 +1626,12 @@ flowchart TB
                     <p class="diagram-card-desc">
                         แสดงเส้นทางข้อมูลตั้งแต่วัตถุดิบเข้าสู่โรงงาน/ครัว จนถึงการขายให้ลูกค้าหน้าร้านและการลงบัญชีอัตโนมัติ
                     </p>
+                    <div style="margin: 15px 0 20px; text-align: center; background: #ffffff; border-radius: 12px; padding: 10px; border: 1px solid var(--border-light); box-shadow: var(--shadow-sm);">
+                        <img src="{{ asset('images/manual/pop_star_erp_cycle_flowchart.jpg') }}" alt="ผังวงจรระบบ POP STAR ERP ครบวงจร" style="width: 100%; max-width: 1100px; height: auto; border-radius: 8px; display: block; margin: 0 auto; box-shadow: 0 4px 14px rgba(0,0,0,0.06);">
+                        <div style="font-size: 13px; font-weight: 700; color: var(--text-muted); margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                            <i class="bi bi-diagram-3-fill text-primary"></i> แผนผังวงจรการทำงาน 5 ขั้นตอนหลัก: 01 จัดซื้อ & รับของ ➔ 02 คลังแช่แข็ง -18°C ➔ 03 ครัวกลาง & แปรรูป ➔ 04 ขายหน้าร้าน POS ➔ 05 คลาวด์ & บัญชี
+                        </div>
+                    </div>
                     <div class="mermaid-container">
                         <div class="mermaid">
 sequenceDiagram
@@ -1907,93 +1913,83 @@ flowchart TD
     <script>
         const manualGuidesData = {
             python_pos: {
-                title: 'คู่มือการใช้งานโปรแกรมแคชเชียร์หน้าร้าน (Python POS v1.12.23)',
+                title: 'คู่มือการใช้งานโปรแกรมแคชเชียร์หน้าร้าน (PopCentral POS v1.12.32)',
                 steps: [
                     {
                         badge: 'ขั้นตอนที่ 1',
-                        title: 'เข้าสู่ระบบแคชเชียร์ (Cashier Login)',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ชื่อผู้ใช้ / รหัสพนักงาน:</strong> ระบุชื่อผู้ใช้งานของแคชเชียร์ประจำเครื่อง</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>รหัสผ่าน (PIN):</strong> กรอกรหัสผ่านเพื่อยืนยันตัวตนพนักงาน</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีน้ำเงิน "เข้าสู่ระบบ":</strong> หรือกด Enter เพื่อตรวจสอบสิทธิ์เข้าใช้งานโปรแกรม</div></div>`,
-                        img: '{{ asset('images/manual/python_pos_step1.png') }}',
-                        tip: 'ผู้ใช้งานต้องมีสิทธิ์แคชเชียร์ที่กำหนดไว้ในระบบ ERP จึงจะสามารถเข้าสู่ระบบ POS ได้'
+                        title: 'ผูก Device Token & เข้าสู่ระบบ (Token & Login)',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>Device Token เครื่อง POS:</strong> คัดลอก Token จากระบบเว็บ ERP (เมนูตั้งค่า > POS Device Token) นำมาวางในช่องแรก</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>ชื่อผู้ใช้งาน & รหัสผ่าน (Username / Password):</strong> กรอกชื่อผู้ใช้และรหัสผ่านแคชเชียร์ของคุณ</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีแดง "เข้าสู่ระบบ":</strong> หรือกดปุ่ม "📖 คู่มือ" เพื่ออ่านขั้นตอนและวิธีแก้ปัญหาเบื้องต้น</div></div>`,
+                        img: '{{ asset('images/manual/pos_step1.png') }}',
+                        tip: 'ระบบจะจำค่า Token และชื่อผู้ใช้งานไว้ให้ ครั้งถัดไปเพียงกรอกรหัสผ่านเพื่อเข้าใช้งานได้ทันที'
                     },
                     {
                         badge: 'ขั้นตอนที่ 2',
                         title: 'เปิดกะขาย & ใส่เงินทอนเริ่มต้น (Shift Open)',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ข้อมูลสาขา & แคชเชียร์:</strong> ตรวจสอบชื่อสาขาและพนักงานผู้รับผิดชอบกะการขาย</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>กรอกเงินทอนตั้งต้น:</strong> ระบุจำนวนเงินสดเริ่มต้นในลิ้นชัก (เช่น 1,000.00 บาท)</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีเขียว "🔓 เปิดกะ":</strong> เพื่อเริ่มต้นรอบการขายและเริ่มคิดเงินลูกค้า</div></div>`,
-                        img: '{{ asset('images/manual/python_pos_step2.png') }}',
-                        tip: 'ยอดเงินทอนตั้งต้นนี้จะถูกนำไปรวมคำนวณกระทบยอดเงินสดเมื่อปิดกะสิ้นวัน'
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ปุ่มสถานะกะ (มุมขวาบน):</strong> สังเกตปุ่มสีส้มเขียนว่า "เปิดกะ" กดเพื่อเปิดรอบการขายประจำวัน</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>กรอกเงินทอนตั้งต้น:</strong> ระบุจำนวนเงินสดเริ่มต้นในลิ้นชัก (เช่น 1,000.00 บาท)</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดยืนยันเปิดกะ:</strong> สถานะจะเปลี่ยนเป็น "เปิดกะแล้ว (สีเขียว)" แสดงชื่อแคชเชียร์และเวลาเปิดกะ</div></div>`,
+                        img: '{{ asset('images/manual/pos_step2.png') }}',
+                        tip: 'จำเป็นต้องเปิดกะก่อนเริ่มขายสินค้าทุกครั้ง เพื่อให้ระบบสามารถบันทึกยอดขายและกระทบยอดเงินสดได้อย่างถูกต้อง'
                     },
                     {
                         badge: 'ขั้นตอนที่ 3',
-                        title: 'หน้าต่างขายหลัก & จัดการตะกร้า (Point of Sale)',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ยิงบาร์โค้ด / ค้นหา SKU / เลือกหมวดหมู่:</strong> สแกนบาร์โค้ดสินค้า หรือคลิกแท็บหมวดหมู่ด้านบนเพื่อเลือกสินค้าลงบิล</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>รายการในตะกร้า & ยอดรวม:</strong> ตรวจสอบรายการในตารางฝั่งขวา ปรับจำนวน แก้ไข หรือลบรายการที่ไม่ต้องการ</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีน้ำเงิน "💳 ชำระเงิน (F12)":</strong> หรือกดปุ่มคีย์ลัด [F12] เพื่อเปิดหน้าต่างรับชำระเงิน</div></div>`,
-                        img: '{{ asset('images/manual/python_pos_step3.png') }}',
-                        tip: 'สามารถกด F12 บนแป้นพิมพ์เพื่อเปิดหน้าชำระเงินได้ทันทีโดยไม่ต้องคลิกเมาส์'
+                        title: 'หน้าต่างขายหลัก, ยิงบาร์โค้ด & เลือกหมวดหมู่สินค้า',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>สแกนบาร์โค้ดสินค้า:</strong> ยิงบาร์โค้ดบนแพ็คสินค้า รายการจะลงตะกร้าฝั่งซ้ายโดยอัตโนมัติ</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>เลือกหมวดหมู่สินค้า:</strong> แตะแท็บหมวดหมู่ (หมู, ไก่, ทะเล, ลูกชิ้น, ของแห้ง) เพื่อเลือกสินค้าหน้าร้าน</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>จัดการตะกร้า:</strong> ปรับเพิ่ม/ลดจำนวนสินค้า หรือกดถังขยะเพื่อลบรายการ และกดปุ่ม "ชำระเงิน"</div></div>`,
+                        img: '{{ asset('images/manual/pos.png') }}',
+                        tip: 'รองรับการขายทั้งแบบออนไลน์และออฟไลน์ หากเน็ตหลุดระบบยังสามารถยิงบาร์โค้ดและขายได้ตามปกติ 100%'
                     },
                     {
                         badge: 'ขั้นตอนที่ 4',
-                        title: 'ชำระเงินด้วยเงินสด & คำนวณเงินทอน (Cash Payment)',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>เลือกวิธีชำระ "เงินสด":</strong> ตรวจสอบการ์ดสรุปยอดเงินและจำนวนชิ้นที่ต้องชำระ</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>ยอดเงินที่รับ & เงินทอน:</strong> กดแป้นตัวเลขหรือปุ่มด่วน (500, 1,000) ระบบจะแสดงเงินทอนสีเขียวอัตโนมัติ</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดยืนยันชำระเงิน (Enter):</strong> บันทึกตัดสต็อก สั่งเปิดลิ้นชักเก็บเงิน และพิมพ์ใบเสร็จอัตโนมัติ</div></div>`,
-                        img: '{{ asset('images/manual/python_pos_step4.png') }}',
-                        tip: 'หากลูกค้าให้เงินสดพอดี สามารถกดปุ่มจำนวนเงินพอดีเพื่อยืนยันได้รวดเร็ว'
+                        title: 'ชำระเงินสด / QR Code & เปิดลิ้นชักอัตโนมัติ',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ชำระด้วยเงินสด (Cash):</strong> กดปุ่มลัดธนบัตร (100, 500, 1000) ระบบคำนวณเงินทอน ดีดลิ้นชัก และพิมพ์ใบเสร็จ</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>ชำระด้วย QR พร้อมเพย์:</strong> กดเลือกแท็บ QR ระบบสร้าง QR Code ตามยอดบิลให้ลูกค้าสแกนจ่ายได้ทันที</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>เมนูควบคุมพิเศษ (☰):</strong> สามารถกดเปิดลิ้นชักด่วน (Open Drawer) หรือกดซิงค์ข้อมูล (Sync Data) ได้ตลอดเวลา</div></div>`,
+                        img: '{{ asset('images/manual/pos_step4.png') }}',
+                        tip: 'สามารถใช้งานร่วมกับจอฝั่งลูกค้า (Customer Display) และเครื่องพิมพ์ใบเสร็จความร้อน 80mm/58mm'
                     },
                     {
                         badge: 'ขั้นตอนที่ 5',
-                        title: 'สแกนจ่ายด้วย Thai QR Code (PromptPay)',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>กดเลือกแท็บ "QR":</strong> สลับเข้าสู่โหมดรับเงินโอนพร้อมเพย์</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>สแกน QR Code:</strong> ระบบจะสร้าง QR Code พร้อมเพย์ตามยอดบิลให้ลูกค้าสแกนจ่ายผ่านแอปธนาคาร</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดยืนยันชำระเงิน (Enter):</strong> เมื่อตรวจสอบสลิปการโอนเรียบร้อย กดยืนยันเพื่อปิดบิลและพิมพ์ใบเสร็จ</div></div>`,
-                        img: '{{ asset('images/manual/python_pos_step5.png') }}',
-                        tip: 'หากมีจอแสดงผลฝั่งลูกค้า (Customer Display) QR Code จะขึ้นแสดงบนจอลูกค้าโดยอัตโนมัติ'
-                    },
-                    {
-                        badge: 'ขั้นตอนที่ 6',
-                        title: 'ปิดกะทำงานสิ้นสุดวัน (Shift Close & Summary)',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ยอดเงินในระบบ:</strong> ตรวจสอบยอดเงินสดที่ระบบคำนวณไว้ (เงินทอนตั้งต้น + ยอดขายเงินสด)</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>ยอดเงินนับจริง:</strong> แคชเชียร์นับเงินสดจริงทั้งหมดในลิ้นชักและกรอกลงในช่อง</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีแดง "ยืนยันปิดกะ":</strong> ระบบจะทำการปิดกะ พิมพ์ใบสรุปยอดขาย Z-Report และส่งยอดซิงค์เข้าสู่ระบบ ERP</div></div>`,
-                        img: '{{ asset('images/manual/python_pos_step6.png') }}',
-                        tip: 'ควรปิดกะทุกครั้งเมื่อเปลี่ยนพนักงานหรือเมื่อสิ้นสุดวันทำการ'
+                        title: 'ปิดกะสรุปยอดประจำวัน & พิมพ์ Z-Report',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>กดปุ่ม "ปิดกะ" (สีแดง):</strong> ที่มุมขวาบนเมื่อสิ้นสุดเวลาปฏิบัติงานหรือเปลี่ยนเวร</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>นับเงินสดจริงในลิ้นชัก:</strong> ป้อนจำนวนเงินสดจริงที่นับได้ลงในช่องยอดเงินสด</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#dc2626; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>พิมพ์รายงานปิดกะ (Z-Report):</strong> ระบบจะคำนวณเงินขาด/เกิน พิมพ์สลิปปิดกะ และส่งยอดเข้าบัญชี ERP ส่วนกลางทันที</div></div>`,
+                        img: '{{ asset('images/manual/pos_step5.png') }}',
+                        tip: 'ยอดขายและข้อมูลการปิดกะจะถูกส่งเข้าสมุดรายวันทั่วไปและรายงานผู้บริหารในระบบ ERP แบบอัตโนมัติ'
                     }
                 ]
             },
             pos: {
-                title: 'ระบบขายหน้าร้าน (JET POS v1.12.23)',
+                title: 'ระบบขายหน้าร้าน (Web POS)',
                 steps: [
                     {
                         badge: 'ขั้นตอนที่ 1',
-                        title: 'เปิดกะขาย & ใส่เงินทอนเริ่มต้น (Shift Open)',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ข้อมูลสาขา & แคชเชียร์:</strong> ตรวจสอบชื่อสาขาและพนักงานผู้รับผิดชอบกะการขาย</div></div>
+                        title: 'เปิดกะขาย & ใส่เงินทอนเริ่มต้น (Shift Open) *จำเป็นก่อนขาย*',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ตรวจสอบสถานะกะ:</strong> ปุ่มสีเหลือง "ยังไม่เปิดกะ" ด้านบน (หากยังไม่เปิดกะ ระบบจะบล็อกไม่ให้เลือกสินค้าลงตะกร้า)</div></div>
 <div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>กรอกเงินทอนตั้งต้น:</strong> ระบุจำนวนเงินสดเริ่มต้นในลิ้นชัก (เช่น 1,000.00 บาท)</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีเขียว "🔓 เปิดกะ":</strong> เพื่อเริ่มต้นรอบการขายและเริ่มคิดเงินลูกค้า</div></div>`,
+<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีเขียว "🔓 เปิดกะ":</strong> เพื่อเริ่มต้นรอบการขายและปลดล็อกให้เริ่มยิงบาร์โค้ดได้ทันที</div></div>`,
                         img: '{{ asset('images/manual/pos_step1.png') }}',
-                        tip: 'เงินทอนเริ่มต้นนี้จะถูกนำไปคำนวณกระทบยอดเงินสดเมื่อสิ้นสุดวันในใบรายงาน Z-Report'
+                        tip: 'จำเป็นต้องเปิดกะก่อนเริ่มขายทุกครั้ง เพื่อให้ระบบสามารถบันทึกยอดขายและตรวจสอบเงินสดได้อย่างถูกต้อง'
                     },
                     {
                         badge: 'ขั้นตอนที่ 2',
                         title: 'เลือกสินค้า / ยิงบาร์โค้ด / หมวดหมู่สินค้า',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ค้นหาสินค้า & สแกนบาร์โค้ด:</strong> พิมพ์รหัส SKU ชื่อสินค้า หรือใช้เครื่องสแกนยิงบาร์โค้ดในช่องค้นหา</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>เลือกหมวดหมู่สินค้า:</strong> คลิกแท็บหมวดหมู่ด้านบน (ทั้งหมด, เครื่องดื่ม, ของว่าง, เมนูแนะนำ) เพื่อกรองรายการ</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>คลิกเลือกการ์ดสินค้า:</strong> แตะที่รูปหรือชื่อสินค้าเพื่อเพิ่มลงตะกร้าขายฝั่งขวาทันที</div></div>`,
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>ค้นหาสินค้า & สแกนบาร์โค้ด:</strong> พิมพ์รหัส SKU หรือยิงบาร์โค้ด สินค้าจะลงตะกร้าอัตโนมัติ</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>เลือกหมวดหมู่สินค้า:</strong> คลิกแท็บหมวดหมู่ด้านบน เพื่อกรองรายการสินค้าที่ต้องการ</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>คลิกเลือกการ์ดสินค้า:</strong> แตะที่รูปหรือชื่อสินค้าเพื่อเพิ่มลงตะกร้าขายทันที</div></div>`,
                         img: '{{ asset('images/manual/pos_step2.png') }}',
                         tip: 'หากสินค้าขึ้นสต็อกคงเหลือ 0 ระบบจะแจ้งเตือนและบล็อกไม่ให้ขายจนกว่าจะมีการทำรายการรับโอนสต็อก'
                     },
                     {
                         badge: 'ขั้นตอนที่ 3',
-                        title: 'จัดการตะกร้าสินค้า & คำนวณยอดชำระ',
-                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>รายการในตะกร้า & ปรับจำนวน:</strong> ตรวจสอบรายการในตารางฝั่งขวา กดปรับจำนวน หรือลบรายการที่ไม่ต้องการ</div></div>
-<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>สรุปยอดเงิน & ภาษี:</strong> ระบบคำนวณยอดรวม, ส่วนลด, ภาษีมูลค่าเพิ่ม (VAT 7%) และยอดสุทธิโดยอัตโนมัติ</div></div>
-<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>กดปุ่มสีน้ำเงิน "💳 ชำระเงิน (F12)":</strong> หรือกดปุ่มลัด [F12] เพื่อเปิดหน้าต่างรับชำระเงิน</div></div>`,
+                        title: 'จัดการตะกร้า, ใส่ส่วนลด & พักบิล (Cart & Actions)',
+                        desc: `<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">1</span><div><strong>🏷️ ใส่ส่วนลด:</strong> กดปุ่มสีม่วงในแถบเมนูด้านล่าง ระบุส่วนลดเป็นเงินบาท (฿) หรือเปอร์เซ็นต์ (%)</div></div>
+<div style="display:flex; gap:8px; margin-bottom:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">2</span><div><strong>⏸️ พักบิล / 📁 เรียกบิล:</strong> กดพักบิลเพื่อรับลูกค้าท่านถัดไป และกดเรียกบิลพักเดิมกลับมาคิดเงินต่อได้ทันที</div></div>
+<div style="display:flex; gap:8px;"><span style="background:#d32f2f; color:#fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:11px; font-weight:bold; flex-shrink:0;">3</span><div><strong>💳 คิดเงิน / ชำระเงิน:</strong> ตรวจสอบยอดสุทธิและกดปุ่มคิดเงินเพื่อเปิดหน้าต่างรับชำระ</div></div>`,
                         img: '{{ asset('images/manual/pos_step3.png') }}',
-                        tip: 'สามารถกด F12 บนแป้นพิมพ์เพื่อเปิดหน้าชำระเงินได้ทันทีโดยไม่ต้องคลิกเมาส์'
                     },
                     {
                         badge: 'ขั้นตอนที่ 4',
