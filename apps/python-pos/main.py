@@ -75,32 +75,45 @@ def main():
             except:
                 pass
 
-        token_dlg = PosTokenLoginDialog(
-            api_url=config.get('api_url', 'http://localhost:8000'),
-            default_token=config.get('pos_token', ''),
-            default_username=config.get('cashier_username', config.get('cashier_name', ''))
-        )
-        if token_dlg.exec() != PosTokenLoginDialog.Accepted:
-            # User closed or cancelled login window -> exit app without opening MainWindow
-            sys.exit(0)
+        is_demo = '--demo' in sys.argv
+        if is_demo:
+            print("[POS] Starting in DEMO mode...")
+            config['api_url'] = 'http://localhost:8000'
+            config['branch_id'] = 6
+            config['branch_name'] = '0001 - สำนักงานใหญ่'
+            config['device_id'] = 1
+            config['cashier_name'] = 'Admin / Demo Cashier'
+            config['cashier_username'] = 'admin'
+        else:
+            token_dlg = PosTokenLoginDialog(
+                api_url=config.get('api_url', 'http://localhost:8000'),
+                default_token=config.get('pos_token', ''),
+                default_username=config.get('cashier_username', config.get('cashier_name', ''))
+            )
+            if token_dlg.exec() != PosTokenLoginDialog.Accepted:
+                # User closed or cancelled login window -> exit app without opening MainWindow
+                sys.exit(0)
 
-        # Update config with verified token, branch, and cashier identity
-        config['pos_token'] = token_dlg.token
-        if getattr(token_dlg, 'branch_id', None):
-            config['branch_id'] = token_dlg.branch_id
-        if getattr(token_dlg, 'branch_name', None):
-            config['branch_name'] = token_dlg.branch_name
-        if getattr(token_dlg, 'device_id', None):
-            config['device_id'] = token_dlg.device_id
-        if token_dlg.selected_cashier:
-            cashier_obj = token_dlg.selected_cashier
-            cashier_name = cashier_obj.get('name') or cashier_obj.get('code') or token_dlg.username
-            cashier_id = cashier_obj.get('id') or cashier_obj.get('user_id')
-            if cashier_id:
-                config['cashier_id'] = cashier_id
-            config['cashier_name'] = cashier_name
-            config['cashier_username'] = token_dlg.username
-            config['cashier_pin'] = token_dlg.entered_pin
+        if not is_demo:
+            # Update config with verified token, branch, and cashier identity
+            config['pos_token'] = token_dlg.token
+            if getattr(token_dlg, 'branch_id', None):
+                config['branch_id'] = token_dlg.branch_id
+            if getattr(token_dlg, 'branch_name', None):
+                config['branch_name'] = token_dlg.branch_name
+            if getattr(token_dlg, 'device_id', None):
+                config['device_id'] = token_dlg.device_id
+            if token_dlg.selected_cashier:
+                cashier_obj = token_dlg.selected_cashier
+                cashier_name = cashier_obj.get('name') or cashier_obj.get('code') or token_dlg.username
+                cashier_id = cashier_obj.get('id') or cashier_obj.get('user_id')
+                if cashier_id:
+                    config['cashier_id'] = cashier_id
+                config['cashier_name'] = cashier_name
+                config['cashier_username'] = token_dlg.username
+                config['cashier_pin'] = token_dlg.entered_pin
+        else:
+            config['pos_token'] = config.get('pos_token') or 'demo_token'
         try:
             with open(config_file, 'w', encoding='utf-8') as f:
                 json.dump(config, f)
