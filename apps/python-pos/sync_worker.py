@@ -29,6 +29,15 @@ class SyncWorker(QThread):
         self.force_sync_flag = True
 
     def _check_internet(self):
+        # 1. First check if Local/Internal ERP API is reachable
+        try:
+            r = requests.get(f"{self.api_url}/api/pos/ping", timeout=2)
+            if r.status_code == 200:
+                return True
+        except Exception:
+            pass
+
+        # 2. Check general external internet
         import socket
         try:
             socket.create_connection(("1.1.1.1", 53), timeout=1)

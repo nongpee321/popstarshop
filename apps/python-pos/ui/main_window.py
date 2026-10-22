@@ -865,6 +865,13 @@ class MainWindow(QMainWindow):
             from ui.shift_dialog import ShiftOpenDialog
             dialog = ShiftOpenDialog(self, cashier_name=self.config.get('cashier_name', 'Unknown'), api_url=self.config.get('api_url', ''), pos_token=self.config.get('pos_token', ''), branch_name=self.config.get('branch_name', 'สำนักงานใหญ่'))
             if dialog.exec() == QDialog.Accepted:
+                # ตรวจสอบสถานะการเชื่อมต่อ: ถ้าสถานะเป็น Offline ให้เปิดกะแบบออฟไลน์ทันที
+                is_currently_offline = hasattr(self, 'network_status') and 'Offline' in self.network_status.text()
+                if is_currently_offline:
+                    self._open_shift_local(dialog.opening_cash, server_id=None, synced=False)
+                    QMessageBox.information(self, "สำเร็จ", "เปิดกะแบบออฟไลน์เรียบร้อย (ระบบจะส่งข้อมูลขึ้นเซิร์ฟเวอร์เมื่อเชื่อมต่อออนไลน์)")
+                    return
+
                 try:
                     res = requests.post(
                         f"{self.config['api_url']}/api/pos/shift/open",
@@ -873,7 +880,7 @@ class MainWindow(QMainWindow):
                         timeout=15
                     )
                     if res.status_code == 200:
-                        QMessageBox.information(self, "สำเร็จ", "เปิดกะเรียบร้อย (Online)")
+                        QMessageBox.information(self, "สำเร็จ", "เปิดกะเรียบร้อย (ออนไลน์)")
                         data = res.json()
                         shift_obj = data.get('shift', {}) if isinstance(data.get('shift'), dict) else {}
                         server_id = shift_obj.get('id') or data.get('shift_id', 0)
@@ -883,13 +890,16 @@ class MainWindow(QMainWindow):
                             self.current_shift['server_id'] = server_id
                     else:
                         err_msg = res.json().get("message", res.text) if res.text else "API Error"
-                        QMessageBox.warning(self, "ไม่สามารถเปิดกะ Online ได้", f"เซิร์ฟเวอร์แจ้งว่า: {err_msg}\n\nหากต้องการเปิดแบบออฟไลน์ กรุณายกเลิกการเชื่อมต่อเน็ต")
+                        reply = QMessageBox.question(self, "ไม่สามารถเปิดกะออนไลน์ได้", f"เซิร์ฟเวอร์แจ้งว่า: {err_msg}\n\nคุณต้องการเปิดกะแบบออฟไลน์เพื่อขายต่อทันทีหรือไม่?", QMessageBox.Yes | QMessageBox.No)
+                        if reply == QMessageBox.Yes:
+                            self._open_shift_local(dialog.opening_cash, server_id=None, synced=False)
+                            QMessageBox.information(self, "สำเร็จ", "เปิดกะแบบออฟไลน์เรียบร้อย (ระบบจะซิงค์ข้อมูลภายหลัง)")
                 except requests.exceptions.RequestException:
-                    reply = QMessageBox.question(self, "Network Error", "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ ต้องการเปิดกะแบบออฟไลน์หรือไม่?", QMessageBox.Yes | QMessageBox.No)
+                    reply = QMessageBox.question(self, "ไม่พบการเชื่อมต่อ", "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ ต้องการเปิดกะแบบออฟไลน์หรือไม่?", QMessageBox.Yes | QMessageBox.No)
                     if reply == QMessageBox.Yes:
-                        QMessageBox.information(self, "สำเร็จ", "เปิดกะแบบออฟไลน์เรียบร้อย (ระบบจะส่งข้อมูลภายหลัง)")
                         self._open_shift_local(dialog.opening_cash, server_id=None, synced=False)
-
+                        QMessageBox.information(self, "สำเร็จ", "เปิดกะแบบออฟไลน์เรียบร้อย (ระบบจะส่งข้อมูลขึ้นเซิร์ฟเวอร์เมื่อเชื่อมต่อออนไลน์)")
+    
     def _close_shift_local(self, counted_cash, synced=False):
         try:
             from datetime import datetime
