@@ -582,7 +582,7 @@ class MainWindow(QMainWindow):
             logo.setText("PopCentral POS")
             logo.setStyleSheet("font-size: 20px; font-weight: bold; color: #b91c1c;")
         
-        version_label = QLabel("v1.25.0")
+        version_label = QLabel("v1.26.0")
         version_label.setStyleSheet("font-size: 14px; color: #64748b; font-weight: bold; background: #e2e8f0; padding: 2px 8px; border-radius: 10px;")
         
         self.branch_label = QLabel(f"🏢 {self.config.get('branch_name', 'กำลังตรวจสอบ...')}")
@@ -1393,7 +1393,8 @@ class MainWindow(QMainWindow):
             total_amount += tot
             cart_items.append({
                 "id": p_id,
-                "name": name_item.text(),
+                "name": name_item.text(),     # product display name (for offline recall)
+                "name_th": name_item.text(),  # alias for compatibility
                 "qty": qty,
                 "unit_price": price,
                 "total": tot
@@ -1506,14 +1507,47 @@ class MainWindow(QMainWindow):
                 if reply != QMessageBox.Yes:
                     return
                     
-            cart_data = chosen.get('cart') or (chosen.get('payload') or {}).get('cart') or []
+            # payload may be a JSON string (older server responses) — parse safely
+            raw_payload = chosen.get('payload')
+            if isinstance(raw_payload, str):
+                try:
+                    raw_payload = json.loads(raw_payload)
+                except Exception:
+                    raw_payload = {}
+            cart_data = chosen.get('cart') or (raw_payload or {}).get('cart') or []
             self.cart_table.setRowCount(0)
-            
+
+            # Open local DB once for offline name/price fallback
+            _lookup_session = None
+            try:
+                _lookup_session = init_db(f'sqlite:///{self.db_path}')
+            except Exception:
+                pass
+
             for item in cart_data:
                 p_id = item.get('id') or item.get('product_id')
-                name = item.get('name') or item.get('name_th') or "สินค้า"
+                # Explicit None-check: empty-string must not be treated as missing
+                name = item.get('name') if item.get('name') not in (None, '') else item.get('name_th')
+                price_val = item.get('unit_price') if item.get('unit_price') is not None else item.get('price')
                 qty = float(item.get('qty') or 1)
-                price = float(item.get('unit_price') or item.get('price') or 0.0)
+                price = float(price_val) if price_val is not None else 0.0
+
+                # Offline fallback: look up from local SQLite when name/price is absent
+                if _lookup_session and p_id and (not name or price == 0.0):
+                    try:
+                        db_prod = _lookup_session.query(Product).filter_by(id=int(p_id)).first()
+                        if db_prod:
+                            if not name:
+                                name = db_prod.name_th or ''
+                            if price == 0.0:
+                                price = float(
+                                    db_prod.pos_price if db_prod.pos_price is not None
+                                    else (db_prod.default_price or 0.0)
+                                )
+                    except Exception:
+                        pass
+
+                name = name or 'สินค้า'
                 tot = qty * price
                 
                 row = self.cart_table.rowCount()
@@ -1548,8 +1582,17 @@ class MainWindow(QMainWindow):
                 manage_layout.addWidget(del_btn)
                 self.cart_table.setCellWidget(row, 4, manage_widget)
                 
-            self.discount_amount = float(chosen.get('discount_amount') or 0.0)
-            self.discount_label = str(chosen.get('discount_label') or "")
+            # Close the lookup session
+            if _lookup_session:
+                try:
+                    _lookup_session.close()
+                except Exception:
+                    pass
+
+            # Restore discount (may be at top-level or inside payload)
+            _disc_src = chosen if 'discount_amount' in chosen else (raw_payload or {})
+            self.discount_amount = float(_disc_src.get('discount_amount') or 0.0)
+            self.discount_label = str(_disc_src.get('discount_label') or "")
             self.update_cart_total()
             
             # ลบบิลออกจาก local file

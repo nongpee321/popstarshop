@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'version' => '1.25.0',
+    'version' => '1.26.0',
     'notes' => 'PopCentral POS 1.13.0: Background Auto-Sync, Live Cart Price Sync, and Instant Multi-Branch Price Updates.',
     'pub_date' => '2026-10-17T13:54:00+07:00',
     'platforms' => [
