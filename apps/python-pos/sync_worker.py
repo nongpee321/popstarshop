@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from PySide6.QtCore import QThread, Signal
 from database.models import (
-    init_db, Product, Category, Sale, SaleItem, Payment, Outbox, SyncLog
+    init_db, Product, Category, Sale, SaleItem, Payment, Outbox, SyncLog, PosShift
 )
 from sqlalchemy.orm import Session
 
@@ -242,15 +242,63 @@ class SyncWorker(QThread):
             'Accept': 'application/json'
         }
         
+        session = init_db(f'sqlite:///{self.db_path}')
+
+        # 0. Sync pending offline shift(s) to server first if any
+        try:
+            pending_shifts = session.query(PosShift).filter(
+                (PosShift.server_id == None) | (PosShift.sync_status == 'pending')
+            ).all()
+            for p_shift in pending_shifts:
+                open_payload = {
+                    'opening_cash': p_shift.opening_cash or 0.0,
+                    'cashier': p_shift.cashier_name or 'Cashier'
+                }
+                try:
+                    s_res = requests.post(
+                        f'{self.api_url}/api/pos/shift/open',
+                        headers=headers,
+                        json=open_payload,
+                        timeout=15
+                    )
+                    if s_res.status_code == 200:
+                        s_data = s_res.json()
+                        shift_obj = s_data.get('shift', {}) if isinstance(s_data.get('shift'), dict) else {}
+                        s_id = shift_obj.get('id') or s_data.get('shift_id')
+                        if s_id:
+                            p_shift.server_id = s_id
+                            p_shift.sync_status = 'synced'
+                            session.commit()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
         # Get active shift from server
         try:
             shift_response = requests.get(f'{self.api_url}/api/pos/shift', headers=headers, timeout=30)
             shift_response.raise_for_status()
             shift_data = shift_response.json().get('shift')
         except Exception:
+            session.close()
             return
         
         if not shift_data:
+            # If server still has no open shift, try opening one automatically so offline queue can flush
+            try:
+                auto_open_res = requests.post(
+                    f'{self.api_url}/api/pos/shift/open',
+                    headers=headers,
+                    json={'opening_cash': 0.0, 'cashier': 'Auto-Sync Cashier'},
+                    timeout=15
+                )
+                if auto_open_res.status_code == 200:
+                    shift_data = auto_open_res.json().get('shift')
+            except Exception:
+                pass
+
+        if not shift_data:
+            session.close()
             return
             
         shift_id = shift_data['id']

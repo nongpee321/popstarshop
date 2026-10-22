@@ -535,7 +535,7 @@ document.addEventListener('alpine:init', () => {
 
                 <div class="set-card">
                     <div class="d-flex justify-content-between align-items-center pt-2 mb-2">
-                        <div class="set-title mb-0">📖 คู่มือการผูก Token & เข้าสู่ระบบ PopCentral POS (v1.24.0)</div>
+                        <div class="set-title mb-0">📖 คู่มือการผูก Token & เข้าสู่ระบบ PopCentral POS (v1.25.0)</div>
                         <a href="{{ route('core-modules.index') }}#pos" class="btn btn-sm btn-outline-danger">
                             <i class="bi bi-book-half me-1"></i> เปิดคู่มือฉบับเต็มในระบบ
                         </a>
