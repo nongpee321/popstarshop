@@ -1,4 +1,4 @@
-﻿@extends('layout')
+@extends('layout')
 @section('title', 'การตั้งค่า - PopCentral')
 @section('page-title', 'การตั้งค่า')
 @section('page-subtitle', 'ตั้งค่าเอกสาร ข้อมูลกิจการ ภาษี และการรับชำระ')
