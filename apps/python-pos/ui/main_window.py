@@ -79,6 +79,9 @@ class MainWindow(QMainWindow):
         content_layout.addWidget(right_panel, 4) # 40% width
         
         main_layout.addLayout(content_layout)
+
+        # โหลดรายการสินค้าจากฐานข้อมูล SQLite ในเครื่องทันทีตั้งแต่เปิดหน้าต่าง (Offline-Ready)
+        self.load_products_from_db()
         
         QTimer.singleShot(500, self.check_config_and_start)
         

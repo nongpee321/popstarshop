@@ -27,33 +27,32 @@ def main():
         # Initialize database first so tables exist
         session = init_db(f'sqlite:///{db_path}')
 
-        # Migrate legacy pos_offline.db if exists and pos.db is newly created/empty
-        legacy_db = os.path.join(paths['base_dir'], 'pos_offline.db')
-        if os.path.exists(legacy_db):
-            try:
-                import sqlite3
-                prod_count = session.query(Product).count()
-                if prod_count == 0:
-                    old_conn = sqlite3.connect(legacy_db)
-                    old_cur = old_conn.cursor()
-                    
-                    # Copy categories
-                    old_cur.execute('SELECT id, name_th, is_active FROM categories')
-                    for r in old_cur.fetchall():
-                        session.merge(Category(id=r[0], name_th=r[1], is_active=bool(r[2])))
-                        
-                    # Copy products
-                    old_cur.execute('SELECT id, category_id, sku_code, barcode, name_th, name_en, default_price, pos_price, is_active, stock_qty, image_url FROM products')
-                    for r in old_cur.fetchall():
-                        session.merge(Product(
-                            id=r[0], category_id=r[1], sku_code=r[2], barcode=r[3],
-                            name_th=r[4], name_en=r[5], default_price=r[6], pos_price=r[7],
-                            is_active=bool(r[8]), stock_qty=r[9], image_url=r[10]
-                        ))
-                    session.commit()
-                    old_conn.close()
-            except Exception:
-                session.rollback()
+        # Pre-seed bundled pos.db if pos.db in AppData is empty
+        prod_count = session.query(Product).count()
+        if prod_count == 0:
+            bundled_candidates = []
+            if getattr(sys, 'frozen', False):
+                app_dir = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+                bundled_candidates.append(os.path.join(app_dir, 'pos.db'))
+                bundled_candidates.append(os.path.join(os.path.dirname(sys.executable), 'pos.db'))
+            else:
+                bundled_candidates.append(os.path.join(os.path.dirname(__file__), 'pos.db'))
+            bundled_candidates.append(os.path.join(paths['base_dir'], 'pos_offline.db'))
+
+            for cand in bundled_candidates:
+                if os.path.exists(cand):
+                    try:
+                        import sqlite3
+                        src_conn = sqlite3.connect(cand)
+                        dst_conn = sqlite3.connect(db_path)
+                        src_conn.backup(dst_conn)
+                        src_conn.close()
+                        dst_conn.close()
+                        print(f"[POS] Successfully pre-seeded database from {cand}")
+                        session = init_db(f'sqlite:///{db_path}')
+                        break
+                    except Exception as e:
+                        print(f"[POS] Pre-seed error from {cand}: {e}")
 
         # Perform daily automatic backup on startup
         try:

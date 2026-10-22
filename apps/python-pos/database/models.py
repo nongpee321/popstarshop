@@ -278,6 +278,22 @@ def init_db(db_path=None):
 
     # Create tables if not exist
     Base.metadata.create_all(engine)
+
+    # Auto-migrate missing columns for existing SQLite databases (e.g. image_url, is_scale_item, scale_type)
+    try:
+        with engine.connect() as conn:
+            cursor = conn.connection.cursor()
+            cursor.execute("PRAGMA table_info(products)")
+            existing_cols = [col[1] for col in cursor.fetchall()]
+            if 'image_url' not in existing_cols:
+                cursor.execute("ALTER TABLE products ADD COLUMN image_url VARCHAR(255)")
+            if 'is_scale_item' not in existing_cols:
+                cursor.execute("ALTER TABLE products ADD COLUMN is_scale_item BOOLEAN DEFAULT 0")
+            if 'scale_type' not in existing_cols:
+                cursor.execute("ALTER TABLE products ADD COLUMN scale_type VARCHAR(20) DEFAULT 'weight'")
+            conn.connection.commit()
+    except Exception:
+        pass
     
     # Seed default scale profiles if empty
     Session = sessionmaker(bind=engine)

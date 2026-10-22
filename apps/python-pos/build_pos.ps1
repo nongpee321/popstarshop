@@ -23,7 +23,7 @@ if (-not (Test-Path $sfxModule)) {
 
 Push-Location $projectRoot
 try {
-    & $python -m PyInstaller --noconfirm --clean --onedir --windowed --icon="assets\icon.ico" --name "PopCentral POS" --add-data "assets;assets" "main.py"
+    & $python -m PyInstaller --noconfirm --clean --onedir --windowed --icon="assets\icon.ico" --name "PopCentral POS" --add-data "assets;assets" --add-data "pos.db;." "main.py"
     if ($LASTEXITCODE -ne 0) {
         throw "PyInstaller failed with exit code $LASTEXITCODE"
     }
