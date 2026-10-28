@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
@@ -187,9 +188,9 @@ class AiChatController extends Controller
             }
 
             // 4. สรุปสาขา (Branches)
-            $branches = DB::table('branches')->select('id', 'name')->limit(10)->get();
+            $branches = Branch::query()->orderBy('code')->limit(10)->get(['id', 'name_th']);
             if ($branches->count() > 0) {
-                $sysContext .= " | สาขาในระบบ: " . $branches->pluck('name')->implode(', ') . " ";
+                $sysContext .= " | สาขาในระบบ: " . $branches->pluck('name_th')->implode(', ') . " ";
             }
 
             // 5. ใบสั่งซื้อ PO ล่าสุด

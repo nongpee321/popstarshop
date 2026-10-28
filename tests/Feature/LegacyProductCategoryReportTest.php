@@ -18,7 +18,7 @@ class LegacyProductCategoryReportTest extends TestCase
         $old = ProductCategory::create(['code' => '101', 'name_th' => 'เก่า']);
         $target = ProductCategory::create(['code' => '102', 'name_th' => 'ใหม่']);
         $unit = ProductUnit::create(['code' => 'EA-LEGACY-REPORT', 'name' => 'ชิ้น', 'qty_per_base_unit' => 1]);
-        $product = Product::create(['sku_code' => 'P000001', 'name_th' => 'สินค้าทดสอบ', 'product_category_id' => $old->id, 'base_unit_id' => $unit->id, 'default_price' => 1, 'average_cost' => 0, 'is_vat' => false, 'is_active' => true]);
+        $product = Product::create(['sku_code' => '000001', 'name_th' => 'สินค้าทดสอบ', 'product_category_id' => $old->id, 'base_unit_id' => $unit->id, 'default_price' => 1, 'average_cost' => 0, 'is_vat' => false, 'is_active' => true]);
         Product::whereKey($product->id)->update(['legacy_sku' => '801021']);
 
         $file = $this->reportFile([
@@ -30,7 +30,7 @@ class LegacyProductCategoryReportTest extends TestCase
 
         $this->assertSame(1, collect($plan['rows'])->where('status', 'CATEGORY_CHANGE')->count());
         $this->assertSame(1, collect($plan['rows'])->where('status', 'LEGACY_NOT_FOUND')->count());
-        $this->assertSame('P000001', $product->fresh()->sku_code);
+        $this->assertSame('000001', $product->fresh()->sku_code);
         $this->assertSame(1, $service->apply($plan['rows']));
         $this->assertSame($target->id, $product->fresh()->product_category_id);
     }

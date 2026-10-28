@@ -37,7 +37,7 @@ class MasterDataCutoverTest extends TestCase
         $this->assertSame('LEGACY-7', $branch->legacy_branch_code, 'รหัสเดิมต้องเก็บไว้เทียบรายงานเก่า');
 
         $product->refresh();
-        $this->assertSame('P000001', $product->sku_code);
+        $this->assertSame('000001', $product->sku_code);
         $this->assertSame('OLD-SKU-1', $product->legacy_sku);
     }
 
@@ -64,7 +64,7 @@ class MasterDataCutoverTest extends TestCase
         $scanned = DB::table('product_barcodes')
             ->join('products', 'products.id', '=', 'product_barcodes.product_id')
             ->where('barcode', '8850001234567')->first(['products.sku_code', 'products.legacy_sku']);
-        $this->assertSame('P000001', $scanned->sku_code, 'สแกนแล้วต้องได้สินค้าตัวเดิมที่ถือรหัสใหม่');
+        $this->assertSame('000001', $scanned->sku_code, 'สแกนแล้วต้องได้สินค้าตัวเดิมที่ถือรหัสใหม่');
         $this->assertSame('OLD-2', $scanned->legacy_sku);
     }
 
@@ -158,9 +158,9 @@ class MasterDataCutoverTest extends TestCase
 
         $this->service()->apply();
 
-        // สินค้าที่ถูกลบยังกินเลข P000001 ไป ตัวที่เหลือจึงเป็น P000002 ไม่ใช่ P000001
-        $this->assertSame('P000002', $second->fresh()->sku_code);
-        $this->assertSame('P000001', Product::withTrashed()->find($first->id)->sku_code);
+        // สินค้าที่ถูกลบยังกินเลข 000001 ไป ตัวที่เหลือจึงเป็น 000002 ไม่ใช่ 000001
+        $this->assertSame('000002', $second->fresh()->sku_code);
+        $this->assertSame('000001', Product::withTrashed()->find($first->id)->sku_code);
     }
 
     public function test_products_without_a_barcode_are_reported_as_a_warning_not_a_blocker(): void

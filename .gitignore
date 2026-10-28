@@ -113,3 +113,6 @@ testglob.php
 check_stock.sql
 generate_perfect_python_pos_manual.py
 reannotate_all_precise.py
+ 
+*.db-shm
+*.db-wal

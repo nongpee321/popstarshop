@@ -66,7 +66,14 @@ class PosController extends Controller
     public function branches(): \Illuminate\Http\JsonResponse
     {
         return response()->json([
-            'branches' => \App\Models\Branch::where('is_active', true)->select('id', 'name')->get()
+            'branches' => Branch::query()
+                ->orderBy('code')
+                ->get(['id', 'code', 'name_th'])
+                ->map(fn (Branch $branch): array => [
+                    'id' => $branch->id,
+                    'code' => $branch->code,
+                    'name' => $branch->name_th,
+                ]),
         ]);
     }
 
@@ -738,8 +745,11 @@ class PosController extends Controller
         }
         $branchId = $this->enforcedBranchId((int) $shift->branch_id);
         $cashierId = $this->enforcedCashierId((int) $shift->cashier_id);
-        if ($branchId !== (int) $shift->branch_id || $cashierId !== (int) $shift->cashier_id) {
-            return response()->json(['success' => false, 'message' => 'à¸›à¸´à¸”à¸à¸°à¹„à¸”à¹‰à¹€à¸‰à¸žà¸²à¸°à¸à¸°à¸‚à¸­à¸‡à¸•à¸™à¹€à¸­à¸‡à¹ƒà¸™à¸ªà¸²à¸‚à¸²à¸™à¸µà¹‰'], 403);
+        $canManageShift = auth()->user()?->hasPermission('pos.shift.manage') || auth()->user()?->hasPermission('reports.view');
+        if (! $canManageShift && ! request()->attributes->get('pos_device')) {
+            if ($branchId !== (int) $shift->branch_id || ($cashierId && $cashierId !== (int) $shift->cashier_id)) {
+                return response()->json(['success' => false, 'message' => 'ปิดกะได้เฉพาะกะของตนเองในสาขานี้'], 403);
+            }
         }
 
         $totals = $this->calculateShiftTotals($shift);
@@ -923,10 +933,42 @@ class PosController extends Controller
             'cashMovements' => fn ($query) => $query->with(['creator:id,name', 'approver:id,name'])->orderBy('id'),
         ]);
 
+        $receipts = PosReceipt::where('pos_shift_id', $shift->id)
+            ->where('status', '!=', 'voided')
+            ->orderBy('id')
+            ->get();
+
+        $voidedBills = PosReceipt::where('pos_shift_id', $shift->id)
+            ->where('status', 'voided')
+            ->orderBy('id')
+            ->get();
+
+        $firstBill = $receipts->first();
+        $lastBill = $receipts->last();
+        $billCount = $receipts->count();
+
+        $grossSales = round((float) $receipts->sum('gross_sales'), 2);
+        $discountAmount = round((float) $receipts->sum('discount_amount'), 2);
+        $netSales = round((float) $receipts->sum('net_sales'), 2);
+        $vatAmount = round((float) $receipts->sum('vat_amount'), 2);
+
+        $taxableSales = $vatAmount > 0 ? round($netSales, 2) : 0.0;
+        $nonTaxableSales = $vatAmount > 0 ? 0.0 : round($netSales, 2);
+
         return view('pos.z-report', [
             'shift' => $shift,
             'totals' => $this->calculateShiftTotals($shift),
             'cashMovements' => $this->cashMovementTotals($shift),
+            'firstBill' => $firstBill,
+            'lastBill' => $lastBill,
+            'billCount' => $billCount,
+            'grossSales' => $grossSales,
+            'discountAmount' => $discountAmount,
+            'netSales' => $netSales,
+            'taxableSales' => $taxableSales,
+            'nonTaxableSales' => $nonTaxableSales,
+            'vatAmount' => $vatAmount,
+            'voidedBills' => $voidedBills,
         ]);
     }
 

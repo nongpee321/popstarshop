@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\ReportDefinition;
 use App\Support\SqlDialect;
 use App\Support\XlsxWriter;
@@ -96,7 +97,7 @@ class ReportController extends Controller
             'canSeeAllBranches' => $canSeeAllBranches,
             'canExport' => $user === null || $user->hasPermission('reports.export'),
             'branchLocked' => ! $canSeeAllBranches && $user?->branch_id === null,
-            'branches' => DB::table('branches')->orderBy('code')->get(['id', 'code', 'name_th']),
+            'branches' => Branch::orderBy('code')->get(['id', 'code', 'name_th']),
             'result' => $isHub ? ['title' => 'ศูนย์รวมรายงาน', 'columns' => [], 'rows' => [], 'total' => 0] : $this->runReport($category, $report, $from, $to, $filters),
         ]);
     }

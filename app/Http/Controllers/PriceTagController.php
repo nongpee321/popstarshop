@@ -54,6 +54,7 @@ class PriceTagController extends Controller
         $products = Product::where('is_active', true)
             ->when($q, fn ($query) => $query->where(fn ($w) => $w
                 ->where('sku_code', 'ilike', "%{$q}%")
+                ->orWhere('legacy_sku', 'ilike', "%{$q}%")
                 ->orWhere('name_th', 'ilike', "%{$q}%")
             ))
             ->orderBy('sku_code')

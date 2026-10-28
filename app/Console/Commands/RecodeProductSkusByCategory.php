@@ -15,7 +15,7 @@ class RecodeProductSkusByCategory extends Command
         {--report= : ที่เก็บ CSV mapping}
         {--force : ข้ามคำถามยืนยัน}';
 
-    protected $description = 'รัน SKU ใหม่ตามประเภทสินค้า โดยเก็บรหัสเดิมและไม่แตะบาร์โค้ด';
+    protected $description = 'เปลี่ยน SKU สินค้าทั้งหมดเป็น EAN-13 ที่ผูกกับสินค้า โดยเก็บ SKU เดิมไว้ใน legacy_sku';
 
     public function handle(ProductSkuRecodeService $service): int
     {
@@ -27,7 +27,7 @@ class RecodeProductSkusByCategory extends Command
 
         $plan = $service->plan();
         $this->line("ฐานข้อมูล: {$database} · สินค้า ".count($plan).' รายการ');
-        $this->table(['SKU ปัจจุบัน', 'SKU เดิม', 'ประเภท', 'SKU ใหม่', 'ชื่อสินค้า'], collect($plan)
+        $this->table(['SKU ปัจจุบัน', 'SKU เดิม', 'ประเภท', 'SKU ใหม่ (EAN-13)', 'ชื่อสินค้า'], collect($plan)
             ->take(12)->map(fn (array $row) => [$row['old'], $row['legacy'], $row['category'], $row['new'] ?? '(จัดประเภทก่อน)', mb_substr($row['name'], 0, 34)])->all());
 
         $problems = $service->preflight($plan);
@@ -57,7 +57,7 @@ class RecodeProductSkusByCategory extends Command
             return self::FAILURE;
         }
         $this->info("เปลี่ยน SKU {$result['products']} รายการ: {$result['first_code']} ถึง {$result['last_code']}");
-        $this->warn('ต้องสั่งเครื่อง POS ทุกเครื่อง sync catalog ใหม่ก่อนเปิดขาย');
+        $this->warn('เก็บรหัส SKU เดิมเป็นบาร์โค้ดสำรอง และเก็บรหัสต้นทางใน legacy_sku; ต้อง sync catalog POS ทุกเครื่องก่อนเปิดขาย');
         return self::SUCCESS;
     }
 

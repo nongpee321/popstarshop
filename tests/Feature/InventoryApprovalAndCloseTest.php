@@ -28,7 +28,7 @@ class InventoryApprovalAndCloseTest extends TestCase
     public function test_stock_adjustment_does_not_change_stock_until_another_user_approves(): void
     {
         [$branch, $location, $product] = $this->masters();
-        DocumentType::create(['code' => 'STOCK_ADJUSTMENT', 'name_th' => 'ใบปรับสต๊อก']);
+        DocumentType::firstOrCreate(['code' => 'STOCK_ADJUSTMENT'], ['name_th' => 'ใบปรับสต๊อก']);
         StockBalance::create(['product_id' => $product->id, 'warehouse_location_id' => $location->id, 'on_hand_qty' => 10, 'reserved_qty' => 0]);
         $creator = User::factory()->create(['username' => 'counter']);
         $approver = User::factory()->create(['username' => 'approver']);
@@ -56,7 +56,7 @@ class InventoryApprovalAndCloseTest extends TestCase
         $fifo = app(FifoStockService::class);
         $fifo->receive($product->id, $location->id, 10, null, unitCost: 10);
         StockBalance::where('product_id', $product->id)->update(['on_hand_qty' => 10]);
-        DocumentType::create(['code' => 'STOCK_ADJUSTMENT', 'name_th' => 'ใบปรับสต๊อก']);
+        DocumentType::firstOrCreate(['code' => 'STOCK_ADJUSTMENT'], ['name_th' => 'ใบปรับสต๊อก']);
         $creator = User::factory()->create(['username' => 'shrink-counter']);
         $approver = User::factory()->create(['username' => 'shrink-approver']);
 
@@ -79,7 +79,7 @@ class InventoryApprovalAndCloseTest extends TestCase
         $this->travelTo('2026-08-10 10:00:00');
         [$branch, $location, $product] = $this->masters();
         app(FifoStockService::class)->receive($product->id, $location->id, 10, null, receivedDate: '2026-08-01', unitCost: 10);
-        DocumentType::create(['code' => 'STOCK_ADJUSTMENT', 'name_th' => 'ใบปรับสต๊อก']);
+        DocumentType::firstOrCreate(['code' => 'STOCK_ADJUSTMENT'], ['name_th' => 'ใบปรับสต๊อก']);
         $creator = User::factory()->create(['username' => 'close-counter']);
         $approver = User::factory()->create(['username' => 'close-approver']);
 
@@ -106,7 +106,7 @@ class InventoryApprovalAndCloseTest extends TestCase
         $product->update(['average_cost' => 12]);
         // เริ่มจากสต๊อกที่ stock_lots กับ stock_balances ตรงกันอยู่แล้ว (4 หน่วย ผ่าน fifo->receive)
         app(FifoStockService::class)->receive($product->id, $location->id, 4, null, unitCost: 8);
-        DocumentType::create(['code' => 'STOCK_ADJUSTMENT', 'name_th' => 'ใบปรับสต๊อก']);
+        DocumentType::firstOrCreate(['code' => 'STOCK_ADJUSTMENT'], ['name_th' => 'ใบปรับสต๊อก']);
         $creator = User::factory()->create(['username' => 'found-counter']);
         $approver = User::factory()->create(['username' => 'found-approver']);
 
@@ -132,7 +132,7 @@ class InventoryApprovalAndCloseTest extends TestCase
     {
         [$branch, $location, $product] = $this->masters();
         $product->update(['average_cost' => 5]);
-        DocumentType::create(['code' => 'STOCK_ADJUSTMENT', 'name_th' => 'ใบปรับสต๊อก']);
+        DocumentType::firstOrCreate(['code' => 'STOCK_ADJUSTMENT'], ['name_th' => 'ใบปรับสต๊อก']);
         $creator = User::factory()->create(['username' => 'opening-maker']);
         $approver = User::factory()->create(['username' => 'opening-checker']);
 

@@ -20,12 +20,12 @@ use App\Models\RecallCase;
 use App\Models\RecallContact;
 use App\Models\StockLot;
 use App\Models\StockLotQualityCheck;
-use App\Models\StockBalance;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\SupplierPriceSchedule;
 use App\Services\Inventory\ProductCostHistoryService;
 use App\Services\Inventory\FifoStockService;
+use App\Services\InternalEan13Allocator;
 use App\Services\ProductSkuAllocator;
 use App\Support\DecimalMath;
 use Illuminate\Http\JsonResponse;
@@ -47,9 +47,14 @@ class ProductController extends Controller
         $status = in_array($request->query('status'), ['active', 'inactive'], true)
             ? (string) $request->query('status')
             : 'all';
+        $searchOperator = DB::getDriverName() === 'sqlite' ? 'like' : 'ilike';
         $productScope = Product::query()->when($q !== '', fn ($query) => $query->where(fn ($w) => $w
-            ->where('sku_code', 'ilike', "%{$q}%")
-            ->orWhere('name_th', 'ilike', "%{$q}%")
+            ->where('sku_code', $searchOperator, "%{$q}%")
+            ->orWhere('legacy_sku', $searchOperator, "%{$q}%")
+            ->orWhere('name_th', $searchOperator, "%{$q}%")
+            ->orWhereHas('barcodes', fn ($barcodeQuery) => $barcodeQuery
+                ->where('is_active', true)
+                ->where('barcode', $searchOperator, "%{$q}%"))
         ));
         $counts = [
             'all' => (clone $productScope)->count(),
@@ -60,21 +65,27 @@ class ProductController extends Controller
         $filteredProductScope = (clone $productScope)
             ->when($status !== 'all', fn ($query) => $query->where('is_active', $status === 'active'))
             ->when($categoryId, fn ($query) => $query->where('product_category_id', $categoryId))
-            ->when($productType === 'scale', fn ($query) => $query->whereHas('barcodes', fn ($b) => $b
-                ->where('is_active', true)
-                ->where(fn ($w) => $w->where('barcode', 'like', '800%')->orWhere('barcode', 'like', '801%'))));
-        $filteredProductIds = (clone $filteredProductScope)->pluck('id');
-        $stockBalances = StockBalance::whereIn('product_id', $filteredProductIds)
+            ->when($productType === 'scale', fn ($query) => $query->where(fn ($scale) => $scale
+                ->where('name_th', 'like', '%ชั่ง%')
+                ->orWhere('name_th', 'like', '%ซั่ง%')
+                ->orWhereHas('barcodes', fn ($b) => $b
+                    ->where('is_active', true)
+                    ->where(fn ($w) => $w->where('barcode', 'like', '800%')->orWhere('barcode', 'like', '801%')))));
+        $stockByProduct = DB::table('stock_balances')
+            ->select('product_id')
+            ->selectRaw('SUM(on_hand_qty) AS on_hand_qty')
             ->when($warehouseId, fn ($query) => $query->where('warehouse_location_id', $warehouseId))
-            ->get(['product_id', 'on_hand_qty']);
-        $stockByProduct = $stockBalances->groupBy('product_id')->map(fn ($balances) => (float) $balances->sum('on_hand_qty'));
+            ->groupBy('product_id');
+        $stockSummary = (clone $filteredProductScope)
+            ->leftJoinSub($stockByProduct, 'stock_totals', fn ($join) => $join->on('products.id', '=', 'stock_totals.product_id'))
+            ->selectRaw('COUNT(products.id) AS products')
+            ->selectRaw('COALESCE(SUM(stock_totals.on_hand_qty), 0) AS on_hand')
+            ->selectRaw('SUM(CASE WHEN products.reorder_point > 0 AND COALESCE(stock_totals.on_hand_qty, 0) <= products.reorder_point THEN 1 ELSE 0 END) AS low_stock')
+            ->first();
         $stockSummary = [
-            'products' => $filteredProductIds->count(),
-            'on_hand' => (float) $stockBalances->sum('on_hand_qty'),
-            'low_stock' => (clone $filteredProductScope)->whereNotNull('reorder_point')->where('reorder_point', '>', 0)
-                ->get(['id', 'reorder_point'])
-                ->filter(fn ($product) => ($stockByProduct[$product->id] ?? 0) <= (float) $product->reorder_point)
-                ->count(),
+            'products' => (int) ($stockSummary->products ?? 0),
+            'on_hand' => (float) ($stockSummary->on_hand ?? 0),
+            'low_stock' => (int) ($stockSummary->low_stock ?? 0),
         ];
 
         $products = (clone $filteredProductScope)
@@ -112,8 +123,31 @@ class ProductController extends Controller
             'units' => ProductUnit::orderBy('name')->get()
                 ->reject(fn (ProductUnit $unit) => $unit->isCorrupted())
                 ->values(),
-            'branches' => Branch::where('is_active', true)->with('warehouses.locations')->orderBy('code')->get(),
+            'branches' => Branch::where('is_active', true)->with('defaultWarehouseLocation.warehouse')->orderBy('code')->get(),
         ]);
+    }
+
+    public function barcodeLabel(Product $product): View
+    {
+        $barcode = $product->barcodes()
+            ->where('is_active', true)
+            ->whereRaw('LENGTH(barcode) = 13')
+            ->where('barcode_type', '!=', BarcodePolicy::SCALE_WEIGHT)
+            ->get()
+            ->sortBy(fn (ProductBarcode $productBarcode): int => match ($productBarcode->barcode_type) {
+                BarcodePolicy::EAN13_STANDARD => 0,
+                BarcodePolicy::INTERNAL_13 => 1,
+                default => 2,
+            })
+            ->first(fn (ProductBarcode $productBarcode): bool =>
+                app(BarcodePolicy::class)->isValidEan13((string) $productBarcode->barcode)
+            )?->barcode;
+        $barcode ??= app(BarcodePolicy::class)->isValidEan13((string) $product->sku_code)
+            ? $product->sku_code
+            : null;
+        abort_unless($barcode, 422, 'สินค้านี้ยังไม่มี EAN-13 กรุณาสร้างบาร์โค้ดให้สินค้าก่อน');
+
+        return view('products.barcode-label', ['product' => $product, 'barcode' => $barcode]);
     }
 
     public function store(Request $request, ProductSkuAllocator $skuAllocator): RedirectResponse
@@ -207,7 +241,7 @@ class ProductController extends Controller
             'nextScalePlu' => $nextScalePlu,
             'costHistory' => $costHistoryService->history($product),
             'suppliers' => Supplier::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name_th']),
-            'branches' => Branch::where('is_active', true)->with('warehouses.locations')->orderBy('code')->get(),
+            'branches' => Branch::where('is_active', true)->with('defaultWarehouseLocation.warehouse')->orderBy('code')->get(),
         ]);
     }
 
@@ -569,7 +603,7 @@ class ProductController extends Controller
         return back()->with('success', 'อัปเดตผลติดต่อลูกค้าแล้ว');
     }
 
-    public function addBarcode(Request $request, Product $product): RedirectResponse
+    public function addBarcode(Request $request, Product $product, InternalEan13Allocator $ean13Allocator): RedirectResponse
     {
         $data = $request->validate([
             'barcode_mode' => ['nullable', 'in:manual,auto_ean13'],
@@ -588,10 +622,8 @@ class ProductController extends Controller
         }
 
         if ($auto) {
-            DB::transaction(function () use ($product, $data): void {
-                // กันเลขชนกันกรณีผู้ใช้หลายคนกดสร้างพร้อมกัน
-                DB::statement('SELECT pg_advisory_xact_lock(299013)');
-                $data['barcode'] = $this->nextInternalEan13();
+            DB::transaction(function () use ($product, $data, $ean13Allocator): void {
+                $data['barcode'] = $ean13Allocator->next();
                 // เลขช่วง 299 เป็นรหัสที่ร้านตั้งเอง ไม่ใช่ของที่ได้รับจัดสรรจาก GS1
                 // จึงติดป้ายเป็นรหัสภายใน ไม่ใช่ EAN-13 มาตรฐาน
                 $data['barcode_type'] = BarcodePolicy::INTERNAL_13;
@@ -613,39 +645,6 @@ class ProductController extends Controller
         $checked = app(BarcodePolicy::class)->check($type, (string) $barcode);
 
         return $checked['ok'] ? null : implode(' · ', $checked['errors']);
-    }
-
-    /** สร้าง EAN-13 ภายในร้าน ช่วง 299 + running 9 หลัก + check digit */
-    private function nextInternalEan13(): string
-    {
-        $last = ProductBarcode::query()
-            ->where('barcode', 'like', '299%')
-            ->whereRaw('LENGTH(barcode) = 13')
-            ->orderByDesc('barcode')
-            ->lockForUpdate()
-            ->value('barcode');
-
-        $sequence = $last ? ((int) substr((string) $last, 3, 9)) + 1 : 1;
-        while ($sequence <= 999999999) {
-            $body = '299'.str_pad((string) $sequence, 9, '0', STR_PAD_LEFT);
-            $barcode = $body.$this->ean13CheckDigit($body);
-            if (! ProductBarcode::where('barcode', $barcode)->exists()) {
-                return $barcode;
-            }
-            $sequence++;
-        }
-
-        throw new \RuntimeException('เลขบาร์โค้ด EAN-13 ภายในร้านเต็มแล้ว');
-    }
-
-    private function ean13CheckDigit(string $body): int
-    {
-        $sum = 0;
-        foreach (str_split($body) as $index => $digit) {
-            $sum += ((int) $digit) * ($index % 2 === 0 ? 1 : 3);
-        }
-
-        return (10 - ($sum % 10)) % 10;
     }
 
     public function updateBarcode(Request $request, Product $product, ProductBarcode $productBarcode): RedirectResponse
@@ -818,7 +817,7 @@ class ProductController extends Controller
         if ($locInput === 'all') {
             // เพิ่มสต็อกให้กับคลังหลักของทุกสาขา
             $locations = collect();
-            $branches = Branch::where('is_active', true)->with('warehouses.locations')->get();
+            $branches = Branch::where('is_active', true)->with('defaultWarehouseLocation')->get();
             foreach ($branches as $branch) {
                 // เลือกตำแหน่งเก็บแรกของคลังแรกในสาขานั้น
                 $primaryLoc = null;

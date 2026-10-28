@@ -5,6 +5,7 @@ import json
 import uuid
 from datetime import datetime
 from PySide6.QtCore import QThread, Signal
+import threading
 from database.models import (
     init_db, Product, Category, Sale, SaleItem, Payment, Outbox, SyncLog, PosShift
 )
@@ -16,6 +17,7 @@ class SyncWorker(QThread):
     sync_finished = Signal(bool, str) # success, message
     products_updated = Signal()
     pending_count_updated = Signal(int) # emits number of unsynced bills for UI badge
+    manual_sync_finished = Signal(bool, str)
 
     def __init__(self, db_path, api_url, pos_token):
         super().__init__()
@@ -24,9 +26,15 @@ class SyncWorker(QThread):
         self.pos_token = pos_token
         self.is_running = True
         self.force_sync_flag = False
+        self.manual_sync_requested = False
+        self.retry_failed_requested = False
+        self._wake_event = threading.Event()
 
-    def force_sync(self):
+    def force_sync(self, retry_failed=False):
         self.force_sync_flag = True
+        self.manual_sync_requested = True
+        self.retry_failed_requested = self.retry_failed_requested or retry_failed
+        self._wake_event.set()
 
     def _check_internet(self):
         # 1. First check if Local/Internal ERP API is reachable
@@ -84,17 +92,46 @@ class SyncWorker(QThread):
     def run(self):
         loop_count = 0
         while self.is_running:
+            manual_sync = self.manual_sync_requested
+            retry_failed = self.retry_failed_requested
+            self.manual_sync_requested = False
+            self.retry_failed_requested = False
             try:
                 # Update pending count badge on every loop
                 pending_count = self.get_pending_count()
                 self.pending_count_updated.emit(pending_count)
 
                 if not self._check_internet():
-                    raise Exception("No Internet Connection (ระบบออฟไลน์)")
+                    if self.is_running:
+                        self.sync_finished.emit(False, "No Internet Connection (ระบบออฟไลน์)")
+                        if manual_sync:
+                            self.manual_sync_finished.emit(False, "ไม่สามารถเชื่อมต่ออินเทอร์เน็ตได้")
+                    if not self.is_running:
+                        break
+                    # Back off 15 seconds when offline to prevent disk write spam and CPU thrashing
+                    self._wake_event.wait(15)
+                    self._wake_event.clear()
+                    continue
 
                 self.sync_started.emit()
                 if self.is_running:
                     changed = False
+
+                    if retry_failed:
+                        session = init_db(f'sqlite:///{self.db_path}')
+                        try:
+                            session.query(Outbox).filter(Outbox.status == 'failed').update(
+                                {'status': 'pending', 'retry_count': 0}, synchronize_session=False
+                            )
+                            session.query(Sale).filter(Sale.status == 'failed').update(
+                                {'status': 'pending'}, synchronize_session=False
+                            )
+                            session.commit()
+                        finally:
+                            session.close()
+
+                    # Prioritize committed sales before network checks for catalog refresh.
+                    sync_result = self._sync_outbox_sales()
                     
                     # เช็ค Real-time: มีการอัปเดตราคาหรือโปรโมชั่นบน ERP หรือไม่
                     version_changed = self._check_catalog_version()
@@ -103,12 +140,11 @@ class SyncWorker(QThread):
                     if version_changed or (loop_count % 6 == 0):
                         changed = self._sync_products()
                     
-                    # Sync outbox / sales ทุกรอบ (~5 วินาที)
-                    self._sync_outbox_sales()
-                    
                     if changed:
                         self.products_updated.emit()
                     self.sync_finished.emit(True, "Sync successful")
+                    if manual_sync:
+                        self.manual_sync_finished.emit(*sync_result)
             except Exception as e:
                 import traceback
                 error_msg = str(e)
@@ -120,18 +156,17 @@ class SyncWorker(QThread):
                     pass
                 if self.is_running:
                     self.sync_finished.emit(False, error_msg)
+                    if manual_sync:
+                        self.manual_sync_finished.emit(False, error_msg)
             
             loop_count += 1
             
             # รอบรอ 5 วินาที เพื่อให้ Real-time สูงสุด
-            for _ in range(5):
-                if not self.is_running:
-                    break
-                if getattr(self, 'force_sync_flag', False):
-                    self.force_sync_flag = False
-                    loop_count = -1
-                    break
-                time.sleep(1)
+            self._wake_event.wait(5)
+            self._wake_event.clear()
+            if self.force_sync_flag:
+                self.force_sync_flag = False
+                loop_count = -1
 
     def _sync_products(self):
         headers = {
@@ -201,7 +236,8 @@ class SyncWorker(QThread):
                     is_active=prod_data.get('is_active', True),
                     barcode=barcode_val,
                     stock_qty=prod_data.get('stock_qty'),
-                    is_scale_item=bool(prod_data.get('is_weight') or prod_data.get('is_scale_item') or False)
+                    is_scale_item=bool(prod_data.get('is_weight') or prod_data.get('is_scale_item') or False),
+                    is_promotion=bool(prod_data.get('is_promotion') or prod_data.get('is_flash_sale') or (prod_data.get('price_source') in ['promotion', 'flash_sale']))
                 )
                 session.add(prod)
                 
@@ -244,62 +280,20 @@ class SyncWorker(QThread):
         
         session = init_db(f'sqlite:///{self.db_path}')
 
-        # 0. Sync pending offline shift(s) to server first if any
-        try:
-            pending_shifts = session.query(PosShift).filter(
-                (PosShift.server_id == None) | (PosShift.sync_status == 'pending')
-            ).all()
-            for p_shift in pending_shifts:
-                open_payload = {
-                    'opening_cash': p_shift.opening_cash or 0.0,
-                    'cashier': p_shift.cashier_name or 'Cashier'
-                }
-                try:
-                    s_res = requests.post(
-                        f'{self.api_url}/api/pos/shift/open',
-                        headers=headers,
-                        json=open_payload,
-                        timeout=15
-                    )
-                    if s_res.status_code == 200:
-                        s_data = s_res.json()
-                        shift_obj = s_data.get('shift', {}) if isinstance(s_data.get('shift'), dict) else {}
-                        s_id = shift_obj.get('id') or s_data.get('shift_id')
-                        if s_id:
-                            p_shift.server_id = s_id
-                            p_shift.sync_status = 'synced'
-                            session.commit()
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        # Auto-shift opening removed (cashier must open shift manually)
 
         # Get active shift from server
         try:
             shift_response = requests.get(f'{self.api_url}/api/pos/shift', headers=headers, timeout=30)
             shift_response.raise_for_status()
             shift_data = shift_response.json().get('shift')
-        except Exception:
+        except Exception as exc:
             session.close()
-            return
+            return False, f"ตรวจสอบกะขายไม่สำเร็จ: {exc}"
         
         if not shift_data:
-            # If server still has no open shift, try opening one automatically so offline queue can flush
-            try:
-                auto_open_res = requests.post(
-                    f'{self.api_url}/api/pos/shift/open',
-                    headers=headers,
-                    json={'opening_cash': 0.0, 'cashier': 'Auto-Sync Cashier'},
-                    timeout=15
-                )
-                if auto_open_res.status_code == 200:
-                    shift_data = auto_open_res.json().get('shift')
-            except Exception:
-                pass
-
-        if not shift_data:
             session.close()
-            return
+            return False, "ยังไม่มีกะขายที่เปิดอยู่ใน ERP กรุณาเปิดกะแล้วลองส่งอีกครั้ง"
             
         shift_id = shift_data['id']
         branch_id = shift_data['branch_id']
@@ -347,20 +341,40 @@ class SyncWorker(QThread):
                     session.add(outbox_entry)
             session.commit()
 
+            # Legacy versions used different keys for immediate checkout and retry.
+            # Reuse the immediate request key so an ambiguous timeout cannot duplicate a sale.
+            legacy_entries = session.query(Outbox).filter(
+                Outbox.event_type == 'sale_checkout',
+                Outbox.status.in_(['pending', 'failed'])
+            ).all()
+            for entry in legacy_entries:
+                legacy_key = f"pos-sale-{entry.aggregate_id}"
+                if entry.idempotency_key != legacy_key:
+                    continue
+                entry.idempotency_key = f"pos-direct-{entry.aggregate_id}"
+                sale = session.query(Sale).filter_by(local_sale_id=entry.aggregate_id).first()
+                if sale and sale.idempotency_key == legacy_key:
+                    sale.idempotency_key = entry.idempotency_key
+            session.commit()
+
             # 2. Process outbox queue
             pending_outbox = session.query(Outbox).filter(Outbox.status.in_(['pending', 'failed'])).all()
+            failed_count = 0
             for entry in pending_outbox:
                 sale = session.query(Sale).filter_by(local_sale_id=entry.aggregate_id).first()
                 payload = json.loads(entry.payload_json)
                 
-                # Ensure valid server shift, branch, and cashier IDs are used
-                if branch_id:
-                    payload['branch_id'] = branch_id
-                if shift_id:
-                    payload['shift_id'] = shift_id
-                if cashier_id:
-                    payload['cashier_id'] = cashier_id
-                entry.payload_json = json.dumps(payload)
+                if not entry.payload_prepared:
+                    # Freeze server IDs before the first request so retries use the same payload.
+                    if branch_id:
+                        payload['branch_id'] = branch_id
+                    if shift_id:
+                        payload['shift_id'] = shift_id
+                    if cashier_id:
+                        payload['cashier_id'] = cashier_id
+                    entry.payload_json = json.dumps(payload)
+                    entry.payload_prepared = True
+                    session.commit()
 
                 req_headers = dict(headers)
                 req_headers['Idempotency-Key'] = entry.idempotency_key
@@ -374,6 +388,7 @@ class SyncWorker(QThread):
                         if sale:
                             sale.status = 'synced'
                             sale.synced_at = datetime.utcnow()
+                            sale.sync_error = None
                             resp_data = checkout_response.json()
                             if 'receipt_no' in resp_data:
                                 sale.doc_number = resp_data['receipt_no']
@@ -394,20 +409,31 @@ class SyncWorker(QThread):
                         if sale:
                             sale.status = 'failed'
                             sale.sync_error = checkout_response.text
+                        failed_count += 1
                     else:
                         entry.retry_count += 1
                         entry.last_error = f"Server returned HTTP {checkout_response.status_code}"
+                        failed_count += 1
                 except Exception as ex:
                     entry.retry_count += 1
                     entry.last_error = str(ex)
+                    if sale:
+                        sale.sync_error = str(ex)
+                    failed_count += 1
                     
                 session.commit()
                 
             # Emit updated pending count to update badge
             updated_pending = session.query(Sale).filter(Sale.status.in_(['pending', 'failed'])).count()
             self.pending_count_updated.emit(updated_pending)
+            if failed_count:
+                return False, f"ส่งบิลไม่สำเร็จ {failed_count} บิล กรุณาตรวจสอบสาเหตุในรายการบิลค้าง"
+            if updated_pending:
+                return False, f"ยังมีบิลค้าง {updated_pending} บิล ระบบยังส่งไม่ครบ"
+            return True, "ส่งบิลขึ้น ERP และได้รับการยืนยันครบแล้ว"
 
         except Exception as e:
             session.rollback()
+            return False, str(e)
         finally:
             session.close()

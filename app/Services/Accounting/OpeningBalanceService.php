@@ -125,7 +125,8 @@ class OpeningBalanceService
     /** @return array<string, mixed> */
     private function resolveStockRow(array $row, int $branchId): array
     {
-        $product = Product::where('sku_code', trim((string) ($row['sku'] ?? '')))->first();
+        $sku = trim((string) ($row['sku'] ?? ''));
+        $product = Product::where(fn ($query) => $query->where('sku_code', $sku)->orWhere('legacy_sku', $sku))->first();
         if (! $product) {
             throw new RuntimeException('ไม่พบสินค้า sku='.($row['sku'] ?? '(ว่าง)'));
         }

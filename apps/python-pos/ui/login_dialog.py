@@ -1,5 +1,6 @@
 import os
 import requests
+from services.offline_auth import verify_offline_login
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit, QMessageBox, QWidget
 )
@@ -7,11 +8,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 
 class CashierLoginDialog(QDialog):
-    def __init__(self, parent=None, api_url="", pos_token=""):
+    def __init__(self, parent=None, api_url="", pos_token="", cached_offline_auth=None):
         super().__init__(parent)
         self.api_url = api_url.rstrip("/")
         self.pos_token = pos_token
         self.selected_cashier = None
+        self.offline_auth = cached_offline_auth if isinstance(cached_offline_auth, dict) else None
         
         self.setWindowTitle("เข้าสู่ระบบแคชเชียร์")
         self.setFixedSize(400, 350)
@@ -97,6 +99,12 @@ class CashierLoginDialog(QDialog):
                     self.selected_cashier = data.get('cashier', {})
                     if 'code' not in self.selected_cashier:
                         self.selected_cashier['code'] = code
+                    offline_credential = data.get('offline_credential')
+                    self.offline_auth = {
+                        'code': code,
+                        'cashier': self.selected_cashier,
+                        'credential': offline_credential,
+                    } if isinstance(offline_credential, dict) else None
                     self.entered_pin = pin
                     self.accept()
                 else:
@@ -104,13 +112,30 @@ class CashierLoginDialog(QDialog):
             else:
                 QMessageBox.warning(self, "Error", f"เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (รหัส {res.status_code})")
 
-        except Exception as e:
-            error_msg = str(e).replace(self.pos_token, '***TOKEN_HIDDEN***')
-            reply = QMessageBox.question(self, "Offline Mode", f"ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้:\n{error_msg}\n\nต้องการเข้าสู่ระบบแบบออฟไลน์ด้วยรหัส {code} หรือไม่?", QMessageBox.Yes | QMessageBox.No)
-            if reply == QMessageBox.Yes:
+        except Exception:
+            if verify_offline_login(self.offline_auth, code, pin):
                 self.entered_pin = pin
-                self.selected_cashier = {'code': code, 'name': f"พนักงาน (ออฟไลน์: {code})"}
+                self.selected_cashier = self.offline_auth.get('cashier') or {
+                    'code': code,
+                    'name': f"พนักงาน (ออฟไลน์: {code})",
+                }
+                self.is_offline_login = True
+                cashier_display_name = self.selected_cashier.get('name') or code
+                QMessageBox.information(
+                    self,
+                    "โหมดออฟไลน์ (Offline Mode)",
+                    f"⚠️ เข้าสู่ระบบแบบออฟไลน์สำเร็จ: {cashier_display_name}\n\n"
+                    "• ตรวจสอบข้อมูลผู้ใช้จากฐานข้อมูลภายในเครื่องเรียบร้อย\n"
+                    "• สามารถเปิดการขายและพิมพ์ใบเสร็จได้ตามปกติ\n"
+                    "• เมื่ออินเทอร์เน็ตเชื่อมต่อติด ระบบจะสลับเป็นโหมดออนไลน์และซิงค์บิลให้อัตโนมัติ"
+                )
                 self.accept()
+            else:
+                QMessageBox.warning(
+                    self,
+                    "เข้าสู่ระบบออฟไลน์ไม่ได้",
+                    "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ และไม่มีข้อมูลยืนยันออฟไลน์ที่ใช้ได้สำหรับบัญชีนี้หรือ PIN ไม่ถูกต้อง",
+                )
 
         finally:
             self.login_btn.setText("เข้าสู่ระบบ")

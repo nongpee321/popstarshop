@@ -24,8 +24,19 @@ class AuthTest extends TestCase
         $response = $this->get(route('login'));
 
         $response->assertOk()
+            ->assertCookie(config('session.cookie'))
             ->assertSee('name="_token"', false);
         $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
+    }
+
+    public function test_php_config_files_do_not_emit_output_before_http_headers(): void
+    {
+        foreach (glob(config_path('*.php')) as $configFile) {
+            $contents = file_get_contents($configFile);
+
+            $this->assertIsString($contents);
+            $this->assertStringStartsWith('<?php', $contents, basename($configFile).' must not emit output before HTTP headers.');
+        }
     }
 
     public function test_one_user_can_sign_in_to_the_erp_with_username(): void

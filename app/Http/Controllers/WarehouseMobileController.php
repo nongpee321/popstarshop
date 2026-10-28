@@ -64,7 +64,8 @@ class WarehouseMobileController extends Controller
             $unitLabel = $barcode->unit?->displayLabel();
         } else {
             $product = Product::with('baseUnit')
-                ->where('sku_code', $code)->where('is_active', true)->first();
+                ->where(fn ($query) => $query->where('sku_code', $code)->orWhere('legacy_sku', $code))
+                ->where('is_active', true)->first();
         }
 
         if (! $product) {

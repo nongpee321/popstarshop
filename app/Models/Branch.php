@@ -8,7 +8,19 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['code', 'name_th', 'name_en', 'is_active', 'default_warehouse_location_id', 'price_table_id'])]
+#[Fillable([
+    'code',
+    'name_th',
+    'name_en',
+    'address',
+    'phone',
+    'business_hours',
+    'location_note',
+    'service_area',
+    'is_active',
+    'default_warehouse_location_id',
+    'price_table_id',
+])]
 class Branch extends Model
 {
     protected static function booted(): void

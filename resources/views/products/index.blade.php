@@ -101,7 +101,7 @@
             <div class="col-md-4">
                 <div class="inventory-summary">
                     <span class="inventory-summary-icon text-success"><i class="bi bi-stack"></i></span>
-                    <span><small>คงเหลือรวมทุกคลัง</small><strong>{{ rtrim(rtrim(number_format($stockSummary['on_hand'], 4), '0'), '.') }}</strong></span>
+                    <span><small>คงเหลือรวมทุกคลัง</small><strong>{{ rtrim(rtrim(number_format(round((float) $stockSummary['on_hand'], 2), 2), '0'), '.') ?: '0' }}</strong></span>
                     <div class="ms-auto"><span class="badge bg-success-subtle text-success rounded-pill px-3">ชิ้น / หน่วย</span></div>
                 </div>
             </div>
@@ -153,7 +153,7 @@
                                 <td>{{ $product->category?->name_th ?? '-' }}</td>
                                 <td>{{ $product->brand?->name_th ?? '-' }}</td>
                                 <td>{{ $product->baseUnit?->displayLabel() ?? '-' }}</td>
-                                <td class="text-end fw-semibold">{{ rtrim(rtrim(number_format((float) $product->stockBalances->sum('on_hand_qty'), 4), '0'), '.') }}</td>
+                                <td class="text-end fw-semibold">{{ rtrim(rtrim(number_format(round((float) $product->stockBalances->sum('on_hand_qty'), 2), 2), '0'), '.') ?: '0' }}</td>
                                 <td class="text-end">
                                     <button type="button" 
                                             class="btn btn-sm btn-link p-0 text-decoration-none fw-bold text-dark font-monospace" 
@@ -177,6 +177,9 @@
                                         </button>
                                         <a href="{{ route('products.show', $product) }}" class="btn btn-sm btn-danger px-2 py-1 rounded border-0" style="font-size:10px;" @click.prevent="openProduct('{{ route('products.show', $product) }}?popup=1')">
                                             <i class="bi bi-pencil-square me-1"></i> แก้ไข
+                                        </a>
+                                        <a href="{{ route('products.barcode-label', $product) }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary px-2 py-1 rounded" style="font-size:10px;" title="พิมพ์บาร์โค้ดสินค้า {{ $product->sku_code }}">
+                                            <i class="bi bi-upc-scan"></i>
                                         </a>
                                         <button type="button" class="btn btn-sm btn-outline-success bg-success-subtle border-success-subtle px-2 py-1 rounded" style="font-size:10px;"
                                             @click="openStockIn({{ $product->id }}, '{{ addslashes($product->name_th) }}', '{{ $product->sku_code }}')">
@@ -520,11 +523,9 @@
                         <select name="warehouse_location_id" class="form-select" required>
                             <option value="">-- เลือกตำแหน่งเก็บ --</option>
                             @foreach($branches as $branch)
-                                @foreach($branch->warehouses as $wh)
-                                    @foreach($wh->locations as $loc)
-                                        <option value="{{ $loc->id }}">{{ $branch->name_th }} › {{ $wh->name }} › {{ $loc->name }}</option>
-                                    @endforeach
-                                @endforeach
+                                @if($branch->defaultWarehouseLocation)
+                                    <option value="{{ $branch->defaultWarehouseLocation->id }}">{{ $branch->name_th }} › {{ $branch->defaultWarehouseLocation->warehouse?->name ?? 'คลังหน้าร้าน' }} › {{ $branch->defaultWarehouseLocation->name }}</option>
+                                @endif
                             @endforeach
                         </select>
                     </div>

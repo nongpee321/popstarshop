@@ -87,9 +87,17 @@ def main():
             token_dlg = PosTokenLoginDialog(
                 api_url=config.get('api_url', 'http://localhost:8000'),
                 default_token=config.get('pos_token', ''),
-                default_username=config.get('cashier_username', config.get('cashier_name', ''))
+                default_username=config.get('cashier_username', config.get('cashier_name', '')),
+                cached_offline_auth=config.get('offline_auth')
             )
-            if token_dlg.exec() != PosTokenLoginDialog.Accepted:
+            login_result = token_dlg.exec()
+            config['api_url'] = token_dlg.api_url
+            if login_result != PosTokenLoginDialog.Accepted:
+                try:
+                    with open(config_file, 'w', encoding='utf-8') as f:
+                        json.dump(config, f)
+                except Exception as e:
+                    print(f"[POS] Failed to save ERP URL settings: {e}")
                 # User closed or cancelled login window -> exit app without opening MainWindow
                 sys.exit(0)
 
@@ -110,7 +118,11 @@ def main():
                     config['cashier_id'] = cashier_id
                 config['cashier_name'] = cashier_name
                 config['cashier_username'] = token_dlg.username
-                config['cashier_pin'] = token_dlg.entered_pin
+            if token_dlg.offline_auth:
+                config['offline_auth'] = token_dlg.offline_auth
+            else:
+                config.pop('offline_auth', None)
+            config.pop('cashier_pin', None)
         else:
             config['pos_token'] = config.get('pos_token') or 'demo_token'
         try:
@@ -120,7 +132,8 @@ def main():
             pass
 
         # 4. Now create and show MainWindow
-        window = MainWindow(db_path=db_path)
+        is_offline_login = getattr(token_dlg, 'is_offline_login', False)
+        window = MainWindow(db_path=db_path, is_offline_login=is_offline_login)
         window.show()
         sys.exit(app.exec())
     except Exception as e:

@@ -18,7 +18,7 @@ class MasterDataCutover extends Command
         {--report= : ที่เก็บไฟล์ mapping (.csv)}
         {--force : ข้ามคำถามยืนยัน}';
 
-    protected $description = 'เปลี่ยนรหัสสาขาเป็น B001... และรหัสสินค้าเป็น P000001... เก็บรหัสเดิมไว้ mapping';
+    protected $description = 'เตรียมรหัสสาขาและ SKU ตัวเลขก่อน cutover ไปใช้ SKU EAN-13';
 
     public function handle(MasterDataCutoverService $service): int
     {

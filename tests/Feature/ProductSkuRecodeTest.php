@@ -7,90 +7,98 @@ use App\Models\Product;
 use App\Models\ProductBarcode;
 use App\Models\ProductCategory;
 use App\Models\ProductUnit;
+use App\Services\InternalEan13Allocator;
 use App\Services\ProductSkuAllocator;
 use App\Services\ProductSkuRecodeService;
+use App\Support\BarcodePolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class ProductSkuRecodeTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_plan_runs_each_numeric_category_from_one_using_legacy_sku_order(): void
+    public function test_plan_assigns_each_products_valid_ean13_as_its_new_sku(): void
     {
-        $meat = $this->category('101');
-        $drink = $this->category('301');
-        $first = $this->product('P000001', '801098', $meat);
-        $second = $this->product('P000002', '801003', $meat);
-        $third = $this->product('P000003', '301992', $drink);
+        $first = $this->product('SKU-OLD-A', 'CAT-4RLG');
+        $second = $this->product('OLD-B', null);
+        $third = $this->product('OLD-C', 'CC');
 
         $plan = collect($this->service()->plan())->keyBy('id');
 
-        $this->assertSame('101001', $plan[$second->id]['new']);
-        $this->assertSame('101002', $plan[$first->id]['new']);
-        $this->assertSame('301001', $plan[$third->id]['new']);
+        foreach ([$first, $second, $third] as $product) {
+            $this->assertSame($product->barcodes()->value('barcode'), $plan[$product->id]['new']);
+            $this->assertMatchesRegularExpression('/^[0-9]{13}$/', $plan[$product->id]['new']);
+        }
+        $this->assertCount(3, collect($plan)->pluck('new')->unique());
     }
 
-    public function test_apply_preserves_legacy_sku_and_does_not_touch_barcodes(): void
+    public function test_apply_uses_ean13_and_keeps_the_previous_sku_as_a_scannable_alias(): void
     {
-        $product = $this->product('P000010', '801098', $this->category('101'));
+        $product = $this->product('SKU-OLD-10', 'CAT-4RLG');
         $barcode = ProductBarcode::create([
             'product_id' => $product->id, 'barcode' => '8850001234567', 'unit_id' => $product->base_unit_id,
             'unit_factor' => 1, 'barcode_type' => 'CUSTOM', 'is_active' => true,
         ]);
+        $newSku = $product->barcodes()->value('barcode');
 
         $result = $this->service()->apply();
 
         $this->assertSame(1, $result['products']);
-        $this->assertSame('101001', $product->fresh()->sku_code);
-        $this->assertSame('801098', $product->fresh()->legacy_sku);
+        $this->assertSame($newSku, $product->fresh()->sku_code);
+        $this->assertMatchesRegularExpression('/^[0-9]{13}$/', $product->fresh()->sku_code);
+        $this->assertSame('SKU-OLD-10', $product->fresh()->legacy_sku);
         $this->assertSame($product->id, $barcode->fresh()->product_id);
+        $this->assertSame($product->id, ProductBarcode::where('barcode', 'SKU-OLD-10')->value('product_id'));
         $this->assertSame(1, MasterCutoverRun::where('scope', ProductSkuRecodeService::SCOPE)->count());
     }
 
-    public function test_unclassified_or_cancelled_products_block_recode(): void
+    public function test_unclassified_and_cancelled_products_are_included_in_ean13_recode(): void
     {
-        $this->product('P000010', '801098', null);
-        $this->product('P000011', '801099', $this->category('CC'));
-
-        $problems = collect($this->service()->preflight());
-
-        $this->assertTrue($problems->where('level', 'หยุด')->isNotEmpty());
-    }
-
-    public function test_cancelled_products_keep_their_existing_sku_and_do_not_block_recode(): void
-    {
-        $active = $this->product('P000010', '801098', $this->category('101'));
-        $cancelled = $this->product('P000011', '801099', $this->category('CC'));
+        $withoutCategory = $this->product('OLD-NO-CATEGORY', null);
+        $cancelled = $this->product('OLD-CANCELLED', 'CC');
+        $withoutCategorySku = $withoutCategory->barcodes()->value('barcode');
+        $cancelledSku = $cancelled->barcodes()->value('barcode');
 
         $result = $this->service()->apply();
 
-        $this->assertSame(1, $result['products']);
-        $this->assertSame('101001', $active->fresh()->sku_code);
-        $this->assertSame('P000011', $cancelled->fresh()->sku_code);
-        $this->assertSame('801099', $cancelled->fresh()->legacy_sku);
+        $this->assertSame(2, $result['products']);
+        $this->assertSame($withoutCategorySku, $withoutCategory->fresh()->sku_code);
+        $this->assertSame($cancelledSku, $cancelled->fresh()->sku_code);
+        $this->assertSame('OLD-CANCELLED', $cancelled->fresh()->legacy_sku);
     }
 
-    public function test_next_sku_is_allocated_per_category_and_skips_deleted_numbers(): void
+    public function test_cutover_cannot_be_applied_twice(): void
     {
-        $category = $this->category('101');
-        $first = $this->product('101001', '801001', $category);
-        $this->product('101002', '801002', $category)->delete();
+        $this->product('SKU-OLD-A', 'CAT-4RLG');
+        $service = $this->service();
 
-        $next = \DB::transaction(fn () => app(ProductSkuAllocator::class)->nextForCategory($category->id));
+        $service->apply();
 
-        $this->assertSame('101003', $next);
-        $this->assertNotNull($first);
+        $this->assertNotEmpty(collect($service->preflight())->where('level', 'หยุด'));
     }
 
-    private function category(string $code): ProductCategory
+    public function test_next_sku_is_valid_unique_ean13(): void
     {
-        return ProductCategory::firstOrCreate(['code' => $code], ['name_th' => 'ประเภท '.$code]);
+        $category = ProductCategory::firstOrCreate(['code' => 'CAT-4RLG'], ['name_th' => 'เนื้อวัว']);
+        $first = $this->product('OLD-1', $category->code);
+        $this->product('OLD-2', $category->code)->delete();
+
+        $next = DB::transaction(fn () => app(ProductSkuAllocator::class)->nextForCategory($category->id));
+
+        $this->assertMatchesRegularExpression('/^\d{13}$/', $next);
+        $this->assertStringStartsWith('299', $next);
+        $this->assertTrue(app(BarcodePolicy::class)->isValidEan13($next));
+        $this->assertNotSame($first->sku_code, $next);
     }
 
-    private function product(string $sku, string $legacySku, ?ProductCategory $category): Product
+    private function product(string $sku, ?string $categoryCode): Product
     {
         $unit = ProductUnit::firstOrCreate(['code' => 'EA-SKU'], ['name' => 'ชิ้น', 'qty_per_base_unit' => 1]);
+        $category = $categoryCode === null
+            ? null
+            : ProductCategory::firstOrCreate(['code' => $categoryCode], ['name_th' => 'ประเภท '.$categoryCode]);
 
         $product = Product::create([
             'sku_code' => $sku,
@@ -102,8 +110,15 @@ class ProductSkuRecodeTest extends TestCase
             'is_vat' => false,
             'is_active' => true,
         ]);
-        // Preserve the legacy source code separately from the new category-led SKU.
-        Product::whereKey($product->id)->update(['legacy_sku' => $legacySku]);
+        $barcode = DB::transaction(fn () => app(InternalEan13Allocator::class)->next());
+        ProductBarcode::create([
+            'product_id' => $product->id,
+            'barcode' => $barcode,
+            'unit_id' => $unit->id,
+            'unit_factor' => 1,
+            'barcode_type' => BarcodePolicy::INTERNAL_13,
+            'is_active' => true,
+        ]);
 
         return $product->fresh();
     }

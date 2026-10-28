@@ -2,6 +2,8 @@
 
 namespace App\Services\Etl;
 
+use App\Models\Product;
+use App\Services\ProductSkuAllocator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -11,7 +13,9 @@ use Illuminate\Support\Facades\Log;
  * MssqlMasterDataSourceService) and upserts it into the PostgreSQL tables designed
  * in POSTGRESQL_NEW_SCHEMA.md. Safe to re-run: "master" tables (branches,
  * categories, products, customers, ...) are upserted by their natural business code,
- * so re-running only updates changed rows. "Detail" tables that have no other FK
+ * by their stable legacy business code, so re-running only updates changed rows.
+ * Product SKUs are generated locally as numeric codes and source SKUs are retained
+ * in legacy_sku. "Detail" tables that have no other FK
  * dependents (addresses, contacts, stock balances) are fully replaced each run,
  * treating MSSQL as the source of truth for them.
  *
@@ -23,6 +27,7 @@ class MasterDataEtlService
 
     public function __construct(
         private readonly MssqlMasterDataSourceService $source,
+        private readonly ProductSkuAllocator $skuAllocator,
     ) {}
 
     /** @return array<string, int> counts per step, for reporting */
@@ -127,41 +132,56 @@ class MasterDataEtlService
         $brandIds = $this->codeToIdMap('product_brands');
         $unitIds = $this->codeToIdMap('product_units');
 
-        $rows = [];
-        foreach ($this->source->fetchProducts() as $r) {
-            $skuCode = trim($r['SKU_CODE'] ?? '');
-            if ($skuCode === '') {
-                continue;
+        return DB::transaction(function () use ($categoryIds, $departmentIds, $brandIds, $unitIds): int {
+            $synced = 0;
+            foreach ($this->source->fetchProducts() as $row) {
+                $legacySku = trim($row['SKU_CODE'] ?? '');
+                if ($legacySku === '') {
+                    continue;
+                }
+
+                $baseUnitId = $unitIds[(string) ($row['SKU_S_UTQ'] ?? '')] ?? null;
+                if ($baseUnitId === null) {
+                    continue;
+                }
+
+                $product = Product::withTrashed()->where('legacy_sku', $legacySku)->first()
+                    ?? Product::withTrashed()->where('sku_code', $legacySku)->first();
+                $skuCode = $product?->sku_code;
+                if ($skuCode === null || preg_match('/^[0-9]{13}$/', $skuCode) !== 1) {
+                    $skuCode = $this->skuAllocator->next();
+                }
+
+                $values = [
+                    'sku_code' => $skuCode,
+                    'legacy_sku' => $product?->legacy_sku ?: $legacySku,
+                    'name_th' => trim($row['SKU_NAME'] ?? '') ?: $legacySku,
+                    'name_en' => $this->blankToNull($row['SKU_E_NAME'] ?? null),
+                    'product_category_id' => $categoryIds[trim($row['ICCAT_CODE'] ?? '')] ?? null,
+                    'product_department_id' => $departmentIds[trim($row['ICDEPT_CODE'] ?? '')] ?? null,
+                    'product_brand_id' => $brandIds[trim($row['BRN_CODE'] ?? '')] ?? null,
+                    'base_unit_id' => $baseUnitId,
+                    'default_price' => is_numeric($row['SKU_PRICE'] ?? null) ? (float) $row['SKU_PRICE'] : null,
+                    'is_active' => ($row['SKU_ENABLE'] ?? 'N') === 'Y',
+                ];
+
+                if ($product === null) {
+                    Product::create($values);
+                } else {
+                    $product->fill($values)->save();
+                }
+                $synced++;
             }
 
-            $baseUnitId = $unitIds[(string) ($r['SKU_S_UTQ'] ?? '')] ?? null;
-            if ($baseUnitId === null) {
-                continue; // products.base_unit_id is NOT NULL; skip rather than insert garbage
-            }
+            Log::info("MasterDataEtlService: synced {$synced} products with numeric EAN-13 SKUs");
 
-            $rows[] = [
-                'sku_code' => $skuCode,
-                'name_th' => trim($r['SKU_NAME'] ?? '') ?: $skuCode,
-                'name_en' => $this->blankToNull($r['SKU_E_NAME'] ?? null),
-                'product_category_id' => $categoryIds[trim($r['ICCAT_CODE'] ?? '')] ?? null,
-                'product_department_id' => $departmentIds[trim($r['ICDEPT_CODE'] ?? '')] ?? null,
-                'product_brand_id' => $brandIds[trim($r['BRN_CODE'] ?? '')] ?? null,
-                'base_unit_id' => $baseUnitId,
-                'default_price' => is_numeric($r['SKU_PRICE'] ?? null) ? (float) $r['SKU_PRICE'] : null,
-                'is_active' => ($r['SKU_ENABLE'] ?? 'N') === 'Y',
-                'updated_at' => now(),
-            ];
-        }
-
-        return $this->upsertChunked('products', $rows, ['sku_code'], [
-            'name_th', 'name_en', 'product_category_id', 'product_department_id',
-            'product_brand_id', 'base_unit_id', 'default_price', 'is_active', 'updated_at',
-        ]);
+            return $synced;
+        });
     }
 
     private function syncProductBarcodes(): int
     {
-        $productIds = $this->codeToIdMap('products', 'sku_code');
+        $productIds = $this->codeToIdMap('products', 'legacy_sku');
         $unitIds = $this->codeToIdMap('product_units');
 
         $rows = [];
@@ -256,7 +276,7 @@ class MasterDataEtlService
 
     private function syncStockBalances(): int
     {
-        $productIds = $this->codeToIdMap('products', 'sku_code');
+        $productIds = $this->codeToIdMap('products', 'legacy_sku');
         $locationIds = $this->warehouseLocationCodeMap();
 
         $rows = [];

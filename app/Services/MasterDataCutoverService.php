@@ -23,8 +23,6 @@ use RuntimeException;
 class MasterDataCutoverService
 {
     public const BRANCH_PREFIX = 'B';
-    public const PRODUCT_PREFIX = 'P';
-
     /** สำนักงานใหญ่ใช้รหัส HQ ไม่เข้าคิว B ตามเจ้าของสั่ง */
     public const HQ_CODE = 'HQ';
 
@@ -156,7 +154,7 @@ class MasterDataCutoverService
             $plan[] = [
                 'id' => $product->id,
                 'legacy' => (string) $product->sku_code,
-                'new' => self::PRODUCT_PREFIX.str_pad((string) ++$sequence, 6, '0', STR_PAD_LEFT),
+                'new' => str_pad((string) ++$sequence, 6, '0', STR_PAD_LEFT),
                 'name' => (string) $product->name_th,
                 'barcodes' => (int) ($barcodeCounts[$product->id] ?? 0),
             ];
@@ -199,6 +197,9 @@ class MasterDataCutoverService
         }
         if (MasterCutoverRun::where('scope', 'products')->exists()) {
             $problems[] = ['level' => 'หยุด', 'issue' => 'ทำ cutover สินค้าไปแล้ว', 'detail' => 'รันซ้ำจะไล่เลขทับของเดิม'];
+        }
+        if (MasterCutoverRun::where('scope', 'product-numeric-sku')->exists()) {
+            $problems[] = ['level' => 'หยุด', 'issue' => 'เปลี่ยน SKU ตัวเลขไปแล้ว', 'detail' => 'รันซ้ำจะไล่เลขทับของเดิม'];
         }
 
         // ฐานมี unique ที่คอลัมน์ barcode อยู่แล้ว ซ้ำข้ามสินค้าจึงเกิดไม่ได้
@@ -316,18 +317,17 @@ class MasterDataCutoverService
      */
     public function apply(?int $userId = null): array
     {
-        $blocking = collect($this->preflight())->where('level', 'หยุด');
-        if ($blocking->isNotEmpty()) {
-            throw new RuntimeException('ยังผ่านการตรวจไม่ครบ '.$blocking->count().' ข้อ: '.$blocking->pluck('issue')->unique()->implode(' · '));
-        }
+        return DB::transaction(function () use ($userId) {
+            DB::table('product_sku_sequences')->where('id', 1)->lockForUpdate()->firstOrFail();
+            $blocking = collect($this->preflight())->where('level', 'หยุด');
+            if ($blocking->isNotEmpty()) {
+                throw new RuntimeException('ยังผ่านการตรวจไม่ครบ '.$blocking->count().' ข้อ: '.$blocking->pluck('issue')->unique()->implode(' · '));
+            }
 
-        $branchPlan = $this->planBranches();
-        $productPlan = $this->planProducts();
-        // ต้องคำนวณให้ครบก่อนเขียนอะไรลงฐาน แผนเครื่อง POS อ่านรหัสสาขาเดิม
-        // ถ้าไปคำนวณหลังเปลี่ยนรหัสสาขาแล้ว จะได้ผลจากข้อมูลที่ขยับไปแล้ว
-        $devicePlan = $this->planPosDevices();
-
-        return DB::transaction(function () use ($branchPlan, $productPlan, $devicePlan, $userId) {
+            $branchPlan = $this->planBranches();
+            $productPlan = $this->planProducts();
+            // คำนวณทุกแผนก่อนเขียน เพื่อไม่ให้การเปลี่ยนรหัสต้นทางทำให้ปลายทางเปลี่ยน
+            $devicePlan = $this->planPosDevices();
             $barcodesBefore = DB::table('product_barcodes')->count();
 
             $hqId = collect($branchPlan)->firstWhere('new', self::HQ_CODE)['id'] ?? null;
@@ -361,6 +361,7 @@ class MasterDataCutoverService
                     'sku_code' => $row['new'],
                 ]);
             }
+            DB::table('product_sku_sequences')->where('id', 1)->update(['last_number' => count($productPlan)]);
 
             $this->attachCentralWarehouseToHeadOffice($hqId);
             $this->renumberPosDevices($devicePlan);

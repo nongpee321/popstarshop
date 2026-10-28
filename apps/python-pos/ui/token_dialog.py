@@ -1,20 +1,23 @@
 import os
 import sys
 import requests
+from services.offline_auth import verify_offline_login
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit, QMessageBox, QWidget, QFrame
+    QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit, QMessageBox, QWidget, QFrame,
+    QInputDialog
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QIcon, QPixmap
+from urllib.parse import urlsplit
 
-VERSION_STRING = "1.15.0"
+VERSION_STRING = "1.2.0"
 
 class PosTokenLoginDialog(QDialog):
     """
     หน้าต่างเข้าสู่ระบบจุดขาย (POS Terminal Authentication)
     ธีมสีแดง-ขาว (Signature Pop Star Red & White) คมชัด สวยงาม ทรงพลัง ระดับ Commercial POS
     """
-    def __init__(self, parent=None, api_url="http://localhost:8000", default_token="", default_username=""):
+    def __init__(self, parent=None, api_url="http://localhost:8000", default_token="", default_username="", cached_offline_auth=None):
         super().__init__(parent)
         self.api_url = (api_url or "http://localhost:8000").rstrip("/")
         self.token = default_token.strip()
@@ -24,6 +27,8 @@ class PosTokenLoginDialog(QDialog):
         self.device_name = ""
         self.selected_cashier = None
         self.entered_pin = ""
+        self.is_offline_login = False
+        self.offline_auth = cached_offline_auth if isinstance(cached_offline_auth, dict) else None
 
         self.setWindowTitle(f"PopCentral POS — เข้าสู่ระบบ (v{VERSION_STRING})")
         self.setFixedSize(440, 540)
@@ -168,6 +173,16 @@ class PosTokenLoginDialog(QDialog):
         self.status_lbl.setAlignment(Qt.AlignCenter)
         self.status_lbl.setStyleSheet("font-size: 12px; font-weight: 700; color: #dc2626; min-height: 18px;")
         content_layout.addWidget(self.status_lbl)
+        try:
+            if urlsplit(self.api_url).hostname.casefold() in ("localhost", "127.0.0.1", "::1"):
+                self.status_lbl.setText(
+                    "ERP URL ชี้ไป localhost (เครื่องนี้) — หาก ERP อยู่เครื่องอื่น กด “ตั้งค่า ERP”"
+                )
+                self.status_lbl.setStyleSheet(
+                    "font-size: 12px; font-weight: 700; color: #b45309; min-height: 18px;"
+                )
+        except (AttributeError, ValueError):
+            self.status_lbl.setText("ERP URL ไม่ถูกต้อง — กด “ตั้งค่า ERP” เพื่อแก้ไข")
 
         content_layout.addStretch()
 
@@ -176,7 +191,7 @@ class PosTokenLoginDialog(QDialog):
         btn_layout.setSpacing(10)
 
         exit_btn = QPushButton("ปิด")
-        exit_btn.setFixedSize(90, 44)
+        exit_btn.setFixedSize(70, 44)
         exit_btn.setStyleSheet("""
             QPushButton {
                 background-color: #f3f4f6;
@@ -192,6 +207,24 @@ class PosTokenLoginDialog(QDialog):
             }
         """)
         exit_btn.clicked.connect(self.reject)
+
+        server_btn = QPushButton("ตั้งค่า ERP")
+        server_btn.setFixedSize(80, 44)
+        server_btn.setToolTip("ตั้งค่า URL ของ ERP Server ที่เครื่อง POS ต้องเชื่อมต่อ")
+        server_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #eff6ff;
+                color: #1d4ed8;
+                font-weight: 700;
+                border: 1px solid #bfdbfe;
+                border-radius: 6px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #dbeafe;
+            }
+        """)
+        server_btn.clicked.connect(self.configure_server)
 
         self.login_btn = QPushButton("เข้าสู่ระบบ")
         self.login_btn.setFixedHeight(44)
@@ -237,6 +270,7 @@ class PosTokenLoginDialog(QDialog):
         guide_btn.clicked.connect(self.show_quick_guide)
 
         btn_layout.addWidget(guide_btn)
+        btn_layout.addWidget(server_btn)
         btn_layout.addWidget(exit_btn)
         btn_layout.addWidget(self.login_btn)
         content_layout.addLayout(btn_layout)
@@ -250,6 +284,51 @@ class PosTokenLoginDialog(QDialog):
             self.user_input.setFocus()
         else:
             self.pin_input.setFocus()
+
+    def configure_server(self):
+        url, accepted = QInputDialog.getText(
+            self,
+            "ตั้งค่า ERP Server",
+            "ใส่ API URL ของ ERP (เช่น https://erp.example.com):",
+            text=self.api_url,
+        )
+        if not accepted:
+            return
+
+        url = url.strip().rstrip("/")
+        try:
+            parsed = urlsplit(url)
+            hostname = parsed.hostname
+            has_credentials = parsed.username is not None or parsed.password is not None
+        except ValueError:
+            hostname = None
+            has_credentials = False
+            parsed = None
+        if not parsed or parsed.scheme not in ("http", "https") or not hostname or has_credentials:
+            QMessageBox.warning(
+                self,
+                "URL ไม่ถูกต้อง",
+                "กรุณาระบุ URL ที่ขึ้นต้นด้วย http:// หรือ https:// และไม่มีชื่อผู้ใช้หรือรหัสผ่านใน URL",
+            )
+            return
+        if parsed.scheme != "https" and hostname.casefold() not in ("localhost", "127.0.0.1", "::1"):
+            QMessageBox.warning(
+                self,
+                "ต้องใช้ HTTPS",
+                "การเชื่อมต่อ ERP นอกเครื่องนี้ต้องใช้ https:// เพื่อปกป้องข้อมูลการเข้าสู่ระบบ",
+            )
+            return
+        if parsed.query or parsed.fragment:
+            QMessageBox.warning(self, "URL ไม่ถูกต้อง", "API URL ต้องไม่มี query string หรือ fragment")
+            return
+
+        self.api_url = url
+        self.status_lbl.setText(f"ERP Server: {self.api_url}")
+        QMessageBox.information(
+            self,
+            "เปลี่ยน ERP Server แล้ว",
+            "เปลี่ยน URL ในหน้าต่างนี้แล้ว กดเข้าสู่ระบบเพื่อทดสอบการเชื่อมต่อ",
+        )
 
     def play_intro_sound(self):
         """เสียงแจ้งเตือนสั้นๆ นุ่มนวลเมื่อเข้าใช้งานสำเร็จ"""
@@ -290,7 +369,7 @@ class PosTokenLoginDialog(QDialog):
             ping_res = requests.get(
                 f"{self.api_url}/api/pos/ping",
                 headers={'Authorization': f"Bearer {token}", 'Accept': 'application/json'},
-                timeout=6
+                timeout=(5, 20)
             )
             if ping_res.status_code != 200:
                 self.status_lbl.setText("Token ไม่ถูกต้อง หรือถูกเพิกถอน")
@@ -313,7 +392,7 @@ class PosTokenLoginDialog(QDialog):
                 f"{self.api_url}/api/pos/cashier/login",
                 headers={'Authorization': f"Bearer {token}", 'Accept': 'application/json'},
                 json={'code': username, 'pin': pin},
-                timeout=6
+                timeout=(5, 20)
             )
             login_res.encoding = 'utf-8'
 
@@ -323,6 +402,12 @@ class PosTokenLoginDialog(QDialog):
                     self.selected_cashier = login_data.get('cashier', {})
                     if 'code' not in self.selected_cashier:
                         self.selected_cashier['code'] = username
+                    offline_credential = login_data.get('offline_credential')
+                    self.offline_auth = {
+                        'code': username,
+                        'cashier': self.selected_cashier,
+                        'credential': offline_credential,
+                    } if isinstance(offline_credential, dict) else None
                     self.entered_pin = pin
                     self.username = username
 
@@ -352,22 +437,45 @@ class PosTokenLoginDialog(QDialog):
                 self.status_lbl.setStyleSheet("font-size: 12px; font-weight: 700; color: #dc2626;")
                 QMessageBox.warning(self, "ข้อผิดพลาด", err)
 
-        except Exception as e:
-            self.status_lbl.setText("ไม่สามารถเชื่อมต่อเครือข่ายได้")
+        except requests.exceptions.RequestException as exc:
+            self.status_lbl.setText(f"ติดต่อ ERP ไม่สำเร็จ ({type(exc).__name__})")
             self.status_lbl.setStyleSheet("font-size: 12px; font-weight: 700; color: #dc2626;")
-            reply = QMessageBox.question(
-                self, "Network Error",
-                f"ไม่สามารถเชื่อมต่อไปยังเซิร์ฟเวอร์ได้\nต้องการเข้าสู่ระบบแบบออฟไลน์ด้วยบัญชี {username} หรือไม่?",
-                QMessageBox.Yes | QMessageBox.No
-            )
-            if reply == QMessageBox.Yes:
+            if verify_offline_login(self.offline_auth, username, pin):
                 self.token = token
                 self.username = username
                 self.entered_pin = pin
-                self.selected_cashier = {'code': username, 'name': f"พนักงาน ({username})"}
+                self.selected_cashier = self.offline_auth.get('cashier') or {
+                    'code': username,
+                    'name': f"พนักงาน ({username})",
+                }
+                self.is_offline_login = True
+                cashier_display_name = self.selected_cashier.get('name') or username
                 self.play_intro_sound()
+                QMessageBox.information(
+                    self,
+                    "โหมดออฟไลน์ (Offline Mode)",
+                    f"ติดต่อ ERP ไม่สำเร็จ ({type(exc).__name__})\n"
+                    f"เข้าสู่ระบบแบบออฟไลน์สำเร็จ: {cashier_display_name}\n\n"
+                    "• ตรวจสอบข้อมูลผู้ใช้จากฐานข้อมูลภายในเครื่องเรียบร้อย\n"
+                    "• สามารถขายสินค้าและพิมพ์ใบเสร็จได้ตามปกติ\n"
+                    "• เมื่ออินเทอร์เน็ตเชื่อมต่อติด ระบบจะสลับเป็นโหมดออนไลน์และซิงค์บิลให้อัตโนมัติ"
+                )
                 self.accept()
                 return
+            QMessageBox.warning(
+                self,
+                "เข้าสู่ระบบออฟไลน์ไม่ได้",
+                f"POS ติดต่อ ERP ไม่สำเร็จ ({type(exc).__name__}) และไม่พบข้อมูลยืนยันออฟไลน์ที่ยังใช้งานได้สำหรับบัญชีนี้ หรือ PIN ไม่ถูกต้อง",
+            )
+        except Exception as exc:
+            self.status_lbl.setText(f"ตรวจสอบข้อมูลตอบกลับจาก ERP ไม่สำเร็จ ({type(exc).__name__})")
+            self.status_lbl.setStyleSheet("font-size: 12px; font-weight: 700; color: #dc2626;")
+            QMessageBox.critical(
+                self,
+                "ตรวจสอบการเข้าสู่ระบบไม่สำเร็จ",
+                f"เกิดข้อผิดพลาดระหว่างตรวจสอบการเข้าสู่ระบบ ({type(exc).__name__})\n"
+                "ระบบไม่ได้เปลี่ยนเป็นโหมดออฟไลน์ กรุณาลองอีกครั้งหรือติดต่อผู้ดูแลระบบ",
+            )
 
         finally:
             self.login_btn.setEnabled(True)
@@ -377,4 +485,3 @@ class PosTokenLoginDialog(QDialog):
         from ui.manual_dialog import ManualDialog
         dialog = ManualDialog(self, initial_step=0)
         dialog.exec()
-

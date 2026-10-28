@@ -6,11 +6,13 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Models\Product;
 use App\Models\ProductBarcode;
+use App\Services\ProductSkuAllocator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class PosOfflineProductController extends Controller
 {
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, ProductSkuAllocator $skuAllocator): JsonResponse
     {
         Log::info('PosOfflineProductController::store called', $request->all());
         
@@ -21,10 +23,12 @@ class PosOfflineProductController extends Controller
                 'barcode' => 'nullable|string|max:50',
             ]);
 
-            $sku = $data['barcode'] ?: 'OFFLINE-' . time() . '-' . rand(100, 999);
+            $barcode = $data['barcode'] ?? null;
 
-            // Check if sku exists (including soft-deleted or barcode) to prevent unique violations
-            $product = Product::withTrashed()->where('sku_code', $sku)->first();
+            // Check for a previous legacy product with the same barcode before creating a new one.
+            $product = $barcode ? Product::withTrashed()
+                ->where(fn ($query) => $query->where('sku_code', $barcode)->orWhere('legacy_sku', $barcode))
+                ->first() : null;
             if (!$product && !empty($data['barcode'])) {
                 $barcodeRecord = ProductBarcode::where('barcode', $data['barcode'])->first();
                 if ($barcodeRecord) {
@@ -40,26 +44,30 @@ class PosOfflineProductController extends Controller
             }
 
             // Just create a simple product
-            $product = Product::create([
-                'name_th' => $data['name_th'],
-                'name_en' => $data['name_th'],
-                'sku_code' => $sku,
-                'default_price' => $data['default_price'],
-                'base_unit_id' => \App\Models\ProductUnit::first()?->id ?? 1,
-                'is_active' => true,
-            ]);
-
-            if (!empty($data['barcode'])) {
-                \Illuminate\Support\Facades\DB::insert('insert into product_barcodes (product_id, barcode, unit_id, barcode_type, unit_factor, price, is_active) values (?, ?, ?, ?, ?, ?, ?)', [
-                    $product->id,
-                    $data['barcode'],
-                    $product->base_unit_id ?? 1,
-                    'code128',
-                    1,
-                    $data['default_price'],
-                    true
+            $product = DB::transaction(function () use ($data, $skuAllocator): Product {
+                $product = Product::create([
+                    'name_th' => $data['name_th'],
+                    'name_en' => $data['name_th'],
+                    'sku_code' => $skuAllocator->next(),
+                    'default_price' => $data['default_price'],
+                    'base_unit_id' => \App\Models\ProductUnit::first()?->id ?? 1,
+                    'is_active' => true,
                 ]);
-            }
+
+                if (! empty($data['barcode'])) {
+                    DB::insert('insert into product_barcodes (product_id, barcode, unit_id, barcode_type, unit_factor, price, is_active) values (?, ?, ?, ?, ?, ?, ?)', [
+                        $product->id,
+                        $data['barcode'],
+                        $product->base_unit_id ?? 1,
+                        'code128',
+                        1,
+                        $data['default_price'],
+                        true,
+                    ]);
+                }
+
+                return $product;
+            });
 
             Log::info('PosOfflineProductController created product', ['product_id' => $product->id]);
             

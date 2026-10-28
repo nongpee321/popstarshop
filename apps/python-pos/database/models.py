@@ -45,6 +45,7 @@ class Product(Base):
     image_url = Column(String(255), nullable=True)
     is_scale_item = Column(Boolean, default=False)
     scale_type = Column(String(20), default='weight') # weight (kg), piece
+    is_promotion = Column(Boolean, default=False)
 
 # 4. scale_profiles
 class ScaleProfile(Base):
@@ -165,6 +166,7 @@ class Outbox(Base):
     payload_json = Column(Text, nullable=False)
     idempotency_key = Column(String(100), unique=True, nullable=False)
     status = Column(String(20), default='pending') # pending, processing, synced, failed
+    payload_prepared = Column(Boolean, nullable=False, default=False)
     retry_count = Column(Integer, default=0)
     max_retries = Column(Integer, default=10)
     last_error = Column(Text, nullable=True)
@@ -261,55 +263,98 @@ def restore_pos_db(backup_file_path):
     shutil.copy2(backup_file_path, dest)
     return True
 
-def init_db(db_path=None):
+_engines = {}
+_sessionmakers = {}
+_initialized_dbs = set()
+
+def get_engine(db_path=None):
     if not db_path:
         paths = get_pos_data_paths()
         db_path = f"sqlite:///{paths['db_file']}"
-        
-    engine = create_engine(db_path, connect_args={'check_same_thread': False})
-    
-    # Enable WAL mode and foreign keys for SQLite
+    if not str(db_path).startswith('sqlite:///'):
+        db_path = f"sqlite:///{db_path}"
+
+    if db_path in _engines:
+        return _engines[db_path]
+
+    engine = create_engine(
+        db_path,
+        connect_args={'check_same_thread': False, 'timeout': 15},
+        pool_pre_ping=True
+    )
+
     @event.listens_for(engine, "connect")
     def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA busy_timeout=10000")
+        cursor.execute("PRAGMA cache_size=-16000")
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 
-    # Create tables if not exist
-    Base.metadata.create_all(engine)
+    _engines[db_path] = engine
+    _sessionmakers[db_path] = sessionmaker(bind=engine)
+    return engine
 
-    # Auto-migrate missing columns for existing SQLite databases (e.g. image_url, is_scale_item, scale_type)
-    try:
-        with engine.connect() as conn:
-            cursor = conn.connection.cursor()
-            cursor.execute("PRAGMA table_info(products)")
-            existing_cols = [col[1] for col in cursor.fetchall()]
-            if 'image_url' not in existing_cols:
-                cursor.execute("ALTER TABLE products ADD COLUMN image_url VARCHAR(255)")
-            if 'is_scale_item' not in existing_cols:
-                cursor.execute("ALTER TABLE products ADD COLUMN is_scale_item BOOLEAN DEFAULT 0")
-            if 'scale_type' not in existing_cols:
-                cursor.execute("ALTER TABLE products ADD COLUMN scale_type VARCHAR(20) DEFAULT 'weight'")
-            conn.connection.commit()
-    except Exception:
-        pass
-    
-    # Seed default scale profiles if empty
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    try:
-        count = session.query(ScaleProfile).count()
-        if count == 0:
-            profiles = [
-                ScaleProfile(name="Scale 800 (Weight in grams)", prefix="800", item_code_len=4, weight_len=5, weight_divisor=1000.0, is_active=True),
-                ScaleProfile(name="Scale 801 (Weight in grams)", prefix="801", item_code_len=4, weight_len=5, weight_divisor=1000.0, is_active=True),
-                ScaleProfile(name="Scale 02 (Standard Retail)", prefix="02", item_code_len=5, weight_len=5, weight_divisor=1000.0, is_active=True),
-                ScaleProfile(name="Scale 20 (Standard Retail)", prefix="20", item_code_len=5, weight_len=5, weight_divisor=1000.0, is_active=True),
-            ]
-            session.add_all(profiles)
-            session.commit()
-    except Exception:
-        session.rollback()
-        
-    return session
+def init_db(db_path=None):
+    if not db_path:
+        paths = get_pos_data_paths()
+        db_path = f"sqlite:///{paths['db_file']}"
+    if not str(db_path).startswith('sqlite:///'):
+        db_path = f"sqlite:///{db_path}"
+
+    engine = get_engine(db_path)
+    Session = _sessionmakers[db_path]
+
+    # Only run DDL, migrations, and index creation ONCE per database path per app process
+    if db_path not in _initialized_dbs:
+        Base.metadata.create_all(engine)
+
+        with engine.begin() as conn:
+            product_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(products)").fetchall()}
+            if 'image_url' not in product_cols:
+                conn.exec_driver_sql("ALTER TABLE products ADD COLUMN image_url VARCHAR(255)")
+            if 'is_scale_item' not in product_cols:
+                conn.exec_driver_sql("ALTER TABLE products ADD COLUMN is_scale_item BOOLEAN DEFAULT 0")
+            if 'scale_type' not in product_cols:
+                conn.exec_driver_sql("ALTER TABLE products ADD COLUMN scale_type VARCHAR(20) DEFAULT 'weight'")
+            if 'is_promotion' not in product_cols:
+                conn.exec_driver_sql("ALTER TABLE products ADD COLUMN is_promotion BOOLEAN DEFAULT 0")
+
+            outbox_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(outbox)").fetchall()}
+            if 'payload_prepared' not in outbox_cols:
+                conn.exec_driver_sql("ALTER TABLE outbox ADD COLUMN payload_prepared BOOLEAN NOT NULL DEFAULT 0")
+
+            # Indexes for instant search, barcode scan, and sync checks
+            conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)")
+            conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku_code)")
+            conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS idx_products_cat_active ON products(category_id, is_active)")
+            conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS idx_sales_status ON sales(status)")
+            conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS idx_outbox_status ON outbox(status)")
+
+            try:
+                conn.exec_driver_sql("PRAGMA wal_checkpoint(PASSIVE)")
+            except Exception:
+                pass
+
+        session = Session()
+        try:
+            count = session.query(ScaleProfile).count()
+            if count == 0:
+                profiles = [
+                    ScaleProfile(name="Scale 800 (Weight in grams)", prefix="800", item_code_len=4, weight_len=5, weight_divisor=1000.0, is_active=True),
+                    ScaleProfile(name="Scale 801 (Weight in grams)", prefix="801", item_code_len=4, weight_len=5, weight_divisor=1000.0, is_active=True),
+                    ScaleProfile(name="Scale 02 (Standard Retail)", prefix="02", item_code_len=5, weight_len=5, weight_divisor=1000.0, is_active=True),
+                    ScaleProfile(name="Scale 20 (Standard Retail)", prefix="20", item_code_len=5, weight_len=5, weight_divisor=1000.0, is_active=True),
+                ]
+                session.add_all(profiles)
+                session.commit()
+        except Exception:
+            session.rollback()
+        finally:
+            session.close()
+
+        _initialized_dbs.add(db_path)
+
+    return Session()

@@ -26,8 +26,10 @@ use App\Models\SupplierPriceSchedule;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
+use App\Services\InternalEan13Allocator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class PosRetailControlTest extends TestCase
@@ -291,6 +293,32 @@ class PosRetailControlTest extends TestCase
         $this->assertSame('101002', $barcodeResult[0]['matched_barcode']['barcode']);
         $this->assertSame($skuProduct->id, $skuResult[0]['id']);
         $this->assertArrayNotHasKey('matched_barcode', $skuResult[0]);
+    }
+
+    public function test_generated_ean13_resolves_to_its_product_in_pos(): void
+    {
+        [$user, $branch, , , $product] = $this->posMasters('EAN13-SCAN');
+        $barcode = DB::transaction(fn () => app(InternalEan13Allocator::class)->next());
+        ProductBarcode::create([
+            'product_id' => $product->id,
+            'barcode' => $barcode,
+            'unit_id' => $product->base_unit_id,
+            'unit_factor' => 1,
+            'barcode_type' => 'INTERNAL_13',
+            'is_active' => true,
+        ]);
+        $this->actingAs($user);
+
+        $result = app(PosController::class)->products(Request::create('/pos/products', 'GET', [
+            'branch_id' => $branch->id,
+            'q' => $barcode,
+            'exact' => 1,
+            'lookup' => 'barcode',
+        ]))->getData(true);
+
+        $this->assertCount(1, $result);
+        $this->assertSame($product->id, $result[0]['id']);
+        $this->assertSame($barcode, $result[0]['matched_barcode']['barcode']);
     }
 
     /** @return array{User,Branch,Salesman,PosShift,Product} */

@@ -72,7 +72,7 @@ master.
        current price; never show a code in place of a missing product name;
      - fixed bottom/right payment action and numpad.
    - Product cards are populated from local SQLite catalog and must work offline.
-   - Search by product name, new SKU (`P000001...`), existing barcode, and scale PLU.
+   - Search by product name, numeric EAN-13 SKU, legacy SKU aliases, existing barcode, and scale PLU.
    - Product grid must show only active sellable items and only non-empty categories.
    - A zero-product catalog must render a blocking `Sync catalog` state with diagnostics,
      not blank rectangular buttons.

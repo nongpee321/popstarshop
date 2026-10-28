@@ -20,10 +20,8 @@ import sys
 from decimal import Decimal
 from datetime import datetime
 
-
 def _receipt_amount(value):
     return Decimal(str(value or 0))
-
 
 def _payment_method_label(method):
     labels = {
@@ -36,21 +34,45 @@ def _payment_method_label(method):
     }
     return labels.get(method, str(method or 'ไม่ระบุ'))
 
-
 def _receipt_date_label(value):
     date_text = str(value or '-')
     try:
         date = datetime.fromisoformat(date_text)
     except ValueError:
         return date_text
-    thai_year = (date.year + 543) % 100
-    return date.strftime('%d/%m/') + f'{thai_year:02d} ' + date.strftime('%H:%M')
+    thai_year = date.year + 543
+    return date.strftime('%d/%m/') + f'{thai_year:04d} ' + date.strftime('%H:%M')
 
+def _format_receipt_qty(qty_value):
+    from decimal import ROUND_FLOOR
+    qty_dec = _receipt_amount(qty_value)
+    if qty_dec == int(qty_dec):
+        return f"{int(qty_dec)}"
+    first_dec = (qty_dec * Decimal('10')).to_integral_value(rounding=ROUND_FLOOR) / Decimal('10')
+    return f"{first_dec:.1f} **"
+
+def _format_total_qty(qty_value):
+    qty_dec = _receipt_amount(qty_value).quantize(Decimal('0.001')).normalize()
+    if qty_dec == int(qty_dec):
+        return f"{int(qty_dec)}"
+    text = f"{qty_dec:f}"
+    return text.rstrip('0').rstrip('.') if '.' in text else text
+
+def _truncate_thai_visual(text, max_visual_chars):
+    import unicodedata
+    out = []
+    vis = 0
+    for ch in str(text or ''):
+        if unicodedata.category(ch) != 'Mn':
+            if vis >= max_visual_chars:
+                break
+            vis += 1
+        out.append(ch)
+    return "".join(out)
 
 def _logo_path():
     app_directory = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable)) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.dirname(__file__))
     return os.path.join(app_directory, 'assets', 'logo.png')
-
 
 def _escpos_logo():
     path = _logo_path()
@@ -82,21 +104,22 @@ def _escpos_logo():
     height_low, height_high = target_height & 0xFF, target_height >> 8
     return b'\x1dv0\x00' + bytes((width_low, width_high, height_low, height_high)) + bytes(raster) + b'\n'
 
-
-def _receipt_raster_commands(document):
-    source_width = document.textWidth()
+def _receipt_raster_commands(document, paper_size='80mm'):
+    doc_size = document.documentLayout().documentSize()
+    source_width = max(document.textWidth(), doc_size.width())
     if source_width <= 0:
-        raise ValueError("ไม่สามารถอ่านขนาดใบเสร็จสำหรับการพิมพ์ได้")
-
-    paper_width = 576
-    scale = paper_width / source_width
-    source_height = document.documentLayout().documentSize().height()
-    image_height = max(1, int(source_height * scale) + 8)
+        raise ValueError("เอกสารใบเสร็จไม่มีความกว้างที่ถูกต้อง")
+    paper_width = 384 if paper_size == '58mm' else 576
+    target_width = 350 if paper_size == '58mm' else 525
+    scale = target_width / source_width
+    offset_x = max(0, (paper_width - int(source_width * scale)) // 2)
+    source_height = doc_size.height()
+    image_height = max(1, int(source_height * scale) + 16)
     image = QImage(paper_width, image_height, QImage.Format.Format_RGB32)
     image.fill(0xFFFFFFFF)
-
     painter = QPainter(image)
     painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, False)
+    painter.translate(offset_x, 8)
     painter.scale(scale, scale)
     document.drawContents(painter, QRectF(0, 0, source_width, source_height))
     painter.end()
@@ -121,9 +144,8 @@ def _receipt_raster_commands(document):
                         value |= 1 << (7 - bit)
                 commands.append(value)
 
-    commands.extend(b'\n\n\n\x1dVA\x03')
+    commands.extend(b'\n\x1dVA\x03')
     return bytes(commands)
-
 
 def _send_raw_to_printer(printer_name, commands):
     try:
@@ -144,6 +166,11 @@ def _send_raw_to_printer(printer_name, commands):
     except Exception as error:
         raise Exception(f"ไม่สามารถส่งข้อมูลไปที่เครื่องพิมพ์ '{printer_name}' ได้: {str(error)}")
 
+def _resolve_paper_size(config, printer_name=''):
+    cfg = config or {}
+    if cfg.get('receipt_paper_size_v110_user_set') and cfg.get('receipt_paper_size') in ('58mm', '80mm'):
+        return cfg['receipt_paper_size']
+    return '80mm'
 
 def print_escpos_receipt(printer_name, receipt_data, config):
     if not printer_name:
@@ -151,7 +178,8 @@ def print_escpos_receipt(printer_name, receipt_data, config):
 
     document = config.get('_receipt_document')
     if document is not None:
-        _send_raw_to_printer(printer_name, _receipt_raster_commands(document))
+        paper_size = _resolve_paper_size(config, printer_name)
+        _send_raw_to_printer(printer_name, _receipt_raster_commands(document, paper_size))
         return
 
     def enc(text):
@@ -179,8 +207,6 @@ def print_escpos_receipt(printer_name, receipt_data, config):
     if not footer_text:
 
         footer_text = "ขอบคุณที่ใช้บริการ\nโอกาสหน้าเชิญใหม่ครับ/ค่ะ"
-
-
 
     branch = receipt_data.get('branch', 'สำนักงานใหญ่')
 
@@ -330,13 +356,9 @@ def print_escpos_receipt(printer_name, receipt_data, config):
 
         raise Exception("ไม่พบโมดูล win32print กรุณาติดตั้ง pypiwin32")
 
-
-
     if not printer_name:
 
         raise Exception("กรุณาเลือกเครื่องพิมพ์ก่อน")
-
-
 
     try:
 
@@ -361,12 +383,6 @@ def print_escpos_receipt(printer_name, receipt_data, config):
     except Exception as e:
 
         raise Exception(f"ไม่สามารถส่งข้อมูลไปที่เครื่องพิมพ์ '{printer_name}' ได้: {str(e)}")
-
-
-
-
-
-
 
 def open_cash_drawer(printer_name):
 
@@ -427,8 +443,6 @@ def open_cash_drawer(printer_name):
     except Exception as e:
 
         raise Exception(f"Failed to open drawer: {str(e)}")
-
-
 
 class ReceiptSettingsDialog(QDialog):
 
@@ -497,6 +511,28 @@ class ReceiptSettingsDialog(QDialog):
         printer_layout.addWidget(lbl_printer)
         printer_layout.addWidget(self.printer_combo)
         settings_layout.addLayout(printer_layout)
+
+        paper_layout = QVBoxLayout()
+        paper_layout.setSpacing(6)
+        paper_layout.addWidget(QLabel("ขนาดหน้ากว้างกระดาษ"))
+        self.paper_size_combo = QComboBox()
+        self.paper_size_combo.addItem("80 มม. (มาตรฐาน / หน้าร้าน)", "80mm")
+        self.paper_size_combo.addItem("58 มม.", "58mm")
+        default_paper = _resolve_paper_size(self.config, current_printer)
+        paper_index = self.paper_size_combo.findData(default_paper)
+        self.paper_size_combo.setCurrentIndex(max(0, paper_index))
+        paper_layout.addWidget(self.paper_size_combo)
+
+        paper_layout.addWidget(QLabel("ขนาดตัวหนังสือและตัวเลข"))
+        self.font_scale_combo = QComboBox()
+        self.font_scale_combo.addItem("ตัวใหญ่ ชัดเจน (แนะนำ)", "large")
+        self.font_scale_combo.addItem("ตัวใหญ่พิเศษ (Extra Large)", "xlarge")
+        self.font_scale_combo.addItem("กะทัดรัด (Compact)", "compact")
+        font_index = self.font_scale_combo.findData(self.config.get('receipt_font_scale', 'large'))
+        self.font_scale_combo.setCurrentIndex(max(0, font_index))
+        paper_layout.addWidget(self.font_scale_combo)
+        settings_layout.addLayout(paper_layout)
+
         
         # Header text
         header_layout = QVBoxLayout()
@@ -604,8 +640,6 @@ class ReceiptSettingsDialog(QDialog):
         main_layout.addWidget(settings_frame, stretch=5)
         main_layout.addWidget(preview_wrapper, stretch=4)
 
-
-
     def save_and_test(self):
 
         self.config['receipt_printer'] = self.printer_combo.currentText()
@@ -613,6 +647,10 @@ class ReceiptSettingsDialog(QDialog):
         self.config['receipt_header'] = self.header_edit.toPlainText()
 
         self.config['receipt_footer'] = self.footer_edit.toPlainText()
+        self.config['receipt_paper_size'] = self.paper_size_combo.currentData()
+        self.config['receipt_font_scale'] = self.font_scale_combo.currentData()
+        self.config['receipt_paper_size_set_by_user'] = True
+        self.config['receipt_paper_size_v110_user_set'] = True
 
         
 
@@ -657,10 +695,6 @@ class ReceiptSettingsDialog(QDialog):
 
             QMessageBox.critical(self, "Error", f"เกิดข้อผิดพลาด:\n{str(e)}")
 
-
-
-
-
 class ReceiptDialog(QDialog):
 
     def __init__(self, parent=None, receipt_data=None):
@@ -669,7 +703,10 @@ class ReceiptDialog(QDialog):
 
         self.setWindowTitle("พิมพ์ใบเสร็จรับเงิน")
 
-        self.setFixedWidth(440)
+        parent_config = getattr(parent, 'config', {}) if parent else {}
+        self.config = dict(parent_config)
+        self.receipt_paper_size = _resolve_paper_size(self.config)
+        self.setFixedWidth(380 if self.receipt_paper_size == '58mm' else 400)
         self.setMinimumHeight(0)
         self.setMaximumHeight(1400)
 
@@ -704,7 +741,7 @@ class ReceiptDialog(QDialog):
         self.receipt_text.setReadOnly(True)
         self.receipt_text.setFont(QFont("Tahoma", 14))
         self.receipt_text.setStyleSheet("border: none; background: transparent;")
-        self.receipt_text.setFixedWidth(360)
+        self.receipt_text.setFixedWidth(270 if self.receipt_paper_size == '58mm' else 280)
         self.receipt_text.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
         self.receipt_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.paper_layout.setAlignment(self.receipt_text, Qt.AlignmentFlag.AlignHCenter)
@@ -713,11 +750,7 @@ class ReceiptDialog(QDialog):
 
         
 
-        parent_window = self.parent()
-
-        config = getattr(parent_window, 'config', {}) if parent_window else {}
-
-        self.update_receipt_ui(config)
+        self.update_receipt_ui(self.config)
 
         
 
@@ -727,7 +760,7 @@ class ReceiptDialog(QDialog):
 
         if pm in ['cash', 'split', 'เงินสด', 'ผสม (Split)']:
 
-            printer_name = config.get('receipt_printer', '')
+            printer_name = self.config.get('receipt_printer', '')
 
             if printer_name:
 
@@ -738,8 +771,6 @@ class ReceiptDialog(QDialog):
                 except:
 
                     pass
-
-
 
         
 
@@ -761,9 +792,6 @@ class ReceiptDialog(QDialog):
 
         
 
-
-
-
         top_btns.addWidget(print_btn)
 
         top_btns.addWidget(settings_btn)
@@ -784,8 +812,6 @@ class ReceiptDialog(QDialog):
         self.adjustSize()
         QTimer.singleShot(0, self._fit_receipt_layout)
 
-
-
     def open_settings(self):
 
         parent_window = self.parent()
@@ -796,64 +822,112 @@ class ReceiptDialog(QDialog):
 
         dialog.exec()
 
-
+    def save_config(self):
+        main_window = self.parent()
+        if main_window and hasattr(main_window, 'save_config'):
+            main_window.config.update(self.config)
+            main_window.save_config()
 
     def update_receipt_ui(self, config):
 
         if not hasattr(self, 'receipt_text'): return
 
-        
+        from decimal import ROUND_FLOOR
+        self.config = dict(config or {})
+        self.receipt_paper_size = _resolve_paper_size(self.config)
+        is_narrow = self.receipt_paper_size == '58mm'
+        self.receipt_text.setFixedWidth(270 if is_narrow else 280)
+        self.setFixedWidth(380 if is_narrow else 400)
+
+        font_scale = self.config.get('receipt_font_scale', 'large')
+        if font_scale == 'xlarge':
+            font_body = "13px" if is_narrow else "13.5px"
+            font_th = "12.5px" if is_narrow else "13px"
+            font_shop = "19px" if is_narrow else "20px"
+            font_doc = "13px" if is_narrow else "13.5px"
+            font_total_lbl = "19px" if is_narrow else "20px"
+            font_total_val = "21px" if is_narrow else "22px"
+            font_meta = "11px" if is_narrow else "11.5px"
+        elif font_scale == 'compact':
+            font_body = "11px" if is_narrow else "11.5px"
+            font_th = "10.5px" if is_narrow else "11px"
+            font_shop = "16px" if is_narrow else "17px"
+            font_doc = "11px" if is_narrow else "11.5px"
+            font_total_lbl = "16px" if is_narrow else "17px"
+            font_total_val = "18px" if is_narrow else "19px"
+            font_meta = "9.5px" if is_narrow else "10px"
+        else:  # 'large' (default - clear, bold, matching reference slip style)
+            font_body = "12px" if is_narrow else "12px"
+            font_th = "11.5px" if is_narrow else "11.5px"
+            font_shop = "18px" if is_narrow else "18px"
+            font_doc = "12px" if is_narrow else "12px"
+            font_total_lbl = "18px" if is_narrow else "18px"
+            font_total_val = "20px" if is_narrow else "20px"
+            font_meta = "10.5px" if is_narrow else "10.5px"
 
         header_text = config.get('receipt_header', '')
-
         if not header_text:
-
             header_text = "บริษัท ป๊อปสตาร์ฟู้ดส์ เทรดดิ้ง จำกัด\n480 หมู่บ้านคำเจริญ ม.1 ต.แสนสุข\nอ.วารินชำราบ จ.อุบลราชธานี 34190\nโทร. 061-935-4497 | Line: @popstarshop"
 
-            
-
         footer_text = config.get('receipt_footer', '')
-
         if not footer_text:
-
             footer_text = "ขอบคุณที่ใช้บริการ\nโอกาสหน้าเชิญใหม่ครับ/ค่ะ"
 
-        
-
         branch = self.receipt_data.get('branch', 'สำนักงานใหญ่')
-
-        cashier = self.receipt_data.get('cashier', 'พนักงาน')
-
+        cashier = self.receipt_data.get('cashier', '01')
         receipt_no = self.receipt_data.get('doc_number', '-')
-
         date_str = self.receipt_data.get('date', '-')
 
-        total_amount = _receipt_amount(self.receipt_data.get('total', 0))
+        items_list = self.receipt_data.get('items', [])
+        items_sum = sum((_receipt_amount(it.get('total', 0)) for it in items_list), Decimal('0.00')).quantize(Decimal('0.01'))
+        manual_discount = _receipt_amount(self.receipt_data.get('discount_amount', 0)).quantize(Decimal('0.01'))
+
+        if items_sum > Decimal('0.00'):
+            total_amount = max(Decimal('0.00'), items_sum - manual_discount).quantize(Decimal('0.01'))
+        else:
+            total_amount = _receipt_amount(self.receipt_data.get('total', 0)).quantize(Decimal('0.01'))
+        satang_discount = Decimal('0.00')
+
         vat_rate = _receipt_amount(self.receipt_data.get('vat_rate', 7))
         vat_amount = total_amount * vat_rate / (Decimal('100') + vat_rate) if vat_rate else Decimal('0')
         before_vat = total_amount - vat_amount
-        method_str = _payment_method_label(self.receipt_data.get('payment_method'))
 
         safe = lambda value: html.escape(str(value or ''))
-        header_html = "<br>".join(safe(line) for line in header_text.splitlines())
-        footer_html = "<br>".join(safe(line) for line in footer_text.splitlines())
+        full_tax = bool(self.receipt_data.get('is_full_tax'))
+        shop_name = config.get('receipt_shop_name', 'POP STAR SHOP')
+        header_html = "<br>".join(safe(line) for line in header_text.splitlines()) if full_tax else safe(shop_name)
+        footer_html = "<br>".join(safe(line) for line in footer_text.splitlines()[:1]) if full_tax else ""
+        method = self.receipt_data.get('payment_method', 'cash')
+        method_str = _payment_method_label(method)
+        item_count = int(self.receipt_data.get('item_count', len(items_list)))
+        total_qty = sum((_receipt_amount(item.get('qty', 0)) for item in items_list), Decimal('0')) if items_list else _receipt_amount(self.receipt_data.get('total_qty', 0))
+        cash_received = _receipt_amount(self.receipt_data.get('cash_received', total_amount)).quantize(Decimal('0.01'))
+        if cash_received <= Decimal('0.00'):
+            cash_received = total_amount
+
+        max_name_len = 15 if is_narrow else 18
+        col_qty = "14%" if is_narrow else "14%"
+        col_name = "44%" if is_narrow else "44%"
+        col_unit = "21%" if is_narrow else "21%"
+        col_price = "21%" if is_narrow else "21%"
+        col_name_span = "58%" if is_narrow else "58%"
+        col_unit_span = "21%" if is_narrow else "21%"
+        col_price_span = "21%" if is_narrow else "21%"
+
         items_html = "".join(
             f"""
-            <tr class="item-name">
-                <td>{safe(item.get('name', ''))}</td>
-                <td align="right">{_receipt_amount(item.get('total', 0)):,.2f}</td>
-            </tr>
-            <tr>
-                <td colspan="2" class="item-detail">{safe(item.get('qty', 1))} x { _receipt_amount(item.get('price', 0)):,.2f}</td>
+            <tr class="item-row">
+                <td colspan="2" width="{col_name_span}" class="item-desc">{safe(_format_receipt_qty(item.get('qty', 1)))} {safe(_truncate_thai_visual(item.get('name', ''), max_name_len))}</td>
+                <td width="{col_unit_span}" class="unit">{_receipt_amount(item.get('price', 0)):,.2f}&nbsp;&nbsp;</td>
+                <td width="{col_price_span}" class="amount">{_receipt_amount(item.get('total', 0)):,.2f}#</td>
             </tr>
             """
-            for item in self.receipt_data.get('items', [])
+            for item in items_list
         )
 
         logo_path = _logo_path()
-        logo_html = f'<img src="{QUrl.fromLocalFile(logo_path).toString()}" width="64">' if os.path.isfile(logo_path) else ''
         customer_html = ""
-        if self.receipt_data.get('is_full_tax'):
+        if full_tax:
             customer_html = f"""
                 <div class="customer">
                     ลูกค้า: {safe(self.receipt_data.get('customer_name'))}<br>
@@ -862,74 +936,99 @@ class ReceiptDialog(QDialog):
                 </div>
             """
 
+        satang_html = ""
+        discount_html = (
+            f'<tr class="item-row"><td colspan="2" class="item-desc">ส่วนลด</td><td class="unit"></td><td class="amount">-{manual_discount:,.2f}&nbsp;&nbsp;</td></tr>'
+            if manual_discount > Decimal('0.00') else ''
+        )
+        vat_html = (
+            f'<tr class="item-row"><td colspan="2" class="item-desc">มูลค่าสินค้าก่อน VAT</td><td class="unit"></td><td class="amount">{before_vat:,.2f}&nbsp;&nbsp;</td></tr>'
+            f'<tr class="item-row"><td colspan="2" class="item-desc">VAT {vat_rate}%</td><td class="unit"></td><td class="amount">{vat_amount:,.2f}&nbsp;&nbsp;</td></tr>'
+            if full_tax else ''
+        )
+        payment_label = 'เงินสด' if method == 'cash' else method_str
+        paid_amount = cash_received if method == 'cash' else total_amount
+        change_amount = max(Decimal('0.00'), paid_amount - total_amount)
+        change_html = (
+            f'<tr><td colspan="2">เงินทอน</td><td colspan="2" class="amount">{change_amount:,.2f}&nbsp;&nbsp;</td></tr>'
+            if method == 'cash' and change_amount > Decimal('0.00') else ''
+        )
+
         receipt_html = f"""
         <html><head><style>
-            body {{ font-family: 'Tahoma', 'Arial', sans-serif; font-size: 13.5px; font-weight: 700; color: #000000; margin: 0; line-height: 1.3; }}
+            body {{ font-family: 'Leelawadee UI', 'Tahoma', 'Arial', sans-serif; font-size: {font_body}; font-weight: 700; color: #000; margin: 0; line-height: 1.22; }}
             .receipt {{ width: 100%; }}
             .center {{ text-align: center; }}
-            .logo {{ margin-bottom: 2px; }}
-            .shop {{ font-size: 13.5px; font-weight: 900; line-height: 1.25; color: #000; }}
-            .document {{ font-size: 15px; font-weight: 900; margin: 6px 0 4px; color: #000; }}
-            .meta {{ line-height: 1.35; font-size: 13px; font-weight: 700; }}
-            .meta table td:last-child {{ text-align: right; }}
-            .customer {{ margin-top: 4px; padding-top: 4px; line-height: 1.35; font-size: 12.5px; font-weight: 700; }}
-            .rule {{ font-family: "Courier New", monospace; font-size: 13px; font-weight: 900; line-height: 1; margin: 5px 0; color: #000; }}
-            table {{ width: 100%; border-collapse: collapse; font-weight: 700; color: #000; }}
-            td {{ padding: 2px 0; vertical-align: top; }}
-            .item-name {{ padding-top: 4px; font-size: 13.5px; font-weight: 900; }}
-            .item-detail {{ padding-left: 8px; font-size: 12.5px; font-weight: 700; color: #000; }}
-            .item-total, .summary td:last-child {{ text-align: right; white-space: nowrap; font-weight: 800; }}
-            .summary td {{ padding: 2px 0; font-size: 13px; }}
-            .grand-total {{ margin-top: 4px; padding-top: 4px; font-size: 18px; font-weight: 900; text-align: center; color: #000; }}
-            .footer {{ margin-top: 6px; padding-top: 6px; line-height: 1.35; font-size: 12.5px; font-weight: 700; }}
+            .shop {{ font-size: {font_shop}; font-weight: 900; line-height: 1.2; letter-spacing: 0.5px; }}
+            .document {{ font-size: {font_doc}; font-weight: 700; margin: 2px 0 3px; }}
+            .customer {{ margin: 2px 0; padding-top: 2px; line-height: 1.22; font-size: {font_doc}; }}
+            table.slip-table {{ width: 100%; border-collapse: collapse; color: #000; }}
+            table.slip-table th {{ border-bottom: 1px solid #000; padding: 2px 0 3px 0; font-size: {font_th}; font-weight: 800; white-space: nowrap; }}
+            table.slip-table td {{ padding: 1px 0; vertical-align: middle; font-size: {font_body}; font-weight: 700; }}
+            .item-desc {{ text-align: left; white-space: nowrap; }}
+            .unit {{ text-align: right; white-space: nowrap; padding-right: 6px; }}
+            .amount {{ text-align: right; white-space: nowrap; }}
+            .footer {{ margin-top: 6px; padding-top: 3px; line-height: 1.22; font-size: {font_doc}; }}
         </style></head><body>
             <div class="receipt">
-                <div class="center logo">{logo_html}</div>
                 <div class="center shop">{header_html}</div>
-                <div class="center document">ใบกำกับภาษีย่อ</div>
-                <div class="meta">
-                    <table>
-                        <tr><td>สาขา: {safe(branch)}</td><td align="right">แคชเชียร์: {safe(cashier)}</td></tr>
-                        <tr><td>เลขที่: {safe(receipt_no)}</td><td align="right">{safe(_receipt_date_label(date_str))}</td></tr>
-                    </table>
-                </div>
+                <div class="center document">{'ใบกำกับภาษีอย่างย่อ' if full_tax else 'ใบรับเงิน'}</div>
                 {customer_html}
-                <div class="rule">========================================</div>
-                <table>
-                    <tbody>{items_html}</tbody>
+                <table class="slip-table" width="100%" cellspacing="0" cellpadding="0">
+                    <thead>
+                        <tr>
+                            <th width="{col_qty}" align="left">Qty</th>
+                            <th width="{col_name}" align="left">&nbsp;&nbsp;รายการ</th>
+                            <th width="{col_unit}" align="right">ต่อหน่วย&nbsp;&nbsp;</th>
+                            <th width="{col_price}" align="right">ราคา&nbsp;</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {items_html}
+                        {discount_html}
+                        {satang_html}
+                        {vat_html}
+                        <tr>
+                            <td colspan="2" style="padding-top: 4px; padding-bottom: 4px; font-size: {font_total_lbl}; font-weight: 900; vertical-align: middle;">ยอดรวม</td>
+                            <td colspan="2" align="right" style="border-top: 1px solid #000; border-bottom: 3.5px double #000; padding-top: 4px; padding-bottom: 4px; font-size: {font_total_val}; font-weight: 900; vertical-align: middle; white-space: nowrap;">{total_amount:,.2f}&nbsp;</td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" style="padding-top: 3px;">{safe(payment_label)}</td>
+                            <td colspan="2" class="amount" style="padding-top: 3px;">{paid_amount:,.2f}&nbsp;&nbsp;</td>
+                        </tr>
+                        {change_html}
+                        <tr>
+                            <td colspan="2">รวมรายการ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {item_count}</td>
+                            <td class="unit" style="white-space: nowrap;">รวมชิ้น &nbsp;&nbsp;&nbsp;&nbsp; {_format_total_qty(total_qty)}</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td colspan="4">Cashier : &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {safe(cashier)}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="4" style="font-size: {font_meta}; padding-top: 2px; white-space: nowrap;">{safe(receipt_no)} &nbsp; {safe(_receipt_date_label(date_str))}</td>
+                        </tr>
+                    </tbody>
                 </table>
-                <div class="rule">========================================</div>
-                <table class="summary">
-                    <tr><td>มูลค่าสินค้า (ก่อน VAT)</td><td align="right">{before_vat:,.2f}</td></tr>
-                    <tr><td>ภาษีมูลค่าเพิ่ม {vat_rate}%</td><td align="right">{vat_amount:,.2f}</td></tr>
-                </table>
-                <table class="grand-total">
-                    <tr><td colspan="2" class="center">ยอดสุทธิ {total_amount:,.2f} บาท</td></tr>
-                </table>
-                <div class="center" style="margin-top: 5px; font-weight: 700;">
-                    (รวมภาษีมูลค่าเพิ่มแล้ว)<br>
-                    ชำระโดย: {safe(method_str)}
-                </div>
-                <div class="center rule">========================================</div>
-                <div class="center footer">{footer_html}</div>
+                {f'<div class="center footer">{footer_html}</div>' if footer_html else ''}
             </div>
         </body></html>
         """
         document = self.receipt_text.document()
+        document.setDocumentMargin(1)
         document.setBaseUrl(QUrl.fromLocalFile(os.path.dirname(logo_path) + os.sep))
         self.receipt_text.setHtml(receipt_html)
-        document.setTextWidth(self.receipt_text.width() - 20)
+        document.setTextWidth(self.receipt_text.width())
         content_height = document.documentLayout().documentSize().height()
-        self.receipt_text.setFixedHeight(min(max(int(content_height + 36), 240), 1200))
+        self.receipt_text.setFixedHeight(min(max(int(content_height + 24), 240), 1200))
 
     def _fit_receipt_layout(self):
         document = self.receipt_text.document()
-        document.setTextWidth(self.receipt_text.viewport().width())
+        document.setDocumentMargin(1)
+        document.setTextWidth(self.receipt_text.width())
         content_height = document.documentLayout().documentSize().height()
-        self.receipt_text.setFixedHeight(min(max(int(content_height + 36), 240), 1200))
+        self.receipt_text.setFixedHeight(min(max(int(content_height + 24), 240), 1200))
         self.adjustSize()
-
-
 
     def manual_open_drawer(self):
 
@@ -952,8 +1051,6 @@ class ReceiptDialog(QDialog):
         except Exception as e:
 
             QMessageBox.critical(self, "Error", f"ไม่สามารถเปิดลิ้นชักได้:\n{str(e)}")
-
-
 
     def print_receipt(self):
 
@@ -978,7 +1075,7 @@ class ReceiptDialog(QDialog):
             print_escpos_receipt(
                 printer_name,
                 self.receipt_data,
-                {**config, '_receipt_document': self.receipt_text.document()},
+                {**config, 'receipt_paper_size': self.receipt_paper_size, '_receipt_document': self.receipt_text.document()},
             )
 
             QMessageBox.information(self, "สำเร็จ", "สั่งพิมพ์ใบเสร็จเรียบร้อยแล้วครับ!")
@@ -986,7 +1083,6 @@ class ReceiptDialog(QDialog):
         except Exception as e:
 
             QMessageBox.critical(self, "Error", f"เกิดข้อผิดพลาดในการพิมพ์:\n{str(e)}")
-
 
 class ShiftReportDialog(QDialog):
     """
@@ -1260,9 +1356,9 @@ class ShiftReportDialog(QDialog):
             QMessageBox.warning(self, "แจ้งเตือน", "ยังไม่ได้ตั้งค่าเครื่องพิมพ์ในระบบ")
             return
 
-        expected_pin = config.get('cashier_pin', '')
+        offline_auth = config.get('offline_auth')
         cashier_name = config.get('cashier_name', '')
-        if not expected_pin or cashier_name == 'Unknown' or not cashier_name:
+        if not offline_auth or cashier_name == 'Unknown' or not cashier_name:
             QMessageBox.warning(self, "แจ้งเตือน", "กรุณาเข้าสู่ระบบแคชเชียร์ก่อนทำการเปิดลิ้นชัก (Login Required)")
             return
 
@@ -1275,7 +1371,8 @@ class ShiftReportDialog(QDialog):
         )
         if not ok:
             return
-        if pwd != expected_pin:
+        from services.offline_auth import verify_offline_login
+        if not verify_offline_login(offline_auth, offline_auth.get('code'), pwd):
             QMessageBox.warning(self, "ข้อผิดพลาด", "รหัสผ่านไม่ถูกต้อง!")
             return
 
@@ -1299,4 +1396,3 @@ class ShiftReportDialog(QDialog):
             QMessageBox.information(self, "สำเร็จ", "สั่งพิมพ์รายงานกะ (Z-Report) เรียบร้อยแล้ว!")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"เกิดข้อผิดพลาดในการพิมพ์:\n{str(e)}")
-

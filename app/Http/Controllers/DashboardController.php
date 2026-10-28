@@ -133,22 +133,28 @@ class DashboardController extends Controller
             ->limit(20)
             ->get();
 
+        $expiryDueSql = DB::getDriverName() === 'pgsql'
+            ? "sl.expiry_date <= CURRENT_DATE + (COALESCE(p.expiry_warning_days, 0) * INTERVAL '1 day')"
+            : "date(sl.expiry_date) <= date('now', '+' || COALESCE(p.expiry_warning_days, 0) || ' days')";
         $expiryAlerts = DB::table('stock_lots as sl')
             ->join('products as p', 'p.id', '=', 'sl.product_id')
             ->join('warehouse_locations as wl', 'wl.id', '=', 'sl.warehouse_location_id')
             ->join('warehouses as w', 'w.id', '=', 'wl.warehouse_id')
             ->when($branchId, fn ($query) => $query->where('w.branch_id', $branchId))
             ->where('p.tracks_expiry', true)->where('sl.remaining_qty', '>', 0)
+            ->where(fn ($query) => $query
+                ->whereNull('sl.quality_status')
+                ->orWhere('sl.quality_status', '!=', 'available')
+                ->orWhereNull('sl.expiry_date')
+                ->orWhereRaw($expiryDueSql))
             ->orderByRaw('CASE WHEN sl.expiry_date IS NULL THEN 0 ELSE 1 END')->orderBy('sl.expiry_date')
+            ->limit(20)
             ->get(['p.sku_code', 'p.name_th', 'sl.lot_number', 'sl.expiry_date', 'sl.remaining_qty', 'sl.quality_status', 'p.expiry_warning_days'])
             ->map(function ($lot) {
                 $lot->days_left = $lot->expiry_date ? today()->diffInDays(Carbon::parse($lot->expiry_date), false) : null;
 
                 return $lot;
-            })
-            ->filter(fn ($lot) => $lot->quality_status !== 'available'
-                || $lot->days_left === null || $lot->days_left <= (int) $lot->expiry_warning_days)
-            ->take(20)->values();
+            });
 
         // ── ข้อมูลเพิ่มสำหรับแผงควบคุมแบบ Odoo ───────────────────────────
         // คิดเฉพาะตอนใช้ layout นี้ ไม่ให้ layout เดิมช้าลงเพราะ query ที่ไม่ได้ใช้

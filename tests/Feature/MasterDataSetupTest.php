@@ -99,7 +99,7 @@ class MasterDataSetupTest extends TestCase
 
     // ---------- 2 ----------
 
-    public function test_new_products_take_a_running_sku_from_their_category(): void
+    public function test_new_products_take_unique_ean13_skus(): void
     {
         $this->fixtures();
         $user = $this->manager();
@@ -111,10 +111,15 @@ class MasterDataSetupTest extends TestCase
         ], $user);
         $this->applyPending($user);
 
-        $this->assertSame('101001', Product::where('legacy_sku', 'OLD-1')->value('sku_code'));
-        $this->assertSame('101002', Product::where('legacy_sku', 'OLD-2')->value('sku_code'));
+        $firstSku = Product::where('legacy_sku', 'OLD-1')->value('sku_code');
+        $secondSku = Product::where('legacy_sku', 'OLD-2')->value('sku_code');
+        $this->assertMatchesRegularExpression('/^\d{13}$/', $firstSku);
+        $this->assertMatchesRegularExpression('/^\d{13}$/', $secondSku);
+        $this->assertNotSame($firstSku, $secondSku);
+        $this->assertTrue(app(BarcodePolicy::class)->isValidEan13($firstSku));
+        $this->assertTrue(app(BarcodePolicy::class)->isValidEan13($secondSku));
         // legacy_sku เป็นแค่ที่อ้างอิงกลับไปของเดิม ไม่ใช่รหัสที่ระบบใช้
-        $this->assertSame('OLD-1', Product::where('sku_code', '101001')->value('legacy_sku'));
+        $this->assertSame('OLD-1', Product::where('sku_code', $firstSku)->value('legacy_sku'));
     }
 
     // ---------- 3 ----------
@@ -321,7 +326,8 @@ class MasterDataSetupTest extends TestCase
 
         $imported = Product::where('legacy_sku', '101001')->first();
         $this->assertNotNull($imported, 'สินค้าใหม่ต้องถูกนำเข้า ไม่ใช่ถูกข้ามเพราะรหัสไปตรงกับ SKU ของตัวอื่น');
-        $this->assertSame('101002', $imported->sku_code);
+        $this->assertMatchesRegularExpression('/^\d{13}$/', $imported->sku_code);
+        $this->assertTrue(app(BarcodePolicy::class)->isValidEan13($imported->sku_code));
     }
 
     public function test_a_stale_preview_is_refused_rather_than_applied_to_a_changed_database(): void

@@ -62,6 +62,9 @@ class PendingSyncDialog(QDialog):
         """)
         
         self.setup_ui()
+        worker = getattr(self.parent_window, 'sync_worker', None)
+        if worker:
+            worker.manual_sync_finished.connect(self.on_manual_sync_finished)
         self.load_pending_sales()
 
     def setup_ui(self):
@@ -230,24 +233,22 @@ class PendingSyncDialog(QDialog):
             self.subtitle_lbl.setText(f"เกิดข้อผิดพลาดในการอ่านข้อมูล: {e}")
 
     def trigger_sync_now(self):
-        try:
-            if hasattr(self.parent_window, 'sync_worker') and self.parent_window.sync_worker:
-                # รีเซ็ตสถานะบิลที่ failed ให้กลับเป็น pending เพื่อส่งใหม่
-                con = sqlite3.connect(self.db_path)
-                cur = con.cursor()
-                cur.execute("UPDATE outbox SET status = 'pending', retry_count = 0 WHERE status = 'failed';")
-                cur.execute("UPDATE sales SET status = 'pending' WHERE status = 'failed';")
-                con.commit()
-                con.close()
+        worker = getattr(self.parent_window, 'sync_worker', None)
+        if not worker:
+            QMessageBox.warning(self, "แจ้งเตือน", "ระบบ Sync Background ไม่ได้ทำงานอยู่")
+            return
+        self.sync_now_btn.setEnabled(False)
+        self.sync_now_btn.setText("กำลังส่งบิล...")
+        worker.force_sync(retry_failed=True)
 
-                # สั่ง Sync ทันที
-                self.parent_window.sync_worker._sync_outbox_sales()
-                pending_count = self.parent_window.sync_worker.get_pending_count()
-                self.parent_window.update_pending_sync_badge(pending_count)
-                
-                self.load_pending_sales()
-                QMessageBox.information(self, "ส่งข้อมูลแล้ว", "ระบบได้ส่งบิลค้างขึ้น ERP เรียบร้อยแล้ว")
-            else:
-                QMessageBox.warning(self, "แจ้งเตือน", "ระบบ Sync Background ไม่ได้ทำงานอยู่")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"เกิดข้อผิดพลาด: {e}")
+    def on_manual_sync_finished(self, success, message):
+        self.sync_now_btn.setEnabled(True)
+        self.sync_now_btn.setText("🔄 สั่ง Sync ทันที (Retry Sync)")
+        self.load_pending_sales()
+        worker = getattr(self.parent_window, 'sync_worker', None)
+        if worker and hasattr(self.parent_window, 'update_pending_sync_badge'):
+            self.parent_window.update_pending_sync_badge(worker.get_pending_count())
+        if success:
+            QMessageBox.information(self, "ส่งบิลสำเร็จ", message)
+        else:
+            QMessageBox.warning(self, "ส่งบิลไม่สำเร็จ", message)

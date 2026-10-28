@@ -60,6 +60,7 @@ class PosPricingGuard
             $product = Product::where('is_active', true)
                 ->where(fn ($query) => $query
                     ->where('sku_code', $scale['plu'])
+                    ->orWhere('legacy_sku', $scale['plu'])
                     ->orWhereHas('barcodes', fn ($barcode) => $barcode
                         ->where('barcode', $scale['plu'])->where('is_active', true)))
                 ->first();

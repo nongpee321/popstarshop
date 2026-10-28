@@ -1,546 +1,558 @@
-<?php
-
-namespace App\Http\Controllers;
-
-use App\Models\AppSetting;
-use App\Models\Branch;
-use App\Models\PosDevice;
-use App\Models\PosTerminal;
-use App\Models\User;
-use App\Support\PosReleaseManifest;
-use App\Support\PosTerminalCode;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
-use Illuminate\Support\Str;
-use Illuminate\View\View;
-
-class SystemSettingController extends Controller
-{
-    private const DEFAULT_POS_LAYOUT = [
-        'schema' => 'popcentral-pos-layout',
-        'version' => 1,
-        'canvas' => ['columns' => 12, 'rows' => 8],
-        'components' => [
-            ['id' => 'search', 'type' => 'search', 'x' => 1, 'y' => 1, 'w' => 7, 'h' => 1],
-            ['id' => 'category', 'type' => 'category_tabs', 'x' => 1, 'y' => 2, 'w' => 7, 'h' => 1],
-            ['id' => 'products', 'type' => 'product_grid', 'x' => 1, 'y' => 3, 'w' => 7, 'h' => 5],
-            ['id' => 'cart', 'type' => 'cart', 'x' => 8, 'y' => 1, 'w' => 5, 'h' => 5],
-            ['id' => 'payment', 'type' => 'payment', 'x' => 8, 'y' => 6, 'w' => 5, 'h' => 2],
-        ],
-    ];
-
-    public function posDesigner(): View
-    {
-        $published = json_decode((string) AppSetting::get('pos_layout_published'), true);
-        $draft = json_decode((string) AppSetting::get('pos_layout_draft'), true);
-        $layout = is_array($draft) ? $draft : (is_array($published) ? $published : self::DEFAULT_POS_LAYOUT);
-
-        return view('settings.pos-designer', [
-            'layout' => $layout,
-            'publishedVersion' => (int) AppSetting::get('pos_layout_version', '0'),
-            'publishedAt' => AppSetting::get('pos_layout_published_at'),
-        ]);
-    }
-
-    public function savePosLayout(Request $request): RedirectResponse
-    {
-        $rawLayout = $request->input('layout');
-        if (is_string($rawLayout)) {
-            $rawLayout = json_decode($rawLayout, true);
-        }
-        $layout = $this->validatedPosLayout($rawLayout);
-        AppSetting::set('pos_layout_draft', json_encode($layout, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-
-        if ($request->boolean('publish')) {
-            $version = (int) AppSetting::get('pos_layout_version', '0') + 1;
-            $layout['version'] = $version;
-            AppSetting::set('pos_layout_published', json_encode($layout, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-            AppSetting::set('pos_layout_version', (string) $version);
-            AppSetting::set('pos_layout_published_at', now()->toIso8601String());
-            return redirect()->route('settings.pos-designer')->with('success', "Build และเผยแพร่ POS layout รุ่น {$version} แล้ว เครื่อง POS จะรับค่าเมื่อ Sync");
-        }
-
-        return redirect()->route('settings.pos-designer')->with('success', 'บันทึกแบบร่าง POS layout แล้ว');
-    }
-
-    private function validatedPosLayout(mixed $value): array
-    {
-        abort_unless(is_array($value), 422, 'รูปแบบ POS layout ไม่ถูกต้อง หรือ JSON ไม่สมบูรณ์');
-        $allowed = ['search', 'category_tabs', 'product_grid', 'cart', 'payment', 'customer', 'held_bills', 'numpad', 'shift_status'];
-        $components = [];
-        foreach (array_values($value['components'] ?? []) as $component) {
-            if (! is_array($component) || ! in_array($component['type'] ?? '', $allowed, true)) {
-                continue;
-            }
-            $components[] = [
-                'id' => preg_replace('/[^a-z0-9_-]/i', '', (string) ($component['id'] ?? $component['type'])),
-                'type' => $component['type'],
-                'x' => max(1, min(12, (int) ($component['x'] ?? 1))),
-                'y' => max(1, min(12, (int) ($component['y'] ?? 1))),
-                'w' => max(1, min(12, (int) ($component['w'] ?? 3))),
-                'h' => max(1, min(12, (int) ($component['h'] ?? 2))),
-            ];
-        }
-        abort_if(count($components) === 0, 422, 'ต้องมีอย่างน้อย 1 ส่วนประกอบ');
-
-        return [
-            'schema' => 'popcentral-pos-layout',
-            'version' => (int) ($value['version'] ?? 1),
-            'canvas' => ['columns' => 12, 'rows' => 12],
-            'components' => $components,
-        ];
-    }
-
-    public function updateLayout(Request $request): RedirectResponse
-    {
-        $data = $request->validate([
-            'erp_layout' => ['nullable', 'in:classic,odoo'],
-            'erp_theme' => ['nullable', 'in:ocean,navy,emerald,slate,clear,popstar'],
-        ]);
-        if (!empty($data['erp_layout'])) {
-            AppSetting::set('erp_layout', $data['erp_layout']);
-        }
-        if (!empty($data['erp_theme'])) {
-            AppSetting::set('erp_theme', $data['erp_theme']);
-        }
-
-        return redirect()->route('settings.index', ['tab' => 'theme'])->with('success', 'บันทึกการตั้งค่าธีมและรูปแบบหน้าจอเรียบร้อยแล้ว');
-    }
-
-    public function updateLogo(Request $request)
-    {
-        $request->validate([
-            'logo_choice' => ['nullable', 'string', 'max:255'],
-            'logo_file' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp,svg', 'max:4096'],
-        ], [
-            'logo_file.image' => 'ไฟล์โลโก้ต้องเป็นรูปภาพ (png/jpg/webp/svg)',
-            'logo_file.max' => 'ไฟล์โลโก้ต้องไม่เกิน 4MB',
-        ]);
-
-        $newLogoPath = null;
-
-        if ($request->hasFile('logo_file')) {
-            $file = $request->file('logo_file');
-            $name = 'custom-'.now()->format('YmdHis').'.'.strtolower($file->getClientOriginalExtension());
-            $file->move(public_path('images/logos'), $name);
-            $newLogoPath = 'images/logos/'.$name;
-        } elseif ($request->filled('logo_choice')) {
-            $choice = trim($request->input('logo_choice'));
-            if ($choice === '__none__') {
-                $newLogoPath = null;
-            } else {
-                $choice = ltrim($choice, '/\\');
-                if (str_starts_with($choice, 'images/') && File::exists(public_path($choice))) {
-                    $newLogoPath = $choice;
-                }
-            }
-        }
-
-        AppSetting::set('logo_path', $newLogoPath);
-        if ($newLogoPath !== null) {
-            AppSetting::set('company.logo', $newLogoPath);
-        }
-
-        $logoUrl = AppSetting::logoUrl();
-
-        if ($request->expectsJson() || $request->ajax()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'เปลี่ยนโลโก้ระบบเรียบร้อยแล้ว',
-                'logo_path' => $newLogoPath,
-                'logo_url' => $logoUrl,
-            ]);
-        }
-
-        return redirect()->route('settings.index', ['tab' => 'logo'])->with('success', 'เปลี่ยนโลโก้ระบบเรียบร้อยแล้ว');
-    }
-
-    public function index(): View
-    {
-        // Preset logos = every image dropped in public/images/logos
-        $presetDir = public_path('images/logos');
-        $presets = File::isDirectory($presetDir)
-            ? collect(File::files($presetDir))
-                ->filter(fn ($f) => in_array(strtolower($f->getExtension()), ['png', 'jpg', 'jpeg', 'webp', 'svg']))
-                ->map(fn ($f) => 'images/logos/'.$f->getFilename())
-                ->values()
-            : collect();
-
-        // อัตรา VAT ที่มีผลวันนี้ (ไม่มีแถว = 7)
-        $vatRate = DB::table('vat_rates')
-            ->where('effective_from', '<=', now()->toDateString())
-            ->where(fn ($w) => $w->whereNull('effective_to')->orWhere('effective_to', '>=', now()->toDateString()))
-            ->orderByDesc('effective_from')
-            ->value('rate_percent') ?? 7.0;
-
-        return view('settings.index', [
-            'presets' => $presets,
-            'currentLogo' => AppSetting::get('logo_path'),
-            'company' => [
-                'name_th' => AppSetting::company('name_th'),
-                'name_en' => AppSetting::company('name_en'),
-                'tax_id' => AppSetting::company('tax_id'),
-                'address' => AppSetting::company('address'),
-                'phone' => AppSetting::company('phone'),
-            ],
-            'doc' => [
-                'vat_rate' => (float) $vatRate,
-                'price_includes_vat' => AppSetting::get('doc_price_includes_vat', '1') === '1',
-                'credit_days' => (int) (AppSetting::get('default_credit_days') ?: 30),
-                'footer_note' => AppSetting::get('doc_footer_note', ''),
-            ],
-            'bookCount' => DB::table('document_books')->where('is_active', true)->count(),
-            'bankCount' => DB::table('bank_accounts')->count(),
-            'posUsers' => User::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'username', 'branch_id']),
-            'posBranches' => Branch::query()->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name_th']),
-            'posDevices' => PosDevice::with(['user:id,name,username', 'branch:id,code,name_th'])->latest()->limit(20)->get(),
-            'posTerminals' => PosTerminal::with('branch:id,code,name_th')->orderBy('code')->get(),
-            'menuOrder' => $this->menuOrder(),
-            'erpTheme' => AppSetting::get('erp_theme', 'ocean'),
-            'erpLayout' => AppSetting::get('erp_layout', 'classic'),
-            'posRelease' => $this->currentPosRelease(),
-            'pythonPosInstaller' => $this->currentPythonPosInstaller(),
-        ]);
-    }
-
-    /** Download the tested PopCentral POS installer without requiring GitHub access on a cashier PC. */
-    public function downloadPythonPos()
-    {
-        $installer = $this->currentPythonPosInstaller();
-        abort_unless($installer, 404, 'ยังไม่มีไฟล์ติดตั้ง PopCentral POS รุ่นทดสอบ');
-
-        return response()->download($installer['path'], $installer['filename'], [
-            'Content-Type' => 'application/vnd.microsoft.portable-executable',
-            'Cache-Control' => 'no-cache, must-revalidate',
-        ]);
-    }
-
-    public function publishPosRelease(Request $request): RedirectResponse
-    {
-        $data = $request->validate([
-            'pos_version' => ['required', 'regex:/^\d+\.\d+\.\d+$/'],
-            'pos_installer' => ['required', 'file', 'max:204800'],
-            'pos_signature' => ['required', 'string', 'max:2000'],
-            'pos_release_notes' => ['nullable', 'string', 'max:2000'],
-            'pos_mandatory' => ['nullable', 'boolean'],
-        ], [
-            'pos_version.regex' => 'เวอร์ชันต้องอยู่ในรูป 1.2.3',
-            'pos_installer.max' => 'ไฟล์ติดตั้งต้องไม่เกิน 200 MB',
-        ]);
-
-        $extension = strtolower($request->file('pos_installer')->getClientOriginalExtension());
-        abort_unless(in_array($extension, ['exe', 'msi', 'zip'], true), 422, 'รองรับไฟล์ exe, msi หรือ zip เท่านั้น');
-
-        $directory = storage_path('app/pos-releases');
-        File::ensureDirectoryExists($directory);
-        $filename = 'POPSTAR-POS-'.$data['pos_version'].'.'.$extension;
-        $request->file('pos_installer')->move($directory, $filename);
-
-        $manifest = [
-            'version' => $data['pos_version'],
-            'notes' => trim((string) ($data['pos_release_notes'] ?? '')),
-            'pub_date' => now()->toIso8601String(),
-            'platforms' => [
-                'windows-x86_64' => [
-                    'signature' => trim($data['pos_signature']),
-                    'url' => url('/download/pos/releases/'.$filename),
-                ],
-            ],
-            'mandatory' => $request->boolean('pos_mandatory'),
-            'sha256' => hash_file('sha256', $directory.'/'.$filename),
-        ];
-
-        $temporary = $directory.'/latest-'.Str::random(8).'.json';
-        File::put($temporary, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-        File::move($temporary, $directory.'/latest.json');
-
-        return redirect()->route('settings.index')->with('success', 'เผยแพร่ PopCentral POS รุ่น '.$data['pos_version'].' แล้ว เครื่องสาขาจะตรวจพบอัตโนมัติ');
-    }
-
-    private function currentPosRelease(): ?array
-    {
-        return app(PosReleaseManifest::class)->current();
-    }
-
-    private function currentPythonPosInstaller(): ?array
-    {
-        // Both folders are supported for backward compatibility. Choose by
-        // semantic version, otherwise an older legacy file can mask a newer
-        // installer published by GitHub.
-        $files = collect(array_merge(
-            File::glob(storage_path('app/pos-releases/PopCentral-POS-UAT-*-setup.exe')),
-            File::glob(storage_path('app/pos-python-releases/PopCentral-POS-UAT-*-setup.exe')),
-        ))
-            ->filter(fn (string $path) => is_file($path))
-            ->unique()
-            ->values()
-            ->all();
-        usort($files, static function (string $left, string $right): int {
-            preg_match('/-(\d+\.\d+\.\d+)-setup\.exe$/', basename($left), $leftMatch);
-            preg_match('/-(\d+\.\d+\.\d+)-setup\.exe$/', basename($right), $rightMatch);
-            $versionOrder = version_compare($rightMatch[1] ?? '0.0.0', $leftMatch[1] ?? '0.0.0');
-
-            return $versionOrder !== 0 ? $versionOrder : filemtime($right) <=> filemtime($left);
-        });
-
-        $path = $files[0] ?? null;
-        if (! $path) {
-            return null;
-        }
-
-        return [
-            'path' => $path,
-            'filename' => basename($path),
-            'size_bytes' => filesize($path),
-        ];
-    }
-
-    public function issuePosToken(Request $request): RedirectResponse
-    {
-        $data = $request->validate([
-            'pos_branch_id' => ['required', 'integer', 'exists:branches,id'],
-            'pos_device_name' => ['nullable', 'string', 'max:100'],
-        ]);
-
-        [$device, $token] = DB::transaction(function () use ($data) {
-            // Lock the branch while issuing its next terminal number. Two admins cannot receive the same code.
-            $branch = Branch::query()->lockForUpdate()->findOrFail($data['pos_branch_id']);
-            $user = User::query()
-                ->where('is_active', true)
-                ->where('branch_id', $branch->id)
-                ->with('roles.permissions')
-                ->orderBy('id')
-                ->get()
-                ->first(fn (User $candidate) => $candidate->hasPermission('pos.sell'));
-
-            if (! $user) {
-                // หากสาขานี้ยังไม่มีพนักงานประจำ ให้ใช้ผู้ใช้ปัจจุบัน (Admin/ผู้สร้าง) หรือผู้ใช้ที่มีสิทธิ์ pos.sell
-                $currentUser = auth()->user();
-                if ($currentUser && $currentUser->is_active && $currentUser->hasPermission('pos.sell')) {
-                    $user = $currentUser;
-                } else {
-                    $user = User::query()
-                        ->where('is_active', true)
-                        ->with('roles.permissions')
-                        ->orderBy('id')
-                        ->get()
-                        ->first(fn (User $candidate) => $candidate->hasPermission('pos.sell'));
-                }
-            }
-
-            if (! $user) {
-                abort(422, "ระบบยังไม่มีผู้ใช้งานที่มีสิทธิ์ขาย POS (pos.sell) จึงยังสร้างเครื่องไม่ได้");
-            }
-
-            $terminalCode = PosTerminalCode::next($branch);
-            $name = trim((string) ($data['pos_device_name'] ?? '')) ?: "PopCentral POS {$terminalCode}";
-
-            return PosDevice::issue([
-                'name' => $name,
-                'user_id' => $user->id,
-                'branch_id' => $branch->id,
-                'terminal_code' => $terminalCode,
-            ]);
-        });
-
-        return redirect()->route('settings.index')->with([
-            'success' => "สร้าง {$device->name} ({$device->terminal_code}) และ Token ให้แล้ว กรุณาคัดลอกไปตั้งค่าในเครื่อง POS",
-            'pos_token' => $token,
-            'pos_device_name' => $device->name,
-        ]);
-    }
-
-    public function rotatePosToken(Request $request): RedirectResponse
-    {
-        $data = $request->validate([
-            'pos_device_id' => ['required', 'integer', 'exists:pos_devices,id'],
-        ]);
-
-        $device = PosDevice::findOrFail($data['pos_device_id']);
-        $token = $device->rotateToken();
-
-        return redirect()->route('settings.index', ['tab' => 'pos-download'])->with([
-            'success' => "ออก Token ใหม่สำหรับ {$device->name} แล้ว Token เดิมจะใช้งานไม่ได้",
-            'pos_token' => $token,
-            'pos_device_name' => $device->name,
-        ]);
-    }
-
-    public function updatePosDeviceBranch(Request $request): RedirectResponse
-    {
-        $data = $request->validate([
-            'pos_device_id' => ['required', 'integer', 'exists:pos_devices,id'],
-            'branch_id' => ['required', 'integer', 'exists:branches,id'],
-        ]);
-
-        $device = PosDevice::findOrFail($data['pos_device_id']);
-        $branch = Branch::findOrFail($data['branch_id']);
-        $device->update(['branch_id' => $branch->id]);
-
-        return redirect()->route('settings.index', ['tab' => 'pos-download'])->with(
-            'success',
-            "ย้ายสาขาสำหรับเครื่อง {$device->name} ({$device->terminal_code}) ไปยัง \"{$branch->name_th}\" เรียบร้อยแล้ว"
-        );
-    }
-
-    public function destroyPosDevice(Request $request): RedirectResponse
-    {
-        $data = $request->validate([
-            'pos_device_id' => ['required', 'integer', 'exists:pos_devices,id'],
-        ]);
-
-        $device = PosDevice::findOrFail($data['pos_device_id']);
-        $deviceName = $device->name;
-        $deviceCode = $device->terminal_code;
-        $device->delete();
-
-        return redirect()->route('settings.index', ['tab' => 'pos-download'])->with(
-            'success',
-            "ลบเครื่อง {$deviceName} ({$deviceCode}) เรียบร้อยแล้ว"
-        );
-    }
-
-    public function updatePosTerminalHardware(Request $request): RedirectResponse
-    {
-        $terminalId = $request->integer('pos_terminal_id');
-        $data = $request->validate([
-            'pos_terminal_id' => ['required', 'integer', 'exists:pos_terminals,id'],
-            "hardware.{$terminalId}.printer_driver" => ['required', 'in:browser,windows,escpos_usb,escpos_network'],
-            "hardware.{$terminalId}.printer_name" => ['nullable', 'string', 'max:120'],
-            "hardware.{$terminalId}.printer_address" => ['nullable', 'string', 'max:200'],
-            "hardware.{$terminalId}.paper_width" => ['required', 'in:58mm,80mm'],
-            "hardware.{$terminalId}.scanner_mode" => ['required', 'in:keyboard,serial'],
-            "hardware.{$terminalId}.scale_mode" => ['required', 'in:none,keyboard,serial'],
-            "hardware.{$terminalId}.customer_display" => ['required', 'in:none,browser,serial,network'],
-            "hardware.{$terminalId}.print_copies" => ['required', 'integer', 'min:1', 'max:3'],
-        ]);
-        $input = data_get($data, "hardware.{$terminalId}");
-
-        PosTerminal::findOrFail($terminalId)->update([
-            'hardware_profile' => [
-                ...$input,
-                'cash_drawer_enabled' => $request->boolean("hardware.{$terminalId}.cash_drawer_enabled"),
-                'auto_print' => $request->boolean("hardware.{$terminalId}.auto_print"),
-                'updated_at' => now()->toIso8601String(),
-            ],
-        ]);
-
-        return redirect()->route('settings.index')->with('success', 'บันทึกโปรไฟล์อุปกรณ์ POS แล้ว');
-    }
-
-    public function update(Request $request): RedirectResponse
-    {
-        $data = $request->validate([
-            'logo_choice' => ['nullable', 'string', 'max:255'],
-            'logo_file' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp,svg', 'max:4096'],
-            'company_name_th' => ['required', 'string', 'max:200'],
-            'company_name_en' => ['nullable', 'string', 'max:200'],
-            'company_tax_id' => ['nullable', 'string', 'max:30'],
-            'company_address' => ['nullable', 'string', 'max:500'],
-            'company_phone' => ['nullable', 'string', 'max:60'],
-            'vat_rate' => ['required', 'numeric', 'min:0', 'max:30'],
-            'price_includes_vat' => ['required', 'in:0,1'],
-            'credit_days' => ['required', 'integer', 'min:0', 'max:365'],
-            'footer_note' => ['nullable', 'string', 'max:500'],
-            'menu_order' => ['nullable', 'string', 'max:2000'],
-            'erp_theme' => ['nullable', 'in:ocean,navy,emerald,slate,clear,popstar'],
-            // Optional for cached/older settings forms; preserve the current choice if omitted.
-            'erp_layout' => ['nullable', 'in:classic,odoo'],
-            'active_tab' => ['nullable', 'string', 'max:50'],
-        ], [
-            'company_name_th.required' => 'กรุณาระบุชื่อบริษัท',
-            'logo_file.image' => 'ไฟล์โลโก้ต้องเป็นรูปภาพ (png/jpg/webp/svg)',
-            'logo_file.max' => 'ไฟล์โลโก้ต้องไม่เกิน 4MB',
-            'vat_rate.required' => 'กรุณาระบุอัตราภาษีมูลค่าเพิ่ม',
-            'credit_days.required' => 'กรุณาระบุจำนวนวันเครดิต',
-        ]);
-
-        // Uploaded file wins over a preset pick
-        if ($request->hasFile('logo_file')) {
-            $file = $request->file('logo_file');
-            $name = 'custom-'.now()->format('YmdHis').'.'.strtolower($file->getClientOriginalExtension());
-            $file->move(public_path('images/logos'), $name);
-            AppSetting::set('logo_path', 'images/logos/'.$name);
-            AppSetting::set('company.logo', 'images/logos/'.$name);
-        } elseif ($request->filled('logo_choice')) {
-            $choice = trim($data['logo_choice']);
-            if ($choice === '__none__') {
-                AppSetting::set('logo_path', null);
-            } else {
-                $choice = ltrim($choice, '/\\');
-                if (str_starts_with($choice, 'images/') && File::exists(public_path($choice))) {
-                    AppSetting::set('logo_path', $choice);
-                    AppSetting::set('company.logo', $choice);
-                }
-            }
-        }
-
-        AppSetting::set('company_name_th', $data['company_name_th']);
-        AppSetting::set('company_name_en', $data['company_name_en'] ?? '');
-        AppSetting::set('company_tax_id', $data['company_tax_id'] ?? '');
-        AppSetting::set('company_address', $data['company_address'] ?? '');
-        AppSetting::set('company_phone', $data['company_phone'] ?? '');
-
-        // ตั้งค่าเอกสาร
-        AppSetting::set('doc_price_includes_vat', $data['price_includes_vat']);
-        AppSetting::set('default_credit_days', (string) $data['credit_days']);
-        AppSetting::set('doc_footer_note', $data['footer_note'] ?? '');
-        if (! empty($data['erp_theme'])) {
-            AppSetting::set('erp_theme', $data['erp_theme']);
-        }
-        AppSetting::set('erp_layout', $data['erp_layout'] ?? AppSetting::get('erp_layout', 'classic'));
-        if ($request->filled('menu_order')) {
-            $requestedOrder = json_decode($data['menu_order'], true);
-            $allowed = $this->defaultMenuOrder();
-            if (is_array($requestedOrder)) {
-                $clean = array_values(array_intersect($requestedOrder, $allowed));
-                AppSetting::set('menu_section_order', json_encode(array_values(array_unique(array_merge($clean, $allowed))), JSON_UNESCAPED_UNICODE));
-            }
-        }
-
-        // อัตรา VAT เปลี่ยน: ปิดแถวเดิม (มีผลถึงเมื่อวาน) + เปิดแถวใหม่มีผลวันนี้
-        // GlPostingService/รายงานภาษี อ่านจากตารางนี้อยู่แล้ว
-        $currentRate = DB::table('vat_rates')
-            ->where('effective_from', '<=', now()->toDateString())
-            ->where(fn ($w) => $w->whereNull('effective_to')->orWhere('effective_to', '>=', now()->toDateString()))
-            ->orderByDesc('effective_from')
-            ->first();
-
-        if (! $currentRate || abs((float) $currentRate->rate_percent - (float) $data['vat_rate']) > 0.001) {
-            if ($currentRate && $currentRate->effective_from === now()->toDateString()) {
-                // เปลี่ยนซ้ำภายในวันเดียว: แก้แถวเดิมแทน
-                DB::table('vat_rates')->where('id', $currentRate->id)->update(['rate_percent' => $data['vat_rate']]);
-            } else {
-                if ($currentRate) {
-                    DB::table('vat_rates')->where('id', $currentRate->id)
-                        ->update(['effective_to' => now()->subDay()->toDateString()]);
-                }
-                DB::table('vat_rates')->insert([
-                    'rate_percent' => $data['vat_rate'],
-                    'effective_from' => now()->toDateString(),
-                    'effective_to' => null,
-                ]);
-            }
-        }
-
-        $activeTab = $request->input('active_tab', 'func');
-
-        return redirect()->route('settings.index', ['tab' => $activeTab])->with('success', 'บันทึกการตั้งค่าเรียบร้อย');
-    }
-
-    private function defaultMenuOrder(): array
-    {
-        return ['ภาพรวม', 'งานประจำวัน', 'POS / หน้าร้าน', 'คลัง / ผลิต / ซื้อ', 'การเงิน / บัญชี', 'ข้อมูลตั้งต้น', 'เชื่อมต่อ', 'รายงาน', 'ระบบ'];
-    }
-
-    private function menuOrder(): array
-    {
-        $saved = json_decode((string) AppSetting::get('menu_section_order', '[]'), true);
-        $allowed = $this->defaultMenuOrder();
-        $saved = is_array($saved) ? array_values(array_intersect($saved, $allowed)) : [];
-
-        return array_values(array_unique(array_merge($saved, $allowed)));
-    }
-}
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\AppSetting;
+use App\Models\Branch;
+use App\Models\PosDevice;
+use App\Models\PosTerminal;
+use App\Models\User;
+use App\Support\PosReleaseManifest;
+use App\Support\PosTerminalCode;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
+use Illuminate\View\View;
+
+class SystemSettingController extends Controller
+{
+    private const DEFAULT_POS_LAYOUT = [
+        'schema' => 'popcentral-pos-layout',
+        'version' => 1,
+        'canvas' => ['columns' => 12, 'rows' => 8],
+        'components' => [
+            ['id' => 'search', 'type' => 'search', 'x' => 1, 'y' => 1, 'w' => 7, 'h' => 1],
+            ['id' => 'category', 'type' => 'category_tabs', 'x' => 1, 'y' => 2, 'w' => 7, 'h' => 1],
+            ['id' => 'products', 'type' => 'product_grid', 'x' => 1, 'y' => 3, 'w' => 7, 'h' => 5],
+            ['id' => 'cart', 'type' => 'cart', 'x' => 8, 'y' => 1, 'w' => 5, 'h' => 5],
+            ['id' => 'payment', 'type' => 'payment', 'x' => 8, 'y' => 6, 'w' => 5, 'h' => 2],
+        ],
+    ];
+
+    public function posDesigner(): View
+    {
+        $published = json_decode((string) AppSetting::get('pos_layout_published'), true);
+        $draft = json_decode((string) AppSetting::get('pos_layout_draft'), true);
+        $layout = is_array($draft) ? $draft : (is_array($published) ? $published : self::DEFAULT_POS_LAYOUT);
+
+        return view('settings.pos-designer', [
+            'layout' => $layout,
+            'publishedVersion' => (int) AppSetting::get('pos_layout_version', '0'),
+            'publishedAt' => AppSetting::get('pos_layout_published_at'),
+        ]);
+    }
+
+    public function savePosLayout(Request $request): RedirectResponse
+    {
+        $rawLayout = $request->input('layout');
+        if (is_string($rawLayout)) {
+            $rawLayout = json_decode($rawLayout, true);
+        }
+        $layout = $this->validatedPosLayout($rawLayout);
+        AppSetting::set('pos_layout_draft', json_encode($layout, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        if ($request->boolean('publish')) {
+            $version = (int) AppSetting::get('pos_layout_version', '0') + 1;
+            $layout['version'] = $version;
+            AppSetting::set('pos_layout_published', json_encode($layout, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            AppSetting::set('pos_layout_version', (string) $version);
+            AppSetting::set('pos_layout_published_at', now()->toIso8601String());
+            return redirect()->route('settings.pos-designer')->with('success', "Build และเผยแพร่ POS layout รุ่น {$version} แล้ว เครื่อง POS จะรับค่าเมื่อ Sync");
+        }
+
+        return redirect()->route('settings.pos-designer')->with('success', 'บันทึกแบบร่าง POS layout แล้ว');
+    }
+
+    private function validatedPosLayout(mixed $value): array
+    {
+        abort_unless(is_array($value), 422, 'รูปแบบ POS layout ไม่ถูกต้อง หรือ JSON ไม่สมบูรณ์');
+        $allowed = ['search', 'category_tabs', 'product_grid', 'cart', 'payment', 'customer', 'held_bills', 'numpad', 'shift_status'];
+        $components = [];
+        foreach (array_values($value['components'] ?? []) as $component) {
+            if (! is_array($component) || ! in_array($component['type'] ?? '', $allowed, true)) {
+                continue;
+            }
+            $components[] = [
+                'id' => preg_replace('/[^a-z0-9_-]/i', '', (string) ($component['id'] ?? $component['type'])),
+                'type' => $component['type'],
+                'x' => max(1, min(12, (int) ($component['x'] ?? 1))),
+                'y' => max(1, min(12, (int) ($component['y'] ?? 1))),
+                'w' => max(1, min(12, (int) ($component['w'] ?? 3))),
+                'h' => max(1, min(12, (int) ($component['h'] ?? 2))),
+            ];
+        }
+        abort_if(count($components) === 0, 422, 'ต้องมีอย่างน้อย 1 ส่วนประกอบ');
+
+        return [
+            'schema' => 'popcentral-pos-layout',
+            'version' => (int) ($value['version'] ?? 1),
+            'canvas' => ['columns' => 12, 'rows' => 12],
+            'components' => $components,
+        ];
+    }
+
+    public function updateLayout(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'erp_layout' => ['nullable', 'in:classic,odoo'],
+            'erp_theme' => ['nullable', 'in:ocean,navy,emerald,slate,clear,popstar'],
+        ]);
+        if (!empty($data['erp_layout'])) {
+            AppSetting::set('erp_layout', $data['erp_layout']);
+        }
+        if (!empty($data['erp_theme'])) {
+            AppSetting::set('erp_theme', $data['erp_theme']);
+        }
+
+        return redirect()->route('settings.index', ['tab' => 'theme'])->with('success', 'บันทึกการตั้งค่าธีมและรูปแบบหน้าจอเรียบร้อยแล้ว');
+    }
+
+    public function updateLogo(Request $request)
+    {
+        $request->validate([
+            'logo_choice' => ['nullable', 'string', 'max:255'],
+            'logo_file' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp,svg', 'max:4096'],
+        ], [
+            'logo_file.image' => 'ไฟล์โลโก้ต้องเป็นรูปภาพ (png/jpg/webp/svg)',
+            'logo_file.max' => 'ไฟล์โลโก้ต้องไม่เกิน 4MB',
+        ]);
+
+        $newLogoPath = null;
+
+        if ($request->hasFile('logo_file')) {
+            $file = $request->file('logo_file');
+            $name = 'custom-'.now()->format('YmdHis').'.'.strtolower($file->getClientOriginalExtension());
+            $file->move(public_path('images/logos'), $name);
+            $newLogoPath = 'images/logos/'.$name;
+        } elseif ($request->filled('logo_choice')) {
+            $choice = trim($request->input('logo_choice'));
+            if ($choice === '__none__') {
+                $newLogoPath = null;
+            } else {
+                $choice = ltrim($choice, '/\\');
+                if (str_starts_with($choice, 'images/') && File::exists(public_path($choice))) {
+                    $newLogoPath = $choice;
+                }
+            }
+        }
+
+        AppSetting::set('logo_path', $newLogoPath);
+        if ($newLogoPath !== null) {
+            AppSetting::set('company.logo', $newLogoPath);
+        }
+
+        $logoUrl = AppSetting::logoUrl();
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'เปลี่ยนโลโก้ระบบเรียบร้อยแล้ว',
+                'logo_path' => $newLogoPath,
+                'logo_url' => $logoUrl,
+            ]);
+        }
+
+        return redirect()->route('settings.index', ['tab' => 'logo'])->with('success', 'เปลี่ยนโลโก้ระบบเรียบร้อยแล้ว');
+    }
+
+    public function index(): View
+    {
+        // Preset logos = every image dropped in public/images/logos
+        $presetDir = public_path('images/logos');
+        $presets = File::isDirectory($presetDir)
+            ? collect(File::files($presetDir))
+                ->filter(fn ($f) => in_array(strtolower($f->getExtension()), ['png', 'jpg', 'jpeg', 'webp', 'svg']))
+                ->map(fn ($f) => 'images/logos/'.$f->getFilename())
+                ->values()
+            : collect();
+
+        // อัตรา VAT ที่มีผลวันนี้ (ไม่มีแถว = 7)
+        $vatRate = DB::table('vat_rates')
+            ->where('effective_from', '<=', now()->toDateString())
+            ->where(fn ($w) => $w->whereNull('effective_to')->orWhere('effective_to', '>=', now()->toDateString()))
+            ->orderByDesc('effective_from')
+            ->value('rate_percent') ?? 7.0;
+
+        return view('settings.index', [
+            'presets' => $presets,
+            'currentLogo' => AppSetting::get('logo_path'),
+            'company' => [
+                'name_th' => AppSetting::company('name_th'),
+                'name_en' => AppSetting::company('name_en'),
+                'tax_id' => AppSetting::company('tax_id'),
+                'address' => AppSetting::company('address'),
+                'phone' => AppSetting::company('phone'),
+            ],
+            'doc' => [
+                'vat_rate' => (float) $vatRate,
+                'price_includes_vat' => AppSetting::get('doc_price_includes_vat', '1') === '1',
+                'credit_days' => (int) (AppSetting::get('default_credit_days') ?: 30),
+                'footer_note' => AppSetting::get('doc_footer_note', ''),
+            ],
+            'bookCount' => DB::table('document_books')->where('is_active', true)->count(),
+            'bankCount' => DB::table('bank_accounts')->count(),
+            'posUsers' => User::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'username', 'branch_id']),
+            'posBranches' => Branch::query()->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name_th']),
+            'posDevices' => PosDevice::with(['user:id,name,username', 'branch:id,code,name_th'])->latest()->limit(20)->get(),
+            'posTerminals' => PosTerminal::with('branch:id,code,name_th')->orderBy('code')->get(),
+            'menuOrder' => $this->menuOrder(),
+            'erpTheme' => AppSetting::get('erp_theme', 'ocean'),
+            'erpLayout' => AppSetting::get('erp_layout', 'classic'),
+            'posRelease' => $this->currentPosRelease(),
+            'pythonPosInstaller' => $this->currentPythonPosInstaller(),
+        ]);
+    }
+
+    /** Download the tested PopCentral POS installer without requiring GitHub access on a cashier PC. */
+    public function downloadPythonPos()
+    {
+        $installer = $this->currentPythonPosInstaller();
+        abort_unless($installer, 404, 'ยังไม่มีไฟล์ติดตั้ง PopCentral POS รุ่นทดสอบ');
+
+        return response()->download($installer['path'], $installer['filename'], [
+            'Content-Type' => 'application/vnd.microsoft.portable-executable',
+            'Cache-Control' => 'no-cache, must-revalidate',
+        ]);
+    }
+
+    public function publishPosRelease(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'pos_version' => ['required', 'regex:/^\d+\.\d+\.\d+$/'],
+            'pos_installer' => ['required', 'file', 'max:204800'],
+            'pos_signature' => ['required', 'string', 'max:2000'],
+            'pos_release_notes' => ['nullable', 'string', 'max:2000'],
+            'pos_mandatory' => ['nullable', 'boolean'],
+        ], [
+            'pos_version.regex' => 'เวอร์ชันต้องอยู่ในรูป 1.2.3',
+            'pos_installer.max' => 'ไฟล์ติดตั้งต้องไม่เกิน 200 MB',
+        ]);
+
+        $extension = strtolower($request->file('pos_installer')->getClientOriginalExtension());
+        abort_unless(in_array($extension, ['exe', 'msi', 'zip'], true), 422, 'รองรับไฟล์ exe, msi หรือ zip เท่านั้น');
+
+        $directory = storage_path('app/pos-releases');
+        File::ensureDirectoryExists($directory);
+        $filename = 'POPSTAR-POS-'.$data['pos_version'].'.'.$extension;
+        $request->file('pos_installer')->move($directory, $filename);
+
+        $manifest = [
+            'version' => $data['pos_version'],
+            'notes' => trim((string) ($data['pos_release_notes'] ?? '')),
+            'pub_date' => now()->toIso8601String(),
+            'platforms' => [
+                'windows-x86_64' => [
+                    'signature' => trim($data['pos_signature']),
+                    'url' => url('/download/pos/releases/'.$filename),
+                ],
+            ],
+            'mandatory' => $request->boolean('pos_mandatory'),
+            'sha256' => hash_file('sha256', $directory.'/'.$filename),
+        ];
+
+        $temporary = $directory.'/latest-'.Str::random(8).'.json';
+        File::put($temporary, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        File::move($temporary, $directory.'/latest.json');
+
+        return redirect()->route('settings.index')->with('success', 'เผยแพร่ PopCentral POS รุ่น '.$data['pos_version'].' แล้ว เครื่องสาขาจะตรวจพบอัตโนมัติ');
+    }
+
+    private function currentPosRelease(): ?array
+    {
+        return app(PosReleaseManifest::class)->current();
+    }
+
+    private function currentPythonPosInstaller(): ?array
+    {
+        $targetVersion = config('pos_release.version');
+        $files = collect(array_merge(
+            File::glob(storage_path('app/pos-releases/PopCentral-POS-UAT-*-setup.exe')),
+            File::glob(storage_path('app/pos-python-releases/PopCentral-POS-UAT-*-setup.exe')),
+        ))
+            ->filter(fn (string $path) => is_file($path))
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($targetVersion) {
+            foreach ($files as $f) {
+                if (str_contains(basename($f), "-{$targetVersion}-setup.exe")) {
+                    return [
+                        'path' => $f,
+                        'filename' => basename($f),
+                        'version' => $targetVersion,
+                        'size_bytes' => filesize($f),
+                    ];
+                }
+            }
+        }
+
+        usort($files, static function (string $left, string $right): int {
+            preg_match('/-(\d+\.\d+\.\d+)-setup\.exe$/', basename($left), $leftMatch);
+            preg_match('/-(\d+\.\d+\.\d+)-setup\.exe$/', basename($right), $rightMatch);
+            $versionOrder = version_compare($rightMatch[1] ?? '0.0.0', $leftMatch[1] ?? '0.0.0');
+
+            return $versionOrder !== 0 ? $versionOrder : filemtime($right) <=> filemtime($left);
+        });
+
+        $path = $files[0] ?? null;
+        if (! $path) {
+            return null;
+        }
+
+        return [
+            'path' => $path,
+            'filename' => basename($path),
+            'size_bytes' => filesize($path),
+        ];
+    }
+
+    public function issuePosToken(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'pos_branch_id' => ['required', 'integer', 'exists:branches,id'],
+            'pos_device_name' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        [$device, $token] = DB::transaction(function () use ($data) {
+            // Lock the branch while issuing its next terminal number. Two admins cannot receive the same code.
+            $branch = Branch::query()->lockForUpdate()->findOrFail($data['pos_branch_id']);
+            $user = User::query()
+                ->where('is_active', true)
+                ->where('branch_id', $branch->id)
+                ->with('roles.permissions')
+                ->orderBy('id')
+                ->get()
+                ->first(fn (User $candidate) => $candidate->hasPermission('pos.sell'));
+
+            if (! $user) {
+                // หากสาขานี้ยังไม่มีพนักงานประจำ ให้ใช้ผู้ใช้ปัจจุบัน (Admin/ผู้สร้าง) หรือผู้ใช้ที่มีสิทธิ์ pos.sell
+                $currentUser = auth()->user();
+                if ($currentUser && $currentUser->is_active && $currentUser->hasPermission('pos.sell')) {
+                    $user = $currentUser;
+                } else {
+                    $user = User::query()
+                        ->where('is_active', true)
+                        ->with('roles.permissions')
+                        ->orderBy('id')
+                        ->get()
+                        ->first(fn (User $candidate) => $candidate->hasPermission('pos.sell'));
+                }
+            }
+
+            if (! $user) {
+                abort(422, "ระบบยังไม่มีผู้ใช้งานที่มีสิทธิ์ขาย POS (pos.sell) จึงยังสร้างเครื่องไม่ได้");
+            }
+
+            $terminalCode = PosTerminalCode::next($branch);
+            $name = trim((string) ($data['pos_device_name'] ?? '')) ?: "PopCentral POS {$terminalCode}";
+
+            return PosDevice::issue([
+                'name' => $name,
+                'user_id' => $user->id,
+                'branch_id' => $branch->id,
+                'terminal_code' => $terminalCode,
+            ]);
+        });
+
+        return redirect()->route('settings.index')->with([
+            'success' => "สร้าง {$device->name} ({$device->terminal_code}) และ Token ให้แล้ว กรุณาคัดลอกไปตั้งค่าในเครื่อง POS",
+            'pos_token' => $token,
+            'pos_device_name' => $device->name,
+        ]);
+    }
+
+    public function rotatePosToken(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'pos_device_id' => ['required', 'integer', 'exists:pos_devices,id'],
+        ]);
+
+        $device = PosDevice::findOrFail($data['pos_device_id']);
+        $token = $device->rotateToken();
+
+        return redirect()->route('settings.index', ['tab' => 'pos-download'])->with([
+            'success' => "ออก Token ใหม่สำหรับ {$device->name} แล้ว Token เดิมจะใช้งานไม่ได้",
+            'pos_token' => $token,
+            'pos_device_name' => $device->name,
+        ]);
+    }
+
+    public function updatePosDeviceBranch(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'pos_device_id' => ['required', 'integer', 'exists:pos_devices,id'],
+            'branch_id' => ['required', 'integer', 'exists:branches,id'],
+        ]);
+
+        $device = PosDevice::findOrFail($data['pos_device_id']);
+        $branch = Branch::findOrFail($data['branch_id']);
+        $device->update(['branch_id' => $branch->id]);
+
+        return redirect()->route('settings.index', ['tab' => 'pos-download'])->with(
+            'success',
+            "ย้ายสาขาสำหรับเครื่อง {$device->name} ({$device->terminal_code}) ไปยัง \"{$branch->name_th}\" เรียบร้อยแล้ว"
+        );
+    }
+
+    public function destroyPosDevice(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'pos_device_id' => ['required', 'integer', 'exists:pos_devices,id'],
+        ]);
+
+        $device = PosDevice::findOrFail($data['pos_device_id']);
+        $deviceName = $device->name;
+        $deviceCode = $device->terminal_code;
+        $device->delete();
+
+        return redirect()->route('settings.index', ['tab' => 'pos-download'])->with(
+            'success',
+            "ลบเครื่อง {$deviceName} ({$deviceCode}) เรียบร้อยแล้ว"
+        );
+    }
+
+    public function updatePosTerminalHardware(Request $request): RedirectResponse
+    {
+        $terminalId = $request->integer('pos_terminal_id');
+        $data = $request->validate([
+            'pos_terminal_id' => ['required', 'integer', 'exists:pos_terminals,id'],
+            "hardware.{$terminalId}.printer_driver" => ['required', 'in:browser,windows,escpos_usb,escpos_network'],
+            "hardware.{$terminalId}.printer_name" => ['nullable', 'string', 'max:120'],
+            "hardware.{$terminalId}.printer_address" => ['nullable', 'string', 'max:200'],
+            "hardware.{$terminalId}.paper_width" => ['required', 'in:58mm,80mm'],
+            "hardware.{$terminalId}.scanner_mode" => ['required', 'in:keyboard,serial'],
+            "hardware.{$terminalId}.scale_mode" => ['required', 'in:none,keyboard,serial'],
+            "hardware.{$terminalId}.customer_display" => ['required', 'in:none,browser,serial,network'],
+            "hardware.{$terminalId}.print_copies" => ['required', 'integer', 'min:1', 'max:3'],
+        ]);
+        $input = data_get($data, "hardware.{$terminalId}");
+
+        PosTerminal::findOrFail($terminalId)->update([
+            'hardware_profile' => [
+                ...$input,
+                'cash_drawer_enabled' => $request->boolean("hardware.{$terminalId}.cash_drawer_enabled"),
+                'auto_print' => $request->boolean("hardware.{$terminalId}.auto_print"),
+                'updated_at' => now()->toIso8601String(),
+            ],
+        ]);
+
+        return redirect()->route('settings.index')->with('success', 'บันทึกโปรไฟล์อุปกรณ์ POS แล้ว');
+    }
+
+    public function update(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'logo_choice' => ['nullable', 'string', 'max:255'],
+            'logo_file' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp,svg', 'max:4096'],
+            'company_name_th' => ['required', 'string', 'max:200'],
+            'company_name_en' => ['nullable', 'string', 'max:200'],
+            'company_tax_id' => ['nullable', 'string', 'max:30'],
+            'company_address' => ['nullable', 'string', 'max:500'],
+            'company_phone' => ['nullable', 'string', 'max:60'],
+            'vat_rate' => ['required', 'numeric', 'min:0', 'max:30'],
+            'price_includes_vat' => ['required', 'in:0,1'],
+            'credit_days' => ['required', 'integer', 'min:0', 'max:365'],
+            'footer_note' => ['nullable', 'string', 'max:500'],
+            'menu_order' => ['nullable', 'string', 'max:2000'],
+            'erp_theme' => ['nullable', 'in:ocean,navy,emerald,slate,clear,popstar'],
+            // Optional for cached/older settings forms; preserve the current choice if omitted.
+            'erp_layout' => ['nullable', 'in:classic,odoo'],
+            'active_tab' => ['nullable', 'string', 'max:50'],
+        ], [
+            'company_name_th.required' => 'กรุณาระบุชื่อบริษัท',
+            'logo_file.image' => 'ไฟล์โลโก้ต้องเป็นรูปภาพ (png/jpg/webp/svg)',
+            'logo_file.max' => 'ไฟล์โลโก้ต้องไม่เกิน 4MB',
+            'vat_rate.required' => 'กรุณาระบุอัตราภาษีมูลค่าเพิ่ม',
+            'credit_days.required' => 'กรุณาระบุจำนวนวันเครดิต',
+        ]);
+
+        // Uploaded file wins over a preset pick
+        if ($request->hasFile('logo_file')) {
+            $file = $request->file('logo_file');
+            $name = 'custom-'.now()->format('YmdHis').'.'.strtolower($file->getClientOriginalExtension());
+            $file->move(public_path('images/logos'), $name);
+            AppSetting::set('logo_path', 'images/logos/'.$name);
+            AppSetting::set('company.logo', 'images/logos/'.$name);
+        } elseif ($request->filled('logo_choice')) {
+            $choice = trim($data['logo_choice']);
+            if ($choice === '__none__') {
+                AppSetting::set('logo_path', null);
+            } else {
+                $choice = ltrim($choice, '/\\');
+                if (str_starts_with($choice, 'images/') && File::exists(public_path($choice))) {
+                    AppSetting::set('logo_path', $choice);
+                    AppSetting::set('company.logo', $choice);
+                }
+            }
+        }
+
+        AppSetting::set('company_name_th', $data['company_name_th']);
+        AppSetting::set('company_name_en', $data['company_name_en'] ?? '');
+        AppSetting::set('company_tax_id', $data['company_tax_id'] ?? '');
+        AppSetting::set('company_address', $data['company_address'] ?? '');
+        AppSetting::set('company_phone', $data['company_phone'] ?? '');
+
+        // ตั้งค่าเอกสาร
+        AppSetting::set('doc_price_includes_vat', $data['price_includes_vat']);
+        AppSetting::set('default_credit_days', (string) $data['credit_days']);
+        AppSetting::set('doc_footer_note', $data['footer_note'] ?? '');
+        if (! empty($data['erp_theme'])) {
+            AppSetting::set('erp_theme', $data['erp_theme']);
+        }
+        AppSetting::set('erp_layout', $data['erp_layout'] ?? AppSetting::get('erp_layout', 'classic'));
+        if ($request->filled('menu_order')) {
+            $requestedOrder = json_decode($data['menu_order'], true);
+            $allowed = $this->defaultMenuOrder();
+            if (is_array($requestedOrder)) {
+                $clean = array_values(array_intersect($requestedOrder, $allowed));
+                AppSetting::set('menu_section_order', json_encode(array_values(array_unique(array_merge($clean, $allowed))), JSON_UNESCAPED_UNICODE));
+            }
+        }
+
+        // อัตรา VAT เปลี่ยน: ปิดแถวเดิม (มีผลถึงเมื่อวาน) + เปิดแถวใหม่มีผลวันนี้
+        // GlPostingService/รายงานภาษี อ่านจากตารางนี้อยู่แล้ว
+        $currentRate = DB::table('vat_rates')
+            ->where('effective_from', '<=', now()->toDateString())
+            ->where(fn ($w) => $w->whereNull('effective_to')->orWhere('effective_to', '>=', now()->toDateString()))
+            ->orderByDesc('effective_from')
+            ->first();
+
+        if (! $currentRate || abs((float) $currentRate->rate_percent - (float) $data['vat_rate']) > 0.001) {
+            if ($currentRate && $currentRate->effective_from === now()->toDateString()) {
+                // เปลี่ยนซ้ำภายในวันเดียว: แก้แถวเดิมแทน
+                DB::table('vat_rates')->where('id', $currentRate->id)->update(['rate_percent' => $data['vat_rate']]);
+            } else {
+                if ($currentRate) {
+                    DB::table('vat_rates')->where('id', $currentRate->id)
+                        ->update(['effective_to' => now()->subDay()->toDateString()]);
+                }
+                DB::table('vat_rates')->insert([
+                    'rate_percent' => $data['vat_rate'],
+                    'effective_from' => now()->toDateString(),
+                    'effective_to' => null,
+                ]);
+            }
+        }
+
+        $activeTab = $request->input('active_tab', 'func');
+
+        return redirect()->route('settings.index', ['tab' => $activeTab])->with('success', 'บันทึกการตั้งค่าเรียบร้อย');
+    }
+
+    private function defaultMenuOrder(): array
+    {
+        return ['ภาพรวม', 'งานประจำวัน', 'POS / หน้าร้าน', 'คลัง / ผลิต / ซื้อ', 'การเงิน / บัญชี', 'ข้อมูลตั้งต้น', 'เชื่อมต่อ', 'รายงาน', 'ระบบ'];
+    }
+
+    private function menuOrder(): array
+    {
+        $saved = json_decode((string) AppSetting::get('menu_section_order', '[]'), true);
+        $allowed = $this->defaultMenuOrder();
+        $saved = is_array($saved) ? array_values(array_intersect($saved, $allowed)) : [];
+
+        return array_values(array_unique(array_merge($saved, $allowed)));
+    }
+}

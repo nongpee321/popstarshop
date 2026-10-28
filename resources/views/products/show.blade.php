@@ -7,15 +7,18 @@
 @section('content')
     @php
         $pluCodes = $product->barcodes
-            ->filter(fn ($barcode) => $barcode->is_active && preg_match('/^\d{6}$/', (string) $barcode->barcode))
+            ->filter(fn ($barcode) => $barcode->is_active && (
+                $barcode->barcode_type === \App\Support\BarcodePolicy::SCALE_PLU
+                || preg_match('/^80[01]\d{3}$/', (string) $barcode->barcode)
+            ))
             ->values();
         $eanCodes = $product->barcodes
             ->filter(fn ($barcode) => $barcode->is_active && preg_match('/^\d{13}$/', (string) $barcode->barcode))
             ->values();
         $otherBarcodes = $product->barcodes
-            ->reject(fn ($barcode) => preg_match('/^\d{6}$/', (string) $barcode->barcode) || preg_match('/^\d{13}$/', (string) $barcode->barcode))
+            ->reject(fn ($barcode) => $pluCodes->contains('id', $barcode->id) || $eanCodes->contains('id', $barcode->id))
             ->values();
-        $primaryPlu = $pluCodes->first()?->barcode ?: (preg_match('/^\d{6}$/', (string) $product->sku_code) ? $product->sku_code : null);
+        $primaryPlu = $pluCodes->first()?->barcode;
         $allProductPrices = $productPrices->flatten(1)->sortBy(fn ($price) => ($price->priceTable?->code ?? '').'|'.($price->unit?->name ?? ''))->values();
         $defaultTablePrices = $defaultPriceTable ? $productPrices->get($defaultPriceTable->id, collect()) : collect();
         $defaultPosPrice = $defaultTablePrices->firstWhere('unit_id', null)?->price ?? $product->default_price ?? 0;
@@ -497,7 +500,7 @@
                                     @forelse($product->stockBalances as $stock)
                                         <tr>
                                             <td class="fw-semibold">{{ $stock->warehouseLocation?->warehouse?->name_th ?? $stock->warehouseLocation?->code ?? '-' }}</td>
-                                            <td class="text-end fw-bold text-success fs-6">{{ number_format($stock->qty_on_hand, 4) }}</td>
+                                            <td class="text-end fw-bold text-success fs-6">{{ rtrim(rtrim(number_format(round((float) ($stock->qty_on_hand ?? $stock->on_hand_qty), 2), 2), '0'), '.') ?: '0' }}</td>
                                         </tr>
                                     @empty
                                         <tr><td colspan="2" class="text-center py-3 text-muted">ไม่มีสต๊อกคงเหลือ</td></tr>
@@ -599,7 +602,7 @@
 
             <div class="product-identity-grid">
                 <div class="identity-card primary">
-                    <div class="identity-label">รหัสสินค้า 6 หลัก</div>
+                    <div class="identity-label">PLU เครื่องชั่ง 6 หลัก</div>
                     <div class="identity-value">{{ $primaryPlu ?? '-' }}</div>
                     <div class="identity-help">ใช้กับเครื่องชั่ง / ยิงขาย POS / PLU</div>
                 </div>
@@ -874,11 +877,16 @@
                     <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
                         <div>
                             <h3 class="h6 fw-bold mb-1">รหัสสินค้า / บาร์โค้ด</h3>
-                            <div class="text-muted small">เลข 6 หลักคือรหัสสินค้า ใช้ยิงขายและเครื่องชั่ง</div>
+                            <div class="text-muted small">รหัสสินค้า 13 หลัก ใช้ค้นหาและยิงขาย</div>
                         </div>
-                        <button type="button" class="btn btn-sm btn-light border" @click="barcodeOpen = true">
-                            <i class="bi bi-plus-lg me-1"></i> เพิ่ม
-                        </button>
+                        <div class="d-flex gap-2">
+                            <a href="{{ route('products.barcode-label', $product) }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-upc-scan me-1"></i> พิมพ์บาร์โค้ด
+                            </a>
+                            <button type="button" class="btn btn-sm btn-light border" @click="barcodeOpen = true">
+                                <i class="bi bi-plus-lg me-1"></i> เพิ่ม
+                            </button>
+                        </div>
                     </div>
 
                     <div class="barcode-group primary">
@@ -1137,11 +1145,9 @@
                             <option value="all" class="fw-bold text-primary">🌐 รวมทุกสาขา (เพิ่มเข้าคลังหลักทุกสาขาพร้อมกัน)</option>
                             <optgroup label="━━━━━━━━━━ แยกตามสาขาและตำแหน่งเก็บ ━━━━━━━━━━">
                                 @foreach($branches as $branch)
-                                    @foreach($branch->warehouses as $wh)
-                                        @foreach($wh->locations as $loc)
-                                            <option value="{{ $loc->id }}">{{ $branch->name_th }} › {{ $wh->name }} › {{ $loc->name }}</option>
-                                        @endforeach
-                                    @endforeach
+                                    @if($branch->defaultWarehouseLocation)
+                                        <option value="{{ $branch->defaultWarehouseLocation->id }}">{{ $branch->name_th }} › {{ $branch->defaultWarehouseLocation->warehouse?->name ?? 'คลังหน้าร้าน' }} › {{ $branch->defaultWarehouseLocation->name }}</option>
+                                    @endif
                                 @endforeach
                             </optgroup>
                         </select>

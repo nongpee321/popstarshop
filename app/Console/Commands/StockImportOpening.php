@@ -128,7 +128,7 @@ class StockImportOpening extends Command
                 continue;
             }
 
-            $product = Product::where('sku_code', $skuCode)->first();
+            $product = Product::where(fn ($query) => $query->where('sku_code', $skuCode)->orWhere('legacy_sku', $skuCode))->first();
             if (! $product) {
                 $unmatchedCodes[] = "{$skuCode} (แถว {$rowNum})";
 

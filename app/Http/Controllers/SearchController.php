@@ -60,6 +60,7 @@ class SearchController extends Controller
             ->where('is_active', true)
             ->when($q !== '', fn ($query) => $query->where(fn ($w) => $w
                 ->where('sku_code', 'ilike', "%{$q}%")
+                ->orWhere('legacy_sku', 'ilike', "%{$q}%")
                 ->orWhere('name_th', 'ilike', "%{$q}%")
                 ->orWhereHas('barcodes', fn ($barcode) => $barcode
                     ->where('is_active', true)

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\PurchasePlan;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -21,7 +22,7 @@ class ManagementControlController extends Controller
         $canPurchase = $user?->hasPermission('purchasing.manage');
         $period = $request->query('period', now()->format('Y-m'));
         [$from, $to] = $this->period($period);
-        $profit = DB::table('branches as b')->get(['b.id', 'b.code', 'b.name_th'])->map(function ($branch) use ($from, $to) {
+        $profit = Branch::orderBy('code')->get(['id', 'code', 'name_th'])->map(function ($branch) use ($from, $to) {
             $sales = (float) DB::table('documents as d')->join('document_types as dt', 'dt.id', '=', 'd.document_type_id')
                 ->where('d.branch_id', $branch->id)->where('d.status', 'active')->whereBetween('d.doc_date', [$from, $to])
                 ->whereIn('dt.code', ['CASH_SALE', 'CREDIT_SALE', 'SALE_RETURN'])
@@ -206,7 +207,7 @@ class ManagementControlController extends Controller
                     }
                     DB::table('ecommerce_order_items')->insert([
                         'ecommerce_order_id' => $orderId, 'external_sku' => $sku,
-                        'product_id' => DB::table('products')->where('sku_code', $sku)->value('id'),
+                        'product_id' => DB::table('products')->where('sku_code', $sku)->orWhere('legacy_sku', $sku)->value('id'),
                         'qty' => $qty, 'unit_price' => $price, 'line_total' => round($qty * $price, 4),
                     ]);
                 }

@@ -84,6 +84,7 @@ class PriceTableController extends Controller
             ->where('price_table_id', $priceTable->id)
             ->when($q, fn ($query) => $query->where(fn ($w) => $w
                 ->where('products.sku_code', 'ilike', "%{$q}%")
+                ->orWhere('products.legacy_sku', 'ilike', "%{$q}%")
                 ->orWhere('products.name_th', 'ilike', "%{$q}%")
             ))
             ->orderBy('products.sku_code')
@@ -181,6 +182,7 @@ class PriceTableController extends Controller
         $products = Product::where('is_active', true)
             ->when($q, fn ($query) => $query->where(fn ($w) => $w
                 ->where('sku_code', 'ilike', "%{$q}%")
+                ->orWhere('legacy_sku', 'ilike', "%{$q}%")
                 ->orWhere('name_th', 'ilike', "%{$q}%")
             ))
             ->orderBy('sku_code')

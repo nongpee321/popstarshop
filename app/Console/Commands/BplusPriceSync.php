@@ -64,7 +64,7 @@ class BplusPriceSync extends Command
         // PG lookups (โหลดครั้งเดียว)
         $tableIdByCode = PriceTable::pluck('id', 'code');
         $barcodeRows = ProductBarcode::get(['barcode', 'product_id', 'unit_id', 'id'])->keyBy('barcode');
-        $productIdBySku = Product::pluck('id', 'sku_code');
+        $productIdBySku = Product::whereNotNull('legacy_sku')->pluck('id', 'legacy_sku');
 
         $synced = 0;
         $barcodePriceUpdated = 0;

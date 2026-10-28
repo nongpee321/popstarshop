@@ -537,6 +537,7 @@ Route::prefix('purchases')->name('purchases.')->group(function () {
 Route::prefix('products')->name('products.')->group(function () {
     Route::get('/', [ProductController::class, 'index'])->name('index');
     Route::post('/', [ProductController::class, 'store'])->name('store');
+    Route::get('/{product}/barcode-label', [ProductController::class, 'barcodeLabel'])->name('barcode-label');
     Route::get('/{product}', [ProductController::class, 'show'])->name('show');
     Route::put('/{product}', [ProductController::class, 'update'])->name('update');
     Route::get('/{product}/lots/{stockLot}/trace', [ProductController::class, 'lotTrace'])->name('lots.trace');

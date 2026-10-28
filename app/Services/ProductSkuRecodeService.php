@@ -4,60 +4,49 @@ namespace App\Services;
 
 use App\Models\MasterCutoverRun;
 use App\Models\Product;
-use Illuminate\Support\Collection;
+use App\Models\ProductBarcode;
+use App\Support\BarcodePolicy;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
-/** One-time, reviewable migration from generic Pxxxxxx codes to category-led SKU codes. */
+/** One-time, reviewable migration of every product SKU to its unique EAN-13. */
 class ProductSkuRecodeService
 {
-    public const SCOPE = 'product-category-sku';
+    public const SCOPE = 'product-ean13-sku';
 
-    public function __construct(private readonly ProductSkuAllocator $allocator) {}
-
-    /** @return array<int, array{id:int,old:string,legacy:string,new:?string,category:string,name:string,barcodes:int,excluded:bool}> */
+    /** @return array<int, array{id:int,old:string,legacy:string,new:?string,category:string,name:string,unit_id:?int,barcodes:int}> */
     public function plan(): array
     {
         $barcodeCounts = DB::table('product_barcodes')->selectRaw('product_id, count(*) as total')
             ->groupBy('product_id')->pluck('total', 'product_id');
 
-        $products = Product::withTrashed()->with('category')->get()->sortBy(function (Product $product): string {
-            $category = trim((string) ($product->category?->code ?? ''));
-            $legacy = trim((string) ($product->legacy_sku ?: $product->sku_code));
-
-            return $category.'|'.$this->naturalKey($legacy).'|'.str_pad((string) $product->id, 12, '0', STR_PAD_LEFT);
-        });
-
-        $sequences = [];
+        $products = Product::withTrashed()->with([
+            'category',
+            'barcodes' => fn ($query) => $query->where('is_active', true),
+        ])->orderBy('id')->get();
+        $policy = app(BarcodePolicy::class);
         $plan = [];
         foreach ($products as $product) {
             $category = trim((string) ($product->category?->code ?? ''));
-            $target = null;
-            $excluded = $category === 'CC';
-            try {
-                if ($category !== '' && $category !== '0' && ! $excluded) {
-                    [$prefix, $digits] = $this->allocator->formatForCategoryCode($category);
-                    $sequences[$category] = ($sequences[$category] ?? 0) + 1;
-                    if ($sequences[$category] > (10 ** $digits) - 1) {
-                        throw new RuntimeException("ประเภท {$category} มีสินค้าเกินช่วงรหัสที่รองรับ");
-                    }
-                    $target = $prefix.str_pad((string) $sequences[$category], $digits, '0', STR_PAD_LEFT);
-                }
-            } catch (RuntimeException) {
-                $target = null;
-            }
+            $ean13 = $product->barcodes
+                ->filter(fn (ProductBarcode $barcode): bool => $barcode->barcode_type !== BarcodePolicy::SCALE_WEIGHT
+                    && $policy->isValidEan13((string) $barcode->barcode))
+                ->sortBy(fn (ProductBarcode $barcode): int => match ($barcode->barcode_type) {
+                    BarcodePolicy::EAN13_STANDARD => 0,
+                    BarcodePolicy::INTERNAL_13 => 1,
+                    default => 2,
+                })
+                ->first()?->barcode;
 
             $plan[] = [
                 'id' => $product->id,
                 'old' => (string) $product->sku_code,
                 'legacy' => (string) ($product->legacy_sku ?: $product->sku_code),
-                'new' => $target,
+                'new' => $ean13,
                 'category' => $category,
                 'name' => (string) $product->name_th,
+                'unit_id' => $product->base_unit_id ? (int) $product->base_unit_id : null,
                 'barcodes' => (int) ($barcodeCounts[$product->id] ?? 0),
-                // Cancelled products must remain traceable by their current SKU,
-                // but are deliberately outside the new sellable SKU sequence.
-                'excluded' => $excluded,
             ];
         }
 
@@ -71,15 +60,15 @@ class ProductSkuRecodeService
         $problems = [];
 
         if (MasterCutoverRun::where('scope', self::SCOPE)->exists()) {
-            $problems[] = ['level' => 'หยุด', 'issue' => 'เปลี่ยนรหัสสินค้าแบบจัดประเภทไปแล้ว', 'detail' => 'ห้ามรันซ้ำเพื่อป้องกันรหัสขยับ'];
+            $problems[] = ['level' => 'หยุด', 'issue' => 'เปลี่ยนรหัสสินค้าไปแล้ว', 'detail' => 'ห้ามรันซ้ำเพื่อป้องกันรหัสขยับ'];
         }
 
-        $unclassified = collect($plan)->filter(fn (array $row) => $row['new'] === null && ! $row['excluded']);
-        foreach ($unclassified->groupBy('category') as $category => $rows) {
+        $missingEan = collect($plan)->filter(fn (array $row): bool => $row['new'] === null);
+        if ($missingEan->isNotEmpty()) {
             $problems[] = [
                 'level' => 'หยุด',
-                'issue' => 'สินค้าไม่มีประเภทที่รัน SKU ได้',
-                'detail' => (($category === '' ? '(ว่าง)' : $category).' จำนวน '.$rows->count().' รายการ'),
+                'issue' => 'สินค้าบางรายการไม่มี EAN-13 ที่ตรวจสอบได้',
+                'detail' => implode(', ', $missingEan->take(10)->pluck('old')->all()),
             ];
         }
 
@@ -88,17 +77,23 @@ class ProductSkuRecodeService
             $problems[] = ['level' => 'หยุด', 'issue' => 'รหัส SKU ใหม่ซ้ำ', 'detail' => (string) $sku];
         }
 
-        // SKU กับ barcode อยู่คนละ namespace แต่แจ้งไว้เพื่อให้หน้าสแกนแยก scanner
-        // input ออกจากช่องค้นหา SKU อย่างชัดเจนก่อนเปิดขายจริง.
         $targets = collect($plan)->pluck('new')->filter()->values();
-        $barcodeProducts = DB::table('product_barcodes')->whereIn('barcode', $targets)->pluck('product_id', 'barcode');
+        $skuDuplicates = Product::withTrashed()->whereIn('sku_code', $targets)->pluck('id', 'sku_code');
         foreach ($plan as $row) {
-            if ($row['new'] && isset($barcodeProducts[$row['new']]) && (int) $barcodeProducts[$row['new']] !== $row['id']) {
-                $problems[] = [
-                    'level' => 'เตือน',
-                    'issue' => 'SKU ใหม่ตรงกับบาร์โค้ดของสินค้าอื่น',
-                    'detail' => "{$row['new']} · {$row['name']} — POS ต้องแยกสแกนบาร์โค้ดออกจากค้นหา SKU",
-                ];
+            if ($row['new'] && isset($skuDuplicates[$row['new']]) && (int) $skuDuplicates[$row['new']] !== $row['id']) {
+                $problems[] = ['level' => 'หยุด', 'issue' => 'EAN-13 ซ้ำกับ SKU ปัจจุบันของสินค้าอื่น', 'detail' => (string) $row['new']];
+            }
+
+            if ($row['old'] !== '' && $row['old'] !== $row['new']) {
+                if ($row['unit_id'] === null) {
+                    $problems[] = ['level' => 'หยุด', 'issue' => 'สินค้าไม่มีหน่วยหลักสำหรับเก็บ SKU เดิม', 'detail' => $row['old']];
+                    continue;
+                }
+
+                $barcodeOwner = DB::table('product_barcodes')->where('barcode', $row['old'])->value('product_id');
+                if ($barcodeOwner !== null && (int) $barcodeOwner !== $row['id']) {
+                    $problems[] = ['level' => 'หยุด', 'issue' => 'SKU เดิมชนกับบาร์โค้ดของสินค้าอื่น', 'detail' => $row['old']];
+                }
             }
         }
 
@@ -108,15 +103,15 @@ class ProductSkuRecodeService
     /** @return array{products:int,first_code:string,last_code:string} */
     public function apply(?int $userId = null): array
     {
-        $plan = $this->plan();
-        $blocking = collect($this->preflight($plan))->where('level', 'หยุด');
-        if ($blocking->isNotEmpty()) {
-            throw new RuntimeException('ยังเปลี่ยนรหัสไม่ได้: '.$blocking->pluck('issue')->unique()->implode(' · '));
-        }
+        return DB::transaction(function () use ($userId): array {
+            DB::table('product_sku_sequences')->where('id', 1)->lockForUpdate()->firstOrFail();
+            $plan = $this->plan();
+            $blocking = collect($this->preflight($plan))->where('level', 'หยุด');
+            if ($blocking->isNotEmpty()) {
+                throw new RuntimeException('ยังเปลี่ยนรหัสไม่ได้: '.$blocking->pluck('issue')->unique()->implode(' · '));
+            }
+            $recodeRows = collect($plan)->values()->all();
 
-        $recodeRows = collect($plan)->reject(fn (array $row) => $row['excluded'])->values()->all();
-
-        return DB::transaction(function () use ($recodeRows, $userId): array {
             // sku_code unique: ย้ายทุกแถวไปชื่อชั่วคราวก่อน เพื่อให้สลับ/เรียงใหม่ได้โดยไม่ชน
             foreach ($recodeRows as $row) {
                 Product::withTrashed()->whereKey($row['id'])->update([
@@ -125,8 +120,34 @@ class ProductSkuRecodeService
                 ]);
             }
             foreach ($recodeRows as $row) {
+                if ($row['old'] === '' || $row['old'] === $row['new']) {
+                    continue;
+                }
+
+                $oldSkuBarcode = ProductBarcode::where('barcode', $row['old'])->first();
+                if ($oldSkuBarcode === null) {
+                    ProductBarcode::create([
+                        'product_id' => $row['id'],
+                        'barcode' => $row['old'],
+                        'barcode_type' => BarcodePolicy::CUSTOM,
+                        'unit_id' => $row['unit_id'],
+                        'unit_factor' => 1,
+                        'is_active' => true,
+                    ]);
+                }
+            }
+            foreach ($recodeRows as $row) {
                 Product::withTrashed()->whereKey($row['id'])->update(['sku_code' => $row['new']]);
             }
+
+            $maxInternalSequence = collect($recodeRows)
+                ->pluck('new')
+                ->filter(fn (?string $sku): bool => $sku !== null && preg_match('/^299\d{10}$/', $sku) === 1)
+                ->map(fn (string $sku): int => (int) substr($sku, 3, 9))
+                ->max() ?? 0;
+            DB::table('product_sku_sequences')->where('id', 1)->update([
+                'last_number' => max((int) DB::table('product_sku_sequences')->where('id', 1)->value('last_number'), $maxInternalSequence),
+            ]);
 
             MasterCutoverRun::create([
                 'scope' => self::SCOPE,
@@ -145,8 +166,4 @@ class ProductSkuRecodeService
         });
     }
 
-    private function naturalKey(string $value): string
-    {
-        return preg_replace_callback('/\d+/', fn (array $match) => str_pad($match[0], 20, '0', STR_PAD_LEFT), $value) ?? $value;
-    }
 }
