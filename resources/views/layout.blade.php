@@ -1,4 +1,4 @@
-﻿@php
+@php
     // เมนูทั้งหมดอยู่ใน App\Support\ErpMenu — เรียงลำดับและกรองสิทธิ์มาให้แล้ว
     $menuSections = \App\Support\ErpMenu::forUser(auth()->user());
 
@@ -14,7 +14,7 @@
         'slate' => 'menu-icon-slate',
         'amber' => 'menu-icon-amber',
     ];
-    $faviconUrl = asset('images/popstar-icon-64.png').'?v='.filemtime(public_path('images/popstar-icon-64.png'));
+    $faviconUrl = asset('images/popstar-icon-64.png').'?v='.(file_exists(public_path('images/popstar-icon-64.png')) ? filemtime(public_path('images/popstar-icon-64.png')) : time());
     $companyName = \App\Models\AppSetting::company('name_th') ?: 'กิจการของคุณ';
     $companyLogo = \App\Models\AppSetting::logoUrl();
     $erpTheme = in_array(\App\Models\AppSetting::get('erp_theme', 'ocean'), ['ocean', 'navy', 'emerald', 'slate', 'clear', 'popstar'], true)
@@ -62,7 +62,7 @@
     <link rel="stylesheet" href="{{ asset('vendor/adminlte/css/adminlte.min.css') }}">
     {{-- Tailwind แบบ build นิ่ง (แทน runtime compiler เดิมที่คอมไพล์สดทุกหน้า)
          เพิ่มคลาสใหม่แล้วให้ rebuild: ดูคำสั่งใน tailwind.config.js --}}
-    <link rel="stylesheet" href="{{ asset('vendor/tailwindcss/tailwind.min.css') }}?v={{ filemtime(public_path('vendor/tailwindcss/tailwind.min.css')) }}">
+    <link rel="stylesheet" href="{{ asset('vendor/tailwindcss/tailwind.min.css') }}?v={{ file_exists(public_path('vendor/tailwindcss/tailwind.min.css')) ? filemtime(public_path('vendor/tailwindcss/tailwind.min.css')) : time() }}">
     <script src="{{ asset('vendor/sweetalert2/sweetalert2.all.min.js') }}"></script>
     <script defer src="{{ asset('vendor/alpinejs/alpine.min.js') }}"></script>
     <style>

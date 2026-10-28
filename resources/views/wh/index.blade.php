@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <link rel="icon" type="image/png" href="{{ asset('images/popstar-shop-logo.png') }}?v={{ filemtime(public_path('images/popstar-shop-logo.png')) }}">
+    <link rel="icon" type="image/png" href="{{ asset('images/popstar-shop-logo.png') }}?v={{ file_exists(public_path('images/popstar-shop-logo.png')) ? filemtime(public_path('images/popstar-shop-logo.png')) : time() }}">
     <title>คลังมือถือ — PopCentral</title>
     <link rel="stylesheet" href="{{ asset('vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
     <script defer src="{{ asset('vendor/alpinejs/alpine.min.js') }}"></script>

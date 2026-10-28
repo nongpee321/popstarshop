@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    @php($faviconUrl = asset('images/logo-jet-j-red.png').'?v='.filemtime(public_path('images/logo-jet-j-red.png')))
+    @php($faviconUrl = asset('images/logo-jet-j-red.png').'?v='.(file_exists(public_path('images/logo-jet-j-red.png')) ? filemtime(public_path('images/logo-jet-j-red.png')) : time()))
     <link rel="icon" href="{{ $faviconUrl }}">
     <link rel="shortcut icon" href="{{ $faviconUrl }}">
     <link rel="apple-touch-icon" href="{{ $faviconUrl }}">
