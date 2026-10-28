@@ -65,6 +65,37 @@ class PosRetailControlTest extends TestCase
             ->assertSee('QR-CONTROL-01');
     }
 
+    public function test_pos_control_center_shows_overnight_and_closed_today_shifts(): void
+    {
+        $branch = Branch::create(['code' => 'B02', 'name_th' => 'สาขาทดสอบ 2', 'is_active' => true]);
+        $terminal = PosTerminal::create(['branch_id' => $branch->id, 'code' => 'POS-B02', 'name' => 'POS สาขาทดสอบ 2']);
+        
+        // กะที่เปิดเมื่อวานแต่ปิดวันนี้
+        $shiftClosedToday = PosShift::create([
+            'branch_id' => $branch->id, 'pos_terminal_id' => $terminal->id, 'shift_no' => 'SHIFT-CLOSED-TODAY',
+            'opened_at' => '2026-08-01 22:00:00', 'closed_at' => '2026-08-02 02:00:00', 'opening_cash' => 500, 'expected_cash' => 500,
+            'receipt_count' => 0, 'status' => 'closed',
+        ]);
+        
+        // กะที่เปิดเมื่อวานแต่ยังเปิดค้างอยู่
+        $shiftStillOpen = PosShift::create([
+            'branch_id' => $branch->id, 'pos_terminal_id' => $terminal->id, 'shift_no' => 'SHIFT-STILL-OPEN',
+            'opened_at' => '2026-08-01 23:00:00', 'closed_at' => null, 'opening_cash' => 500, 'expected_cash' => 500,
+            'receipt_count' => 0, 'status' => 'open',
+        ]);
+
+        $user = User::factory()->create(['username' => 'pos-control-user2', 'is_active' => true, 'must_change_password' => false]);
+        $role = Role::create(['code' => 'POS_CONTROL_2', 'name' => 'POS Control 2']);
+        $permission = Permission::firstOrCreate(['code' => 'reports.view'], ['name' => 'reports.view']);
+        $role->permissions()->attach($permission->id);
+        $user->roles()->attach($role->id);
+
+        $this->actingAs($user)->get('/pos/control?date=2026-08-02')
+            ->assertOk()
+            ->assertSee('SHIFT-CLOSED-TODAY')
+            ->assertSee('SHIFT-STILL-OPEN');
+    }
+
     public function test_held_bill_is_shared_by_branch_and_can_only_be_resumed_once(): void
     {
         [$user, $branch, $cashier, $shift, $product] = $this->posMasters('HOLD');

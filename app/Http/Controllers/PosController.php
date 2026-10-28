@@ -990,7 +990,14 @@ class PosController extends Controller
 
         $shiftQuery = PosShift::query()
             ->with(['branch:id,code,name_th', 'terminal:id,code,name', 'cashier:id,code,name'])
-            ->whereDate('opened_at', $date)
+            ->where(function ($query) use ($date) {
+                $query->whereDate('opened_at', $date)
+                    ->orWhereDate('closed_at', $date)
+                    ->orWhere(function ($sub) use ($date) {
+                        $sub->where('status', 'open')
+                            ->whereDate('opened_at', '<=', $date);
+                    });
+            })
             ->when($branchId, fn ($query) => $query->where('branch_id', $branchId));
         $shifts = $shiftQuery->orderByDesc('opened_at')->get();
 
