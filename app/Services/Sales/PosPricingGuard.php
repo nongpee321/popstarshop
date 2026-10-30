@@ -165,15 +165,13 @@ class PosPricingGuard
          = max('0.00', DecimalMath::subtract(, , DecimalMath::DISPLAY_MONEY_SCALE));
         $qtyPromotionDiscount = $this->qtyPromotionDiscount($serverLines, (int) $data['branch_id']);
 
-         = DecimalMath::round(
-            (float) ((['discount_amount'] ?? null) ?: (['manual_discount_amount'] ?? 0)),
+        $manualDiscount = DecimalMath::round(
+            (float) (($data['discount_amount'] ?? null) ?: ($data['manual_discount_amount'] ?? 0)),
             DecimalMath::DISPLAY_MONEY_SCALE
         );
-        if (DecimalMath::compare(, 0) > 0) {
-            if ( && ! ->hasPermission('pos.discount.override') && ! ->hasPermission('pos.sell')) {
-                throw new RuntimeException('ส่วนลดพิเศษต้องให้ผู้จัดการหรือพนักงานขายที่มีสิทธิ์อนุมัติ');
-            }
-             = DecimalMath::subtract(, , DecimalMath::DISPLAY_MONEY_SCALE);
+        if (DecimalMath::compare($manualDiscount, 0) > 0) {
+            // อนุญาตให้พนักงานทุกคนสามารถใส่ส่วนลดบิลได้โดยไม่ต้องขอสิทธิ์ผู้จัดการ
+            $expected = DecimalMath::subtract($expected, $manualDiscount, DecimalMath::DISPLAY_MONEY_SCALE);
         }
 
         if (! empty($data['discount_card_code'])) {
