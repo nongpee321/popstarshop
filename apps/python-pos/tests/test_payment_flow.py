@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMessageBox, QInputDialog
 from ui.main_window import MainWindow
@@ -15,6 +15,18 @@ def mock_dialogs(monkeypatch):
 @pytest.fixture
 def app_window(qtbot, tmp_path, mock_dialogs):
     db_path = str(tmp_path / "test_pos.db")
+    from database.models import init_db, Product
+    session = init_db(f"sqlite:///{db_path}")
+    prod = Product(
+        sku_code="12345",
+        name_th="Test Item",
+        default_price=100.0,
+        barcode="12345",
+        is_active=True
+    )
+    session.add(prod)
+    session.commit()
+    session.close()
     window = MainWindow(db_path=db_path)
     window.current_shift = {'id': 999, 'local_id': 1}
     window.config['promptpay_id'] = "1349901281208"

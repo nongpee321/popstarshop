@@ -47,6 +47,20 @@ def main():
                         dst_conn = sqlite3.connect(db_path)
                         src_conn.backup(dst_conn)
                         src_conn.close()
+
+                        # Ensure no leftover transactions exist in newly seeded database
+                        dst_cur = dst_conn.cursor()
+                        dst_cur.execute("DELETE FROM sales")
+                        dst_cur.execute("DELETE FROM sale_items")
+                        dst_cur.execute("DELETE FROM payments")
+                        dst_cur.execute("DELETE FROM outbox")
+                        dst_cur.execute("DELETE FROM sync_logs")
+                        dst_cur.execute("DELETE FROM shifts")
+                        try:
+                            dst_cur.execute("DELETE FROM cancelled_bills")
+                        except Exception:
+                            pass
+                        dst_conn.commit()
                         dst_conn.close()
                         print(f"[POS] Successfully pre-seeded database from {cand}")
                         session = init_db(f'sqlite:///{db_path}')
@@ -63,6 +77,99 @@ def main():
         # 2. Start Application
         app = QApplication(sys.argv)
         QLocale.setDefault(QLocale(QLocale.English, QLocale.UnitedStates))
+        app.setStyleSheet("""
+            QMessageBox {
+                background-color: #ffffff;
+                font-family: 'Segoe UI', Tahoma, sans-serif;
+            }
+            QMessageBox QLabel {
+                color: #0f172a;
+                font-size: 14px;
+                font-weight: 500;
+                background-color: transparent;
+            }
+            QMessageBox QPushButton {
+                background-color: #2563eb;
+                color: #ffffff;
+                font-size: 13.5px;
+                font-weight: bold;
+                border-radius: 6px;
+                padding: 6px 20px;
+                min-width: 80px;
+                min-height: 30px;
+                border: 1px solid #1d4ed8;
+            }
+            QMessageBox QPushButton:hover {
+                background-color: #1d4ed8;
+            }
+            QMessageBox QPushButton:pressed {
+                background-color: #1e40af;
+            }
+            QInputDialog {
+                background-color: #ffffff;
+                font-family: 'Segoe UI', Tahoma, sans-serif;
+            }
+            QInputDialog QLabel {
+                color: #0f172a;
+                font-size: 14px;
+                font-weight: 600;
+                background-color: transparent;
+            }
+            QInputDialog QLineEdit {
+                background-color: #f8fafc;
+                color: #0f172a;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 6px;
+                padding: 6px 10px;
+                font-size: 14px;
+            }
+            QInputDialog QPushButton {
+                background-color: #2563eb;
+                color: #ffffff;
+                font-size: 13.5px;
+                font-weight: bold;
+                border-radius: 6px;
+                padding: 6px 18px;
+                min-width: 75px;
+                min-height: 28px;
+                border: 1px solid #1d4ed8;
+            }
+            QInputDialog QPushButton:hover {
+                background-color: #1d4ed8;
+            }
+            QInputDialog QComboBox, QComboBox {
+                background-color: #ffffff;
+                color: #0f172a;
+                border: 1.5px solid #3b82f6;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-size: 14px;
+                font-weight: 600;
+                min-height: 32px;
+            }
+            QInputDialog QComboBox:hover, QComboBox:hover {
+                border-color: #2563eb;
+            }
+            QInputDialog QComboBox::drop-down, QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 30px;
+                border-left: 1px solid #cbd5e1;
+                background-color: #f1f5f9;
+                border-top-right-radius: 6px;
+                border-bottom-right-radius: 6px;
+            }
+            QInputDialog QComboBox QAbstractItemView, QComboBox QAbstractItemView {
+                background-color: #ffffff;
+                color: #0f172a;
+                border: 1.5px solid #cbd5e1;
+                selection-background-color: #2563eb;
+                selection-color: #ffffff;
+                font-size: 14px;
+                padding: 4px;
+            }
+
+        """)
 
         # 3. Load config and prompt Token Login FIRST before showing MainWindow
         config_file = os.path.join(app_data_dir, 'config.json')

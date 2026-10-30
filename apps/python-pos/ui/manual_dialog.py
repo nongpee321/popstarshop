@@ -38,7 +38,7 @@ class ManualDialog(QDialog):
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(24, 0, 24, 0)
 
-        title_lbl = QLabel("📖 คู่มือการใช้งานระบบ PopCentral POS")
+        title_lbl = QLabel("คู่มือการใช้งานระบบ PopCentral POS")
         title_lbl.setStyleSheet("font-size: 18px; font-weight: 800; color: #ffffff;")
         header_layout.addWidget(title_lbl)
 
@@ -409,7 +409,7 @@ class ManualDialog(QDialog):
             c_layout = QVBoxLayout(card)
             c_layout.setSpacing(6)
 
-            q_lbl = QLabel(f"❓ {q}")
+            q_lbl = QLabel(f"{q}")
             q_lbl.setStyleSheet("font-size: 14px; font-weight: 700; color: #dc2626;")
             c_layout.addWidget(q_lbl)
 

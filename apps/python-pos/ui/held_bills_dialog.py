@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt
 class HeldBillsDialog(QDialog):
     def __init__(self, parent=None, held_bills=None):
         super().__init__(parent)
-        self.setWindowTitle("📋 รายการบิลที่พักไว้ (Held Bills)")
+        self.setWindowTitle("รายการบิลที่พักไว้ (Held Bills)")
         self.setFixedSize(650, 420)
         self.setStyleSheet("""
             QDialog { background-color: #f8fafc; font-family: 'Segoe UI', Tahoma, sans-serif; }

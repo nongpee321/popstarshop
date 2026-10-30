@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "1.2.0"
+    [string]$Version = "1.2.10"
 )
 
 $ErrorActionPreference = "Stop"
@@ -46,3 +46,4 @@ try {
 finally {
     Pop-Location
 }
+

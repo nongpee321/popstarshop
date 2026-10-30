@@ -22,7 +22,7 @@ class ScaleWeightDialog(QDialog):
         self.selected_product = None
         self.entered_weight = 1.000
         
-        self.setWindowTitle("⚖️ สินค้าชั่งน้ำหนัก (สแกนบาร์โค้ด/QR และระบุกิโลกรัม)")
+        self.setWindowTitle("สินค้าชั่งน้ำหนัก (สแกนบาร์โค้ด/QR และระบุกิโลกรัม)")
         self.setFixedWidth(520)
         self.setStyleSheet("""
             QDialog { background-color: #f8fafc; font-family: 'Segoe UI', Tahoma, sans-serif; }
@@ -80,7 +80,7 @@ class ScaleWeightDialog(QDialog):
         h_layout = QVBoxLayout(header_frame)
         h_layout.setContentsMargins(10, 8, 10, 8)
         
-        title_lbl = QLabel("⚖️ ขายสินค้าชั่งน้ำหนัก (กิโลกรัม)")
+        title_lbl = QLabel("ขายสินค้าชั่งน้ำหนัก (กิโลกรัม)")
         title_lbl.setStyleSheet("color: white; font-size: 18px; font-weight: bold;")
         sub_lbl = QLabel("ยิงบาร์โค้ด / QR สินค้า หรือเลือกรายการ แล้วระบุกิโลกรัม")
         sub_lbl.setStyleSheet("color: #ccfbf1; font-size: 13px;")
@@ -90,7 +90,7 @@ class ScaleWeightDialog(QDialog):
 
         # 1. Barcode / QR Scan Field (Default Focused)
         scan_box = QVBoxLayout()
-        scan_lbl = QLabel("🔍 สแกนบาร์โค้ด / QR สินค้า หรือพิมพ์รหัส:")
+        scan_lbl = QLabel("สแกนบาร์โค้ด / QR สินค้า หรือพิมพ์รหัส:")
         scan_lbl.setStyleSheet("font-weight: bold; color: #0f766e;")
         self.scan_input = QLineEdit()
         self.scan_input.setPlaceholderText("ยิงบาร์โค้ด / QR หรือ SKU ที่นี่แล้วกด Enter...")
@@ -102,7 +102,7 @@ class ScaleWeightDialog(QDialog):
 
         # 2. Product Selector Dropdown
         prod_box = QVBoxLayout()
-        prod_lbl = QLabel("📦 หรือเลือกสินค้าจากรายการ:")
+        prod_lbl = QLabel("หรือเลือกสินค้าจากรายการ:")
         prod_lbl.setStyleSheet("font-weight: bold; color: #334155;")
         self.prod_combo = QComboBox()
         self.prod_combo.setMaxVisibleItems(12)
@@ -126,7 +126,7 @@ class ScaleWeightDialog(QDialog):
 
         # 3. Weight Input Field (กิโลกรัม)
         weight_box = QVBoxLayout()
-        weight_lbl = QLabel("⚖️ น้ำหนักสินค้า (กิโลกรัม):")
+        weight_lbl = QLabel("น้ำหนักสินค้า (กิโลกรัม):")
         weight_lbl.setStyleSheet("font-weight: bold; font-size: 15px; color: #0d9488;")
         
         weight_row = QHBoxLayout()
@@ -175,7 +175,7 @@ class ScaleWeightDialog(QDialog):
         cancel_btn.setStyleSheet("background: #e2e8f0; color: #475569; border-radius: 8px; padding: 12px; font-weight: bold; font-size: 15px;")
         cancel_btn.clicked.connect(self.reject)
         
-        self.submit_btn = QPushButton("🛒 เพิ่มลงตะกร้าสินค้า (Enter)")
+        self.submit_btn = QPushButton("เพิ่มลงตะกร้าสินค้า (Enter)")
         self.submit_btn.setStyleSheet("background: #0d9488; color: white; border-radius: 8px; padding: 12px; font-weight: bold; font-size: 16px;")
         self.submit_btn.clicked.connect(self.on_submit)
         

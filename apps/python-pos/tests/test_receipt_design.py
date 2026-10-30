@@ -66,7 +66,7 @@ def test_receipt_dialog_matches_reference_slip(qtbot):
 
 def test_version_string_and_receipt_jumbo_sizing(qtbot):
     from ui.token_dialog import VERSION_STRING
-    assert VERSION_STRING == "1.2.0"
+    assert VERSION_STRING == "1.2.10"
 
     dlg = ReceiptDialog(None, {
         "doc_number": "POS-0001-20260417100516-247",
@@ -83,3 +83,30 @@ def test_version_string_and_receipt_jumbo_sizing(qtbot):
     raw = _receipt_raster_commands(dlg.receipt_text.document(), dlg.receipt_paper_size)
     # 576 dots = 72 bytes per raster row (0x48, 0x00)
     assert b"\x1dv0\x00\x48\x00" in raw
+
+
+def test_receipt_settings_dialog_copies_and_printer(qtbot, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+    monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: None)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: None)
+    monkeypatch.setattr(QMessageBox, "critical", lambda *args, **kwargs: None)
+
+    from ui.receipt_dialog import ReceiptSettingsDialog
+    config = {'receipt_printer': '', 'receipt_copies': 2}
+    dlg = ReceiptSettingsDialog(None, config)
+    qtbot.addWidget(dlg)
+
+    # Check only printer and copies are present
+    assert hasattr(dlg, 'printer_combo')
+    assert hasattr(dlg, 'copies_spin')
+    assert not hasattr(dlg, 'header_edit')
+    assert not hasattr(dlg, 'footer_edit')
+    assert not hasattr(dlg, 'paper_size_combo')
+    assert not hasattr(dlg, 'font_scale_combo')
+
+    assert dlg.copies_spin.value() == 2
+    dlg.copies_spin.setValue(3)
+    dlg.save_settings(and_test=False)
+
+    assert dlg.config['receipt_copies'] == 3
+

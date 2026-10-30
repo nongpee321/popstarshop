@@ -161,7 +161,7 @@ class ReceiptSettingsDialog(QDialog):
         
         settings_layout.addLayout(form)
         
-        save_btn = QPushButton("💾 บันทึกและทดสอบพิมพ์")
+        save_btn = QPushButton("บันทึกและทดสอบพิมพ์")
         save_btn.setStyleSheet("background-color: #3b82f6; color: white; padding: 12px; font-size: 16px; border-radius: 6px; font-weight: bold;")
         save_btn.clicked.connect(self.save_and_test)
         settings_layout.addWidget(save_btn)
@@ -223,11 +223,11 @@ class ReceiptDialog(QDialog):
         self.update_receipt_ui(config)
         
         top_btns = QHBoxLayout()
-        print_btn = QPushButton("🖨️ พิมพ์")
+        print_btn = QPushButton("พิมพ์")
         print_btn.setStyleSheet("QPushButton { background-color: #10b981; color: white; border: none; border-radius: 8px; padding: 10px; font-weight: bold; font-size: 14px; } QPushButton:hover { background-color: #059669; }")
         print_btn.clicked.connect(self.print_receipt)
         
-        settings_btn = QPushButton("⚙️ ตั้งค่า")
+        settings_btn = QPushButton("ตั้งค่า")
         settings_btn.setStyleSheet("QPushButton { background-color: white; border: 1px solid #d1d5db; border-radius: 8px; padding: 10px; font-weight: bold; } QPushButton:hover { background-color: #f3f4f6; }")
         settings_btn.clicked.connect(self.open_settings)
         
@@ -235,12 +235,12 @@ class ReceiptDialog(QDialog):
         top_btns.addWidget(settings_btn)
         self.paper_layout.addLayout(top_btns)
         
-        cancel_btn = QPushButton("❌ ยกเลิก")
+        cancel_btn = QPushButton("ยกเลิก")
         cancel_btn.setStyleSheet("QPushButton { background-color: #fee2e2; color: #dc2626; border: none; border-radius: 8px; padding: 8px; font-weight: bold; } QPushButton:hover { background-color: #fecaca; }")
         cancel_btn.clicked.connect(self.reject)
         self.paper_layout.addWidget(cancel_btn)
         
-        new_bill_btn = QPushButton("📦 บิลใหม่")
+        new_bill_btn = QPushButton("บิลใหม่")
         new_bill_btn.setStyleSheet("QPushButton { background-color: #111827; color: white; border: none; border-radius: 8px; padding: 12px; font-weight: bold; font-size: 16px; } QPushButton:hover { background-color: #374151; }")
         new_bill_btn.clicked.connect(self.accept)
         self.paper_layout.addWidget(new_bill_btn)

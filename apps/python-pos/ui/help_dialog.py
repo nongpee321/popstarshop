@@ -81,7 +81,7 @@ class HelpDialog(QDialog):
         """)
         self.btn_next.clicked.connect(self.next_step)
         
-        self.btn_finish = QPushButton("เริ่มใช้งานเลย ✔")
+        self.btn_finish = QPushButton("เริ่มใช้งานเลย")
         self.btn_finish.setFixedSize(140, 40)
         self.btn_finish.setStyleSheet("""
             QPushButton { background-color: #10b981; border: none; border-radius: 6px; font-size: 14px; font-weight: bold; color: white; }
@@ -122,10 +122,10 @@ class HelpDialog(QDialog):
 <b style='font-size: 17px; color: #b91c1c;'>3. จัดการตะกร้า, ใส่ส่วนลด & พักบิล</b><br>
 การปรับแต่งรายการสินค้าและจัดการบิลก่อนคิดเงิน<br><br>
 <b>ฟังก์ชันหลักในหน้านี้:</b><br>
-<span style='color: #dc2626;'><b>🏷️ ใส่ส่วนลด:</b></span> กดปุ่มเพื่อระบุส่วนลดเป็นเงินบาท (฿) หรือเปอร์เซ็นต์ (%) ระบบจะหักลบและคำนวณยอดสุทธิให้อัตโนมัติ<br>
-<span style='color: #d97706;'><b>⏸️ พักบิล:</b></span> พักบิลปัจจุบันเพื่อรับลูกค้าท่านอื่นก่อน โดยระบุชื่อ/เลขอ้างอิง บิลจะถูกบันทึกขึ้นระบบฐานข้อมูลทันที<br>
-<span style='color: #4f46e5;'><b>📋 บิลพัก:</b></span> ดูรายการบิลที่พักไว้ และกดดึงกลับมาลงตะกร้าเพื่อคิดเงินต่อได้ทันที<br>
-<span style='color: #16a34a;'><b>➕ / ➖ / 🗑️:</b></span> ปรับเพิ่ม-ลดจำนวนสินค้า หรือกดถังขยะเพื่อลบรายการออกจากตะกร้า
+<span style='color: #dc2626;'><b>ใส่ส่วนลด:</b></span> กดปุ่มเพื่อระบุส่วนลดเป็นเงินบาท (฿) หรือเปอร์เซ็นต์ (%) ระบบจะหักลบและคำนวณยอดสุทธิให้อัตโนมัติ<br>
+<span style='color: #d97706;'><b>พักบิล:</b></span> พักบิลปัจจุบันเพื่อรับลูกค้าท่านอื่นก่อน โดยระบุชื่อ/เลขอ้างอิง บิลจะถูกบันทึกขึ้นระบบฐานข้อมูลทันที<br>
+<span style='color: #4f46e5;'><b>บิลพัก:</b></span> ดูรายการบิลที่พักไว้ และกดดึงกลับมาลงตะกร้าเพื่อคิดเงินต่อได้ทันที<br>
+<span style='color: #16a34a;'><b>+ / - / ลบ:</b></span> ปรับเพิ่ม-ลดจำนวนสินค้า หรือกดถังขยะเพื่อลบรายการออกจากตะกร้า
 </body></html>""",
 
             4: """<html><body style='font-family: Arial; font-size: 15px; color: #1e293b;'>
@@ -148,7 +148,7 @@ class HelpDialog(QDialog):
         }
         self.desc_label.setText(descriptions.get(self.current_step, ''))
 
-        self.title_label.setText(f" 📷 วิธีใช้งานระบบขายหน้าร้าน (JET POS) - ขั้นตอนที่ {self.current_step}/{self.total_steps}")
+        self.title_label.setText(f" วิธีใช้งานระบบขายหน้าร้าน (JET POS) - ขั้นตอนที่ {self.current_step}/{self.total_steps}")
         
         img_filename = self.image_files.get(self.current_step)
         img_path = os.path.join(self.base_path, 'assets', 'manual', img_filename)

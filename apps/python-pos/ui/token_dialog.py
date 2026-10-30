@@ -10,7 +10,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QIcon, QPixmap
 from urllib.parse import urlsplit
 
-VERSION_STRING = "1.2.0"
+VERSION_STRING = "1.2.10"
 
 class PosTokenLoginDialog(QDialog):
     """
@@ -37,6 +37,90 @@ class PosTokenLoginDialog(QDialog):
                 background-color: #ffffff;
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             }
+            QMessageBox {
+                background-color: #ffffff;
+            }
+            QMessageBox QLabel {
+                color: #0f172a;
+                font-size: 14px;
+                font-weight: 500;
+            }
+            QMessageBox QPushButton {
+                background-color: #2563eb;
+                color: #ffffff;
+                font-size: 13.5px;
+                font-weight: bold;
+                border-radius: 6px;
+                padding: 6px 20px;
+                min-width: 80px;
+                min-height: 30px;
+                border: 1px solid #1d4ed8;
+            }
+            QMessageBox QPushButton:hover {
+                background-color: #1d4ed8;
+            }
+            QMessageBox QPushButton:pressed {
+                background-color: #1e40af;
+            }
+            QInputDialog {
+                background-color: #ffffff;
+            }
+            QInputDialog QLabel {
+                color: #0f172a;
+                font-size: 14px;
+                font-weight: 600;
+            }
+            QInputDialog QLineEdit {
+                background-color: #f8fafc;
+                color: #0f172a;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 6px;
+                padding: 6px 10px;
+                font-size: 14px;
+            }
+            QInputDialog QPushButton {
+                background-color: #2563eb;
+                color: #ffffff;
+                font-size: 13.5px;
+                font-weight: bold;
+                border-radius: 6px;
+                padding: 6px 18px;
+                min-width: 75px;
+                min-height: 28px;
+                border: 1px solid #1d4ed8;
+            }
+            QInputDialog QComboBox, QComboBox {
+                background-color: #ffffff;
+                color: #0f172a;
+                border: 1.5px solid #3b82f6;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-size: 14px;
+                font-weight: 600;
+                min-height: 32px;
+            }
+            QInputDialog QComboBox:hover, QComboBox:hover {
+                border-color: #2563eb;
+            }
+            QInputDialog QComboBox::drop-down, QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 30px;
+                border-left: 1px solid #cbd5e1;
+                background-color: #f1f5f9;
+                border-top-right-radius: 6px;
+                border-bottom-right-radius: 6px;
+            }
+            QInputDialog QComboBox QAbstractItemView, QComboBox QAbstractItemView {
+                background-color: #ffffff;
+                color: #0f172a;
+                border: 1.5px solid #cbd5e1;
+                selection-background-color: #2563eb;
+                selection-color: #ffffff;
+                font-size: 14px;
+                padding: 4px;
+            }
+
         """)
 
         self.init_ui()
@@ -139,14 +223,16 @@ class PosTokenLoginDialog(QDialog):
         f2_box.addWidget(self.user_input)
         content_layout.addLayout(f2_box)
 
-        # Field 3: Password / PIN
+        # Field 3: Cashier PIN (Digits)
         f3_box = QVBoxLayout()
         f3_box.setSpacing(4)
-        lbl3 = QLabel("รหัสผ่าน (Password)")
+        lbl3 = QLabel("รหัส PIN แคชเชียร์ (ตัวเลข 4-6 หลัก)")
         lbl3.setStyleSheet("font-size: 12px; font-weight: 700; color: #374151;")
         f3_box.addWidget(lbl3)
 
         self.pin_input = QLineEdit()
+        self.pin_input.setPlaceholderText("ใส่รหัส PIN เช่น 1234 หรือ 0000")
+        self.pin_input.setToolTip("รหัส PIN ประจำตัวพนักงานแคชเชียร์ (ตัวเลข 4-6 หลักที่ตั้งไว้ในระบบ ERP)")
         self.pin_input.setEchoMode(QLineEdit.Password)
         self.pin_input.setStyleSheet("""
             QLineEdit {
@@ -251,7 +337,7 @@ class PosTokenLoginDialog(QDialog):
         """)
         self.login_btn.clicked.connect(self.do_verify_and_login)
 
-        guide_btn = QPushButton("📖 คู่มือ")
+        guide_btn = QPushButton("คู่มือ")
         guide_btn.setFixedSize(80, 44)
         guide_btn.setStyleSheet("""
             QPushButton {
@@ -311,7 +397,13 @@ class PosTokenLoginDialog(QDialog):
                 "กรุณาระบุ URL ที่ขึ้นต้นด้วย http:// หรือ https:// และไม่มีชื่อผู้ใช้หรือรหัสผ่านใน URL",
             )
             return
-        if parsed.scheme != "https" and hostname.casefold() not in ("localhost", "127.0.0.1", "::1"):
+        is_local_or_lan = (
+            hostname.casefold() in ("localhost", "127.0.0.1", "::1")
+            or hostname.startswith("192.168.")
+            or hostname.startswith("10.")
+            or hostname.startswith("172.")
+        )
+        if parsed.scheme != "https" and not is_local_or_lan:
             QMessageBox.warning(
                 self,
                 "ต้องใช้ HTTPS",
@@ -433,6 +525,8 @@ class PosTokenLoginDialog(QDialog):
                     err = login_res.json().get('message', 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
                 except Exception:
                     err = f"เกิดข้อผิดพลาดในการเชื่อมต่อ ({login_res.status_code})"
+                if "The pin field format is invalid" in str(err) or ("pin" in str(err).lower() and "format" in str(err).lower()):
+                    err = "รหัส PIN ไม่ถูกต้อง: กรุณากรอกรหัส PIN แคชเชียร์ที่เป็นตัวเลข (เช่น 1234) ไม่ใช่รหัสผ่านตัวหนังสือของระบบเว็บ ERP\n\n(หากยังไม่ได้ตั้งรหัส PIN สามารถเข้าไปตรวจสอบหรือตั้งค่าได้ที่เมนูพนักงานใน ERP)"
                 self.status_lbl.setText(err)
                 self.status_lbl.setStyleSheet("font-size: 12px; font-weight: 700; color: #dc2626;")
                 QMessageBox.warning(self, "ข้อผิดพลาด", err)

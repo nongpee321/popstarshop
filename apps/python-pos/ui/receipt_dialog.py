@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from PySide6.QtWidgets import (QGraphicsDropShadowEffect, QDialog, QHBoxLayout, QVBoxLayout, QFrame,
 
-                               QFormLayout, QComboBox, QLineEdit, QTextEdit,
+                               QFormLayout, QComboBox, QLineEdit, QTextEdit, QSpinBox,
 
                                QPushButton, QLabel, QScrollArea, QWidget, QMessageBox)
 
@@ -176,10 +176,16 @@ def print_escpos_receipt(printer_name, receipt_data, config):
     if not printer_name:
         raise Exception("กรุณาเลือกเครื่องพิมพ์ก่อน")
 
+    copies = int(config.get('receipt_copies', 1) or 1)
+    if copies < 1:
+        copies = 1
+
     document = config.get('_receipt_document')
     if document is not None:
         paper_size = _resolve_paper_size(config, printer_name)
-        _send_raw_to_printer(printer_name, _receipt_raster_commands(document, paper_size))
+        raster_cmds = _receipt_raster_commands(document, paper_size)
+        for _ in range(copies):
+            _send_raw_to_printer(printer_name, raster_cmds)
         return
 
     def enc(text):
@@ -365,16 +371,12 @@ def print_escpos_receipt(printer_name, receipt_data, config):
         hPrinter = win32print.OpenPrinter(printer_name)
 
         try:
-
-            win32print.StartDocPrinter(hPrinter, 1, ("PopCentralPOS Receipt", None, "RAW"))
-
-            win32print.StartPagePrinter(hPrinter)
-
-            win32print.WritePrinter(hPrinter, bytes(cmds))
-
-            win32print.EndPagePrinter(hPrinter)
-
-            win32print.EndDocPrinter(hPrinter)
+            for _ in range(copies):
+                win32print.StartDocPrinter(hPrinter, 1, ("PopCentralPOS Receipt", None, "RAW"))
+                win32print.StartPagePrinter(hPrinter)
+                win32print.WritePrinter(hPrinter, bytes(cmds))
+                win32print.EndPagePrinter(hPrinter)
+                win32print.EndDocPrinter(hPrinter)
 
         finally:
 
@@ -445,255 +447,232 @@ def open_cash_drawer(printer_name):
         raise Exception(f"Failed to open drawer: {str(e)}")
 
 class ReceiptSettingsDialog(QDialog):
-
     def __init__(self, parent=None, config=None, receipt_data=None):
-
         super().__init__(parent)
+        self.setWindowTitle("ตั้งค่าเครื่องพิมพ์ใบเสร็จ")
+        self.setFixedSize(480, 360)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #ffffff;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            }
+            QLabel {
+                color: #1e293b;
+            }
+            QComboBox {
+                border: 2px solid #cbd5e1;
+                border-radius: 8px;
+                padding: 6px 12px;
+                font-size: 14px;
+                font-weight: 500;
+                background-color: #f8fafc;
+                color: #0f172a;
+            }
+            QComboBox:focus {
+                border-color: #2563eb;
+                background-color: #ffffff;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 28px;
+            }
+            QSpinBox {
+                border: 2px solid #cbd5e1;
+                border-radius: 8px;
+                padding: 6px 12px;
+                font-size: 16px;
+                font-weight: bold;
+                background-color: #f8fafc;
+                color: #0f172a;
+            }
+            QSpinBox:focus {
+                border-color: #2563eb;
+                background-color: #ffffff;
+            }
+        """)
 
-        self.setWindowTitle("ตั้งค่าใบเสร็จ")
-
-        self.setFixedSize(950, 620)
-
-        self.setStyleSheet("background-color: #f3f4f6; color: #111827; font-family: Tahoma, sans-serif;")
-
-        self.config = config or {}
-
+        self.config = dict(config or {})
         self.receipt_data = receipt_data or {}
-
-        
-
         self.setLocale(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
 
-        main_layout = QHBoxLayout(self)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(28, 24, 28, 24)
+        main_layout.setSpacing(16)
 
-        
+        # Title
+        title_box = QVBoxLayout()
+        title_box.setSpacing(4)
+        title_lbl = QLabel("ตั้งค่าเครื่องพิมพ์ใบเสร็จ")
+        title_lbl.setStyleSheet("font-size: 19px; font-weight: bold; color: #0f172a;")
+        sub_lbl = QLabel("เลือกเครื่องพิมพ์และจำนวนใบเสร็จที่ต้องการพิมพ์")
+        sub_lbl.setStyleSheet("font-size: 13px; color: #64748b;")
+        title_box.addWidget(title_lbl)
+        title_box.addWidget(sub_lbl)
+        main_layout.addLayout(title_box)
 
-        settings_frame = QFrame()
-        settings_frame.setStyleSheet('''
-            QFrame { background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; }
-            QLabel { font-size: 15px; font-weight: bold; color: #1e293b; border: none; }
-            QComboBox { 
-                border: 2px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; 
-                font-size: 14px; background-color: #f8fafc; min-width: 200px;
-            }
-            QComboBox:focus { border-color: #3b82f6; background-color: #ffffff; }
-            QComboBox::drop-down { border: none; width: 30px; }
-            QTextEdit { 
-                border: 2px solid #cbd5e1; border-radius: 6px; padding: 10px; 
-                font-size: 14px; background-color: #f8fafc;
-            }
-            QTextEdit:focus { border-color: #3b82f6; background-color: #ffffff; }
-        ''')
-        
-        settings_layout = QVBoxLayout(settings_frame)
-        settings_layout.setContentsMargins(24, 24, 24, 24)
-        settings_layout.setSpacing(16)
-        
-        title_lbl = QLabel("⚙️ ตั้งค่าเครื่องพิมพ์และรูปแบบใบเสร็จ")
-        title_lbl.setStyleSheet("font-size: 18px; color: #0f172a; margin-bottom: 8px; border: none;")
-        settings_layout.addWidget(title_lbl)
-        
-        # Printer selection
+        # Divider line
+        div = QFrame()
+        div.setFrameShape(QFrame.HLine)
+        div.setFrameShadow(QFrame.Sunken)
+        div.setStyleSheet("color: #e2e8f0; background-color: #e2e8f0; max-height: 1px;")
+        main_layout.addWidget(div)
+
+        # 1. Printer selection
         printer_layout = QVBoxLayout()
         printer_layout.setSpacing(6)
-        lbl_printer = QLabel("🖨️ เลือกเครื่องพิมพ์ (ขนาด 80mm):")
+        lbl_printer = QLabel("เลือกเครื่องพิมพ์:")
+        lbl_printer.setStyleSheet("font-size: 14px; font-weight: bold; color: #1e293b;")
         self.printer_combo = QComboBox()
+        self.printer_combo.setFixedHeight(42)
         self.printer_combo.addItem("--- กรุณาเลือกเครื่องพิมพ์ ---")
         for printer in QPrinterInfo.availablePrinters():
             self.printer_combo.addItem(printer.printerName())
-            
+
         current_printer = self.config.get('receipt_printer', '')
         if current_printer:
             idx = self.printer_combo.findText(current_printer)
             if idx >= 0:
                 self.printer_combo.setCurrentIndex(idx)
-        
+
         printer_layout.addWidget(lbl_printer)
         printer_layout.addWidget(self.printer_combo)
-        settings_layout.addLayout(printer_layout)
+        main_layout.addLayout(printer_layout)
 
-        paper_layout = QVBoxLayout()
-        paper_layout.setSpacing(6)
-        paper_layout.addWidget(QLabel("ขนาดหน้ากว้างกระดาษ"))
-        self.paper_size_combo = QComboBox()
-        self.paper_size_combo.addItem("80 มม. (มาตรฐาน / หน้าร้าน)", "80mm")
-        self.paper_size_combo.addItem("58 มม.", "58mm")
-        default_paper = _resolve_paper_size(self.config, current_printer)
-        paper_index = self.paper_size_combo.findData(default_paper)
-        self.paper_size_combo.setCurrentIndex(max(0, paper_index))
-        paper_layout.addWidget(self.paper_size_combo)
+        # 2. Number of copies
+        copies_layout = QVBoxLayout()
+        copies_layout.setSpacing(6)
+        lbl_copies = QLabel("จำนวนให้พิมพ์ (ฉบับ/บิล):")
+        lbl_copies.setStyleSheet("font-size: 14px; font-weight: bold; color: #1e293b;")
 
-        paper_layout.addWidget(QLabel("ขนาดตัวหนังสือและตัวเลข"))
-        self.font_scale_combo = QComboBox()
-        self.font_scale_combo.addItem("ตัวใหญ่ ชัดเจน (แนะนำ)", "large")
-        self.font_scale_combo.addItem("ตัวใหญ่พิเศษ (Extra Large)", "xlarge")
-        self.font_scale_combo.addItem("กะทัดรัด (Compact)", "compact")
-        font_index = self.font_scale_combo.findData(self.config.get('receipt_font_scale', 'large'))
-        self.font_scale_combo.setCurrentIndex(max(0, font_index))
-        paper_layout.addWidget(self.font_scale_combo)
-        settings_layout.addLayout(paper_layout)
+        copies_ctrl_layout = QHBoxLayout()
+        copies_ctrl_layout.setSpacing(8)
 
-        
-        # Header text
-        header_layout = QVBoxLayout()
-        header_layout.setSpacing(6)
-        lbl_header = QLabel("📝 ข้อความหัวใบเสร็จ (ชื่อร้าน/ที่อยู่/ติดต่อ):")
-        self.header_edit = QTextEdit()
-        self.header_edit.setPlaceholderText("ชื่อร้าน\nที่อยู่\nเบอร์โทร")
-        default_header = "บริษัท ป๊อปสตาร์ฟู้ดส์ เทรดดิ้ง จำกัด\n480 หมู่บ้านคำเจริญ ม.1 ต.แสนสุข\nอ.วารินชำราบ จ.อุบลราชธานี 34190\nโทร. 061-935-4497 | Line: @popstarshop"
-        self.header_edit.setPlainText(self.config.get('receipt_header', default_header))
-        self.header_edit.setMinimumHeight(100)
-        
-        header_layout.addWidget(lbl_header)
-        header_layout.addWidget(self.header_edit)
-        settings_layout.addLayout(header_layout)
-        
-        # Footer text
-        footer_layout = QVBoxLayout()
-        footer_layout.setSpacing(6)
-        lbl_footer = QLabel("📝 ข้อความท้ายใบเสร็จ (ขอบคุณลูกค้า):")
-        self.footer_edit = QTextEdit()
-        self.footer_edit.setPlaceholderText("ข้อความขอบคุณ")
-        default_footer = "ขอบคุณที่ใช้บริการ\nโอกาสหน้าเชิญใหม่ครับ/ค่ะ"
-        self.footer_edit.setPlainText(self.config.get('receipt_footer', default_footer))
-        self.footer_edit.setMinimumHeight(80)
-        
-        footer_layout.addWidget(lbl_footer)
-        footer_layout.addWidget(self.footer_edit)
-        settings_layout.addLayout(footer_layout)
-        
-        settings_layout.addStretch()
-        
-        # Save Button
-        save_btn = QPushButton("💾 บันทึกและทดสอบพิมพ์")
-        save_btn.setStyleSheet('''
+        self.copies_spin = QSpinBox()
+        self.copies_spin.setFixedHeight(42)
+        self.copies_spin.setRange(1, 10)
+        self.copies_spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        current_copies = int(self.config.get('receipt_copies', 1) or 1)
+        self.copies_spin.setValue(max(1, min(10, current_copies)))
+        self.copies_spin.setSuffix(" ใบ")
+        copies_ctrl_layout.addWidget(self.copies_spin, 2)
+
+        for num in [1, 2, 3]:
+            btn = QPushButton(f"{num} ใบ")
+            btn.setFixedHeight(42)
+            btn.setFixedWidth(56)
+            btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #f1f5f9; border: 1px solid #cbd5e1;
+                    color: #334155; font-size: 13px; font-weight: bold; border-radius: 8px;
+                }
+                QPushButton:hover { background-color: #e2e8f0; color: #0f172a; }
+            """)
+            btn.clicked.connect(lambda checked=False, n=num: self.copies_spin.setValue(n))
+            copies_ctrl_layout.addWidget(btn)
+
+        copies_layout.addWidget(lbl_copies)
+        copies_layout.addLayout(copies_ctrl_layout)
+        main_layout.addLayout(copies_layout)
+
+        main_layout.addStretch()
+
+        # Action Buttons
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(10)
+
+        cancel_btn = QPushButton("ยกเลิก")
+        cancel_btn.setFixedHeight(42)
+        cancel_btn.setStyleSheet("""
             QPushButton {
-                background-color: #3b82f6; color: white; padding: 14px; 
-                font-size: 16px; border-radius: 8px; font-weight: bold; border: none;
+                background-color: #f1f5f9; border: 1px solid #cbd5e1; color: #475569;
+                font-size: 13px; font-weight: bold; border-radius: 8px; padding: 0 14px;
             }
-            QPushButton:hover { background-color: #2563eb; }
-            QPushButton:pressed { background-color: #1d4ed8; }
-        ''')
-        save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        save_btn.clicked.connect(self.save_and_test)
-        settings_layout.addWidget(save_btn)
-        
-        # --- RECEIPT PREVIEW PANEL ---
-        preview_wrapper = QFrame()
-        preview_wrapper.setStyleSheet("QFrame { background-color: #f1f5f9; border-radius: 12px; }")
-        preview_wrapper_layout = QVBoxLayout(preview_wrapper)
-        preview_wrapper_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        preview_lbl = QLabel("👀 ตัวอย่างใบเสร็จ (Live Preview)")
-        preview_lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #475569; margin-bottom: 10px;")
-        preview_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        preview_wrapper_layout.addWidget(preview_lbl)
-        
-        preview_frame = QFrame()
-        preview_frame.setObjectName("ReceiptPaper")
-        preview_frame.setStyleSheet('''
-            QFrame#ReceiptPaper {
-                background-color: white;
-                border: 1px solid #cbd5e1;
+            QPushButton:hover { background-color: #e2e8f0; color: #0f172a; }
+        """)
+        cancel_btn.clicked.connect(self.reject)
+
+        test_btn = QPushButton("ทดสอบพิมพ์")
+        test_btn.setFixedHeight(42)
+        test_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f0fdf4; border: 1px solid #86efac; color: #166534;
+                font-size: 13px; font-weight: bold; border-radius: 8px; padding: 0 14px;
             }
-            QLabel { font-family: "Sarabun", "Cordia New", "Arial"; color: #000; }
-        ''')
-        preview_frame.setFixedWidth(280)
-        
-        shadow = QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(15)
-        shadow.setColor(QColor(0, 0, 0, 30))
-        shadow.setOffset(0, 4)
-        preview_frame.setGraphicsEffect(shadow)
-        
-        preview_layout = QVBoxLayout(preview_frame)
-        preview_layout.setContentsMargins(15, 20, 15, 20)
-        preview_layout.setSpacing(4)
-        
-        self.preview_header = QLabel()
-        self.preview_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_header.setStyleSheet("font-size: 14px; font-weight: bold;")
-        
-        preview_body = QLabel("-----------------------------------\nสินค้า 1                      100.00\nสินค้า 2                       50.00\n-----------------------------------\nยอดรวมสุทธิ                 150.00\n-----------------------------------")
-        preview_body.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        preview_body.setStyleSheet("font-size: 13px; font-family: 'Courier New', monospace;")
-        
-        self.preview_footer = QLabel()
-        self.preview_footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_footer.setStyleSheet("font-size: 14px;")
-        
-        preview_layout.addWidget(self.preview_header)
-        preview_layout.addWidget(preview_body)
-        preview_layout.addWidget(self.preview_footer)
-        preview_layout.addStretch()
-        
-        preview_wrapper_layout.addWidget(preview_frame)
-        
-        def update_preview():
-            self.preview_header.setText(self.header_edit.toPlainText())
-            self.preview_footer.setText(self.footer_edit.toPlainText())
-            
-        self.header_edit.textChanged.connect(update_preview)
-        self.footer_edit.textChanged.connect(update_preview)
-        update_preview()
-        
-        main_layout.addWidget(settings_frame, stretch=5)
-        main_layout.addWidget(preview_wrapper, stretch=4)
+            QPushButton:hover { background-color: #dcfce7; }
+        """)
+        test_btn.clicked.connect(lambda: self.save_settings(and_test=True))
+
+        save_btn = QPushButton("บันทึกการตั้งค่า")
+        save_btn.setFixedHeight(42)
+        save_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2563eb; border: none; color: white;
+                font-size: 13px; font-weight: bold; border-radius: 8px; padding: 0 18px;
+            }
+            QPushButton:hover { background-color: #1d4ed8; }
+            QPushButton:pressed { background-color: #1e40af; }
+        """)
+        save_btn.clicked.connect(lambda: self.save_settings(and_test=False))
+
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(test_btn)
+        btn_layout.addWidget(save_btn)
+        main_layout.addLayout(btn_layout)
 
     def save_and_test(self):
+        self.save_settings(and_test=True)
 
-        self.config['receipt_printer'] = self.printer_combo.currentText()
+    def save_settings(self, and_test=False):
+        printer_name = self.printer_combo.currentText().strip()
+        if printer_name == "--- กรุณาเลือกเครื่องพิมพ์ ---":
+            printer_name = ""
 
-        self.config['receipt_header'] = self.header_edit.toPlainText()
-
-        self.config['receipt_footer'] = self.footer_edit.toPlainText()
-        self.config['receipt_paper_size'] = self.paper_size_combo.currentData()
-        self.config['receipt_font_scale'] = self.font_scale_combo.currentData()
-        self.config['receipt_paper_size_set_by_user'] = True
-        self.config['receipt_paper_size_v110_user_set'] = True
-
-        
-
-        parent_window = self.parent()
-
-        if parent_window:
-
-            parent_window.config = self.config
-
-            parent_window.save_config()
-
-            
-
-            if hasattr(parent_window, 'update_receipt_ui'):
-
-                parent_window.update_receipt_ui(self.config)
-
-        
-
-        printer_name = self.printer_combo.currentText()
-
-        if not printer_name:
-
-            QMessageBox.warning(self, "Warning", "กรุณาเลือกเครื่องพิมพ์")
-
+        if not printer_name and and_test:
+            QMessageBox.warning(self, "แจ้งเตือน", "กรุณาเลือกเครื่องพิมพ์ก่อนทดสอบพิมพ์")
             return
 
-            
+        copies = int(self.copies_spin.value())
+        self.config['receipt_printer'] = printer_name
+        self.config['receipt_copies'] = copies
 
-        try:
-            printer_config = dict(self.config)
-            parent_window = self.parent()
-            if parent_window and hasattr(parent_window, 'receipt_text'):
-                printer_config['_receipt_document'] = parent_window.receipt_text.document()
-            print_escpos_receipt(printer_name, self.receipt_data, printer_config)
+        if 'receipt_paper_size' not in self.config:
+            self.config['receipt_paper_size'] = '80mm'
+        if 'receipt_font_scale' not in self.config:
+            self.config['receipt_font_scale'] = 'large'
 
-            QMessageBox.information(self, "สำเร็จ", "บันทึกและสั่งพิมพ์เรียบร้อยแล้ว!")
+        parent_window = self.parent()
+        if parent_window:
+            if hasattr(parent_window, 'config') and isinstance(parent_window.config, dict):
+                parent_window.config.update(self.config)
+            if hasattr(parent_window, 'save_config'):
+                parent_window.save_config()
+            if hasattr(parent_window, 'update_receipt_ui'):
+                parent_window.update_receipt_ui(self.config)
 
+        if and_test:
+            try:
+                printer_config = dict(self.config)
+                test_data = self.receipt_data or {
+                    'branch': self.config.get('branch_name', 'สำนักงานใหญ่'),
+                    'cashier': self.config.get('cashier_name', 'ทดสอบระบบ'),
+                    'doc_number': 'TEST-PRINT',
+                    'date': '2026-10-30 11:45:00',
+                    'total': 0.0,
+                    'payment_method': 'cash',
+                    'items': [{'name': 'ทดสอบพิมพ์ใบเสร็จ', 'qty': 1, 'price': 0.0, 'total': 0.0}]
+                }
+                test_cfg = dict(printer_config)
+                test_cfg['receipt_copies'] = 1
+                if parent_window and hasattr(parent_window, 'receipt_text'):
+                    test_cfg['_receipt_document'] = parent_window.receipt_text.document()
+                print_escpos_receipt(printer_name, test_data, test_cfg)
+                QMessageBox.information(self, "สำเร็จ", f"บันทึกและส่งคำสั่งทดสอบไปยังเครื่องพิมพ์ '{printer_name}' เรียบร้อยแล้ว")
+                self.accept()
+            except Exception as e:
+                QMessageBox.critical(self, "ข้อผิดพลาด", f"ไม่สามารถสั่งพิมพ์ได้:\n{str(e)}")
+        else:
+            QMessageBox.information(self, "สำเร็จ", "บันทึกการตั้งค่าเครื่องพิมพ์เรียบร้อยแล้ว")
             self.accept()
-
-        except Exception as e:
-
-            QMessageBox.critical(self, "Error", f"เกิดข้อผิดพลาด:\n{str(e)}")
 
 class ReceiptDialog(QDialog):
 
@@ -1053,36 +1032,27 @@ class ReceiptDialog(QDialog):
             QMessageBox.critical(self, "Error", f"ไม่สามารถเปิดลิ้นชักได้:\n{str(e)}")
 
     def print_receipt(self):
-
         parent_window = self.parent()
-
         config = getattr(parent_window, 'config', {}) if parent_window else {}
+        merged_config = dict(config)
+        merged_config.update(self.config)
 
-        
-
-        printer_name = config.get('receipt_printer', '')
-
+        printer_name = merged_config.get('receipt_printer', '')
         if not printer_name:
-
-            QMessageBox.warning(self, "Warning", "กรุณาตั้งค่าเครื่องพิมพ์ใบเสร็จ (ปุ่มตั้งค่า) ก่อน!")
-
+            QMessageBox.warning(self, "แจ้งเตือน", "กรุณาตั้งค่าเครื่องพิมพ์ใบเสร็จ (ปุ่มตั้งค่า) ก่อน!")
             return
 
-            
-
         try:
-
             print_escpos_receipt(
                 printer_name,
                 self.receipt_data,
-                {**config, 'receipt_paper_size': self.receipt_paper_size, '_receipt_document': self.receipt_text.document()},
+                {**merged_config, 'receipt_paper_size': self.receipt_paper_size, '_receipt_document': self.receipt_text.document()},
             )
-
-            QMessageBox.information(self, "สำเร็จ", "สั่งพิมพ์ใบเสร็จเรียบร้อยแล้วครับ!")
-
+            copies = int(merged_config.get('receipt_copies', 1) or 1)
+            msg = f"สั่งพิมพ์ใบเสร็จเรียบร้อยแล้ว ({copies} ฉบับ)" if copies > 1 else "สั่งพิมพ์ใบเสร็จเรียบร้อยแล้ว"
+            QMessageBox.information(self, "สำเร็จ", msg)
         except Exception as e:
-
-            QMessageBox.critical(self, "Error", f"เกิดข้อผิดพลาดในการพิมพ์:\n{str(e)}")
+            QMessageBox.critical(self, "ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการพิมพ์:\n{str(e)}")
 
 class ShiftReportDialog(QDialog):
     """
