@@ -49,9 +49,14 @@ class CashSaleService
 
         return DB::transaction(function () use ($data, $branch, $documentType) {
             $items = collect($data['items']);
-            $totalAmount = DecimalMath::sum($items->map(
+            $grossAmount = DecimalMath::sum($items->map(
                 fn ($item) => DecimalMath::multiply($item['qty'], $item['unit_price'])
             ));
+            $discountAmount = DecimalMath::round(
+                (float) (($data['discount_amount'] ?? null) ?: ($data['manual_discount_amount'] ?? 0)),
+                DecimalMath::DISPLAY_MONEY_SCALE
+            );
+            $totalAmount = max('0.00', DecimalMath::subtract($grossAmount, $discountAmount, DecimalMath::DISPLAY_MONEY_SCALE));
 
             $document = Document::create([
                 'document_type_id' => $documentType->id,

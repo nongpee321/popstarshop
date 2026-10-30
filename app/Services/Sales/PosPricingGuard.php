@@ -159,17 +159,21 @@ class PosPricingGuard
             ];
         });
 
-        $expected = DecimalMath::round(DecimalMath::sum($serverLines->map(
-            fn ($line) => DecimalMath::multiply($line['qty'], $line['unit_price'])
+         = DecimalMath::round(DecimalMath::sum(->map(
+            fn () => DecimalMath::multiply(['qty'], ['unit_price'])
         )), DecimalMath::DISPLAY_MONEY_SCALE);
+         = max('0.00', DecimalMath::subtract(, , DecimalMath::DISPLAY_MONEY_SCALE));
         $qtyPromotionDiscount = $this->qtyPromotionDiscount($serverLines, (int) $data['branch_id']);
 
-        $manualDiscount = DecimalMath::round($data['manual_discount_amount'] ?? 0, DecimalMath::DISPLAY_MONEY_SCALE);
-        if (DecimalMath::compare($manualDiscount, 0) > 0) {
-            if (! $user->hasPermission('pos.discount.override')) {
-                throw new RuntimeException('ส่วนลดพิเศษต้องให้ผู้จัดการที่มีสิทธิ์อนุมัติ');
+         = DecimalMath::round(
+            (float) ((['discount_amount'] ?? null) ?: (['manual_discount_amount'] ?? 0)),
+            DecimalMath::DISPLAY_MONEY_SCALE
+        );
+        if (DecimalMath::compare(, 0) > 0) {
+            if ( && ! ->hasPermission('pos.discount.override') && ! ->hasPermission('pos.sell')) {
+                throw new RuntimeException('ส่วนลดพิเศษต้องให้ผู้จัดการหรือพนักงานขายที่มีสิทธิ์อนุมัติ');
             }
-            $expected = DecimalMath::subtract($expected, $manualDiscount, DecimalMath::DISPLAY_MONEY_SCALE);
+             = DecimalMath::subtract(, , DecimalMath::DISPLAY_MONEY_SCALE);
         }
 
         if (! empty($data['discount_card_code'])) {

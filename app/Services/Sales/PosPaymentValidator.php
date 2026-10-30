@@ -9,9 +9,16 @@ class PosPaymentValidator
 {
     public function validate(array $data): float
     {
-        $total = DecimalMath::round(DecimalMath::sum(collect($data['items'])->map(
+        $grossTotal = DecimalMath::round(DecimalMath::sum(collect($data['items'])->map(
             fn (array $item) => DecimalMath::multiply($item['qty'], $item['unit_price'])
         )), DecimalMath::DISPLAY_MONEY_SCALE);
+
+        $discount = DecimalMath::round(
+            (float) (($data['discount_amount'] ?? null) ?: ($data['manual_discount_amount'] ?? 0)),
+            DecimalMath::DISPLAY_MONEY_SCALE
+        );
+
+        $total = max('0.00', DecimalMath::subtract($grossTotal, $discount, DecimalMath::DISPLAY_MONEY_SCALE));
 
         if (in_array($data['method'], ['transfer', 'mixed'], true)
             && ! ($data['payment_confirmed'] ?? false)) {
@@ -21,13 +28,8 @@ class PosPaymentValidator
         if ($data['method'] === 'cash') {
             $received = DecimalMath::round($data['cash_received'] ?? 0, DecimalMath::DISPLAY_MONEY_SCALE);
             if (DecimalMath::compare(DecimalMath::add($received, '0.01', 2), $total) < 0) {
-                $req = app()->has('request') ? request() : null;
-                $isOffline = ($req && ($req->attributes->has('pos_device') || ($req->header('Idempotency-Key') && str_starts_with($req->header('Idempotency-Key'), 'offline-receipt-'))))
-                    || (!empty($data['is_offline_sync']));
-                if (! $isOffline) {
-                    $short = number_format((float) DecimalMath::subtract($total, $received, 2), 2);
-                    throw new RuntimeException("ยอดเงินสดที่รับไม่ครบ ขาดอีก {$short} บาท");
-                }
+                $short = number_format((float) DecimalMath::subtract($total, $received, 2), 2);
+                throw new RuntimeException("ยอดเงินสดที่รับไม่ครบ ขาดอีก {$short} บาท");
             }
         }
 
@@ -40,6 +42,12 @@ class PosPaymentValidator
             if (DecimalMath::compare(DecimalMath::absoluteDifference(DecimalMath::add($cash, $transfer, 2), $total, 2), '0.01') > 0) {
                 throw new RuntimeException('ยอดเงินสด+โอนต้องเท่ากับยอดบิล');
             }
+        }
+
+        if (in_array($data['method'], ['transfer', 'mixed'], true)
+            && ! empty($data['transfer_account_last4'])
+            && ! preg_match('/^\d{4}$/', (string) $data['transfer_account_last4'])) {
+            throw new RuntimeException('เลขท้ายบัญชีผู้โอนต้องเป็นตัวเลข 4 หลัก');
         }
 
         return (float) $total;

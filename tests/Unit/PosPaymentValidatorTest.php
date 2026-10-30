@@ -27,6 +27,30 @@ class PosPaymentValidatorTest extends TestCase
         $this->assertSame(120.0, $total);
     }
 
+    public function test_accepts_cash_with_discount(): void
+    {
+        $total = $this->validator->validate($this->payload([
+            'method' => 'cash',
+            'discount_amount' => 20,
+            'cash_received' => 100,
+        ]));
+
+        $this->assertSame(100.0, $total);
+    }
+
+    public function test_accepts_mixed_payment_with_discount(): void
+    {
+        $total = $this->validator->validate($this->payload([
+            'method' => 'mixed',
+            'payment_confirmed' => true,
+            'discount_amount' => 20,
+            'cash_amount' => 60,
+            'transfer_amount' => 40,
+        ]));
+
+        $this->assertSame(100.0, $total);
+    }
+
     #[DataProvider('invalidPaymentProvider')]
     public function test_rejects_invalid_payment(array $overrides, string $message): void
     {

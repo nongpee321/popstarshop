@@ -1194,6 +1194,7 @@ class PosController extends Controller
                     'customer_id' => $data['customer_id'] ?? null,
                     'remark' => implode(' | ', $remarkParts),
                     'items' => $data['items'],
+                    'discount_amount' => $data['discount_amount'] ?? ($data['manual_discount_amount'] ?? 0),
                     'allow_negative_stock' => (bool) ($data['allow_negative_stock'] ?? false),
                     // à¹€à¸‡à¸´à¸™à¸ªà¸”à¸‚à¸­à¸‡à¸šà¸´à¸¥à¸™à¸µà¹‰à¹€à¸‚à¹‰à¸²à¸ªà¸¡à¸¸à¸”à¹€à¸‡à¸´à¸™à¸ªà¸”à¸•à¸­à¸™à¸›à¸´à¸”à¸à¸° à¹„à¸¡à¹ˆà¹ƒà¸Šà¹ˆà¸•à¸­à¸™à¸™à¸µà¹‰ â€” à¸à¸±à¸™à¸™à¸±à¸šà¹€à¸‡à¸´à¸™à¸‹à¹‰à¸³
                     'source' => 'pos',
@@ -1414,9 +1415,9 @@ class PosController extends Controller
     {
         $items = collect($data['items']);
         $gross = round($items->sum(fn ($item) => (float) $item['qty'] * (float) $item['unit_price']), 2);
-        $discount = round((float) ($data['discount_amount'] ?? 0), 2);
+        $discount = round((float) (($data['discount_amount'] ?? null) ?: ($data['manual_discount_amount'] ?? 0)), 2);
         $vat = round((float) ($data['vat_amount'] ?? 0), 2);
-        $net = round($gross, 2);
+        $net = max(0.0, round($gross - $discount, 2));
 
         $receipt = PosReceipt::create([
             'pos_terminal_id' => $shift->pos_terminal_id,
