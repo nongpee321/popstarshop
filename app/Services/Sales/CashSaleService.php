@@ -56,6 +56,11 @@ class CashSaleService
                 (float) (($data['discount_amount'] ?? null) ?: ($data['manual_discount_amount'] ?? 0)),
                 DecimalMath::DISPLAY_MONEY_SCALE
             );
+            if (DecimalMath::compare($discountAmount, '0.00') <= 0 && isset($data['total_amount']) && DecimalMath::compare($data['total_amount'], '0.00') > 0) {
+                if (DecimalMath::compare($grossAmount, $data['total_amount']) > 0) {
+                    $discountAmount = DecimalMath::subtract($grossAmount, $data['total_amount'], DecimalMath::DISPLAY_MONEY_SCALE);
+                }
+            }
             $totalAmount = max('0.00', DecimalMath::subtract($grossAmount, $discountAmount, DecimalMath::DISPLAY_MONEY_SCALE));
 
             $document = Document::create([

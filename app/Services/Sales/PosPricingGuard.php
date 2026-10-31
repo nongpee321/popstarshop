@@ -159,10 +159,9 @@ class PosPricingGuard
             ];
         });
 
-         = DecimalMath::round(DecimalMath::sum(->map(
-            fn () => DecimalMath::multiply(['qty'], ['unit_price'])
+        $expected = DecimalMath::round(DecimalMath::sum($serverLines->map(
+            fn ($line) => DecimalMath::multiply($line['qty'], $line['unit_price'])
         )), DecimalMath::DISPLAY_MONEY_SCALE);
-         = max('0.00', DecimalMath::subtract(, , DecimalMath::DISPLAY_MONEY_SCALE));
         $qtyPromotionDiscount = $this->qtyPromotionDiscount($serverLines, (int) $data['branch_id']);
 
         $manualDiscount = DecimalMath::round(
@@ -207,6 +206,9 @@ class PosPricingGuard
         $submitted = DecimalMath::round(DecimalMath::sum($items->map(
             fn ($item) => DecimalMath::multiply($item['qty'], $item['unit_price'])
         )), DecimalMath::DISPLAY_MONEY_SCALE);
+        if (DecimalMath::compare($manualDiscount, 0) > 0) {
+            $submitted = DecimalMath::subtract($submitted, $manualDiscount, DecimalMath::DISPLAY_MONEY_SCALE);
+        }
         if (DecimalMath::compare(DecimalMath::absoluteDifference($submitted, $expected, 2), '0.02') > 0) {
             $isOffline = request()->attributes->has('pos_device')
                 || (request()->header('Idempotency-Key') && str_starts_with(request()->header('Idempotency-Key'), 'offline-receipt-'))
