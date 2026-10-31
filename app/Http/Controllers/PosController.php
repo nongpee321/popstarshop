@@ -1071,6 +1071,7 @@ class PosController extends Controller
             'transfer_amount' => ['nullable', 'numeric', 'min:0'],
             'discount_amount' => ['nullable', 'numeric', 'min:0'],
             'manual_discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'promo_discount_amount' => ['nullable', 'numeric', 'min:0'],
             'discount_approved_by' => ['nullable'],
             'discount_card_code' => ['nullable', 'string', 'max:30'],
             'vat_amount' => ['nullable', 'numeric', 'min:0'],
@@ -1190,7 +1191,7 @@ class PosController extends Controller
                 $points,
                 $redeemPoints,
             ) {
-                $discountToPass = round((float) (($data['manual_discount_amount'] ?? null) ?: ($data['discount_amount'] ?? 0)), 2);
+                $discountToPass = round((float) (array_key_exists('discount_amount', $data) && $data['discount_amount'] !== null ? $data['discount_amount'] : (((float) ($data['manual_discount_amount'] ?? 0)) + ((float) ($data['promo_discount_amount'] ?? 0)))), 2);
 
                 $document = $service->create([
                     'branch_id' => $data['branch_id'],
@@ -1420,7 +1421,7 @@ class PosController extends Controller
     {
         $items = collect($data['items']);
         $gross = round($items->sum(fn ($item) => (float) $item['qty'] * (float) $item['unit_price']), 2);
-        $discount = round((float) (($data['manual_discount_amount'] ?? null) ?: ($data['discount_amount'] ?? 0)), 2);
+        $discount = round((float) (array_key_exists('discount_amount', $data) && $data['discount_amount'] !== null ? $data['discount_amount'] : (((float) ($data['manual_discount_amount'] ?? 0)) + ((float) ($data['promo_discount_amount'] ?? 0)))), 2);
 
         $vat = round((float) ($data['vat_amount'] ?? 0), 2);
         $net = max(0.0, round($gross - $discount, 2));

@@ -165,7 +165,9 @@ class PosPricingGuard
         $qtyPromotionDiscount = $this->qtyPromotionDiscount($serverLines, (int) $data['branch_id']);
 
         $manualDiscount = DecimalMath::round(
-            (float) (($data['manual_discount_amount'] ?? null) ?: ($data['discount_amount'] ?? 0)),
+            (float) (array_key_exists('manual_discount_amount', $data) && $data['manual_discount_amount'] !== null
+                ? $data['manual_discount_amount']
+                : ($data['discount_amount'] ?? 0)),
             DecimalMath::DISPLAY_MONEY_SCALE
         );
         if (DecimalMath::compare($manualDiscount, 0) > 0) {
@@ -208,8 +210,16 @@ class PosPricingGuard
         $submittedRaw = DecimalMath::round(DecimalMath::sum($items->map(
             fn ($item) => DecimalMath::multiply($item['qty'], $item['unit_price'])
         )), DecimalMath::DISPLAY_MONEY_SCALE);
-        $submittedAfterDiscount = DecimalMath::compare($manualDiscount, 0) > 0
-            ? DecimalMath::subtract($submittedRaw, $manualDiscount, DecimalMath::DISPLAY_MONEY_SCALE)
+        $totalSubmittedDiscount = DecimalMath::add(
+            $manualDiscount,
+            $qtyPromotionDiscount,
+            DecimalMath::DISPLAY_MONEY_SCALE
+        );
+        if (! empty($cardDiscount)) {
+            $totalSubmittedDiscount = DecimalMath::add($totalSubmittedDiscount, $cardDiscount, DecimalMath::DISPLAY_MONEY_SCALE);
+        }
+        $submittedAfterDiscount = DecimalMath::compare($totalSubmittedDiscount, 0) > 0
+            ? DecimalMath::subtract($submittedRaw, $totalSubmittedDiscount, DecimalMath::DISPLAY_MONEY_SCALE)
             : $submittedRaw;
         $diffRaw = DecimalMath::absoluteDifference($submittedRaw, $expected, 2);
         $diffNet = DecimalMath::absoluteDifference($submittedAfterDiscount, $expected, 2);
