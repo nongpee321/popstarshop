@@ -16,7 +16,7 @@ import threading
 
 from database.models import (
 
-    init_db, Product, Category, Sale, SaleItem, Payment, Outbox, SyncLog, PosShift
+    init_db, Product, ProductBarcode, Category, Sale, SaleItem, Payment, Outbox, SyncLog, PosShift
 
 )
 
@@ -210,7 +210,14 @@ class SyncWorker(QThread):
 
         try:
 
-            return session.query(Sale).filter(Sale.status.in_(['pending', 'failed'])).count()
+            sales_count = session.query(Sale).filter(Sale.status.in_(['pending', 'failed'])).count()
+            shifts_count = session.query(PosShift).filter(
+                PosShift.status == 'closed', PosShift.sync_status.in_(['pending', 'failed'])
+            ).count()
+            outbox_shifts = session.query(Outbox).filter(
+                Outbox.event_type == 'shift_close', Outbox.status.in_(['pending', 'failed'])
+            ).count()
+            return sales_count + max(shifts_count, outbox_shifts)
 
         except Exception:
 
@@ -331,6 +338,12 @@ class SyncWorker(QThread):
                             session.query(Sale).filter(Sale.status == 'failed').update(
 
                                 {'status': 'pending'}, synchronize_session=False
+
+                            )
+
+                            session.query(PosShift).filter(PosShift.sync_status == 'failed').update(
+
+                                {'sync_status': 'pending'}, synchronize_session=False
 
                             )
 
@@ -488,17 +501,80 @@ class SyncWorker(QThread):
 
             session.query(Product).filter(Product.id > 0).delete(synchronize_session=False)
 
+            session.query(ProductBarcode).filter(ProductBarcode.product_id > 0).delete(synchronize_session=False)
+
             for prod_data in products_data:
 
                 barcode_val = ''
 
-                if prod_data.get('barcodes'):
+                all_codes = []
 
-                    barcode_val = str(prod_data.get('barcodes')[0].get('barcode', ''))
+                for bc in (prod_data.get('barcodes') or []):
+
+                    code = str((bc or {}).get('barcode') or '').strip()
+
+                    if code and code not in [c['code'] for c in all_codes]:
+
+                        unit_obj = (bc or {}).get('unit') or {}
+
+                        all_codes.append({
+                            'code': code,
+                            'barcode_type': (bc or {}).get('barcode_type'),
+                            'unit_id': (bc or {}).get('unit_id'),
+                            'unit_name': (bc or {}).get('unit_name') or (unit_obj.get('name') if isinstance(unit_obj, dict) else None),
+                            'unit_factor': (bc or {}).get('unit_factor'),
+                            'price': (bc or {}).get('price'),
+                        })
+
+                sku_str = str(prod_data.get('sku_code', '') or '').strip()
+
+                if all_codes:
+
+                    barcode_val = all_codes[0]['code']
 
                 else:
 
-                    barcode_val = str(prod_data.get('sku_code', ''))
+                    barcode_val = sku_str
+
+                if sku_str and sku_str not in [c['code'] for c in all_codes]:
+
+                    all_codes.append({
+                        'code': sku_str,
+                        'barcode_type': 'CUSTOM',
+                        'unit_id': None,
+                        'unit_name': None,
+                        'unit_factor': 1.0,
+                        'price': None,
+                    })
+
+                has_scale_plu = any(
+                    (c.get('barcode_type') == 'SCALE_PLU')
+                    or (len(c['code']) == 6 and c['code'].isdigit() and c['code'].startswith(('800', '801')))
+                    for c in all_codes
+                )
+
+                for bc_item in all_codes:
+
+                    code = bc_item['code']
+                    try:
+                        unit_factor = float(bc_item['unit_factor']) if bc_item.get('unit_factor') is not None else 1.0
+                    except (TypeError, ValueError):
+                        unit_factor = 1.0
+                    try:
+                        bc_price = float(bc_item['price']) if bc_item.get('price') is not None else None
+                    except (TypeError, ValueError):
+                        bc_price = None
+
+                    session.add(ProductBarcode(
+                        product_id=prod_data['id'],
+                        barcode=code,
+                        barcode_norm=(code.lstrip('0') or '0'),
+                        barcode_type=bc_item.get('barcode_type'),
+                        unit_id=bc_item.get('unit_id'),
+                        unit_name=bc_item.get('unit_name'),
+                        unit_factor=unit_factor,
+                        price=bc_price,
+                    ))
 
                 prod = Product(
 
@@ -524,7 +600,7 @@ class SyncWorker(QThread):
 
                     stock_qty=prod_data.get('stock_qty'),
 
-                    is_scale_item=bool(prod_data.get('is_scale') or prod_data.get('is_scale_item') or prod_data.get('is_weight') or ('ชั่ง' in str(prod_data.get('name_th') or '')) or ('(กก' in str(prod_data.get('name_th') or '')) or str(prod_data.get('sku_code') or '').startswith(('800', '801')) or False),
+                    is_scale_item=bool(prod_data.get('is_scale') or prod_data.get('is_scale_item') or prod_data.get('is_weight') or has_scale_plu or ('ชั่ง' in str(prod_data.get('name_th') or '')) or ('(กก' in str(prod_data.get('name_th') or '')) or str(prod_data.get('sku_code') or '').startswith(('800', '801')) or False),
 
                     is_promotion=bool(prod_data.get('is_promotion') or prod_data.get('is_flash_sale') or (prod_data.get('price_source') in ['promotion', 'flash_sale']))
 
@@ -606,13 +682,38 @@ class SyncWorker(QThread):
 
         pending_count = session.query(Sale).filter(Sale.status.in_(['pending', 'failed'])).count()
 
-        pending_outbox_count = session.query(Outbox).filter(Outbox.status.in_(['pending', 'failed'])).count()
+        pending_outbox_count = session.query(Outbox).filter(
+            Outbox.event_type == 'sale_checkout', Outbox.status.in_(['pending', 'failed'])
+        ).count()
 
-        if pending_count == 0 and pending_outbox_count == 0:
+        pending_shifts_count = session.query(PosShift).filter(
+            PosShift.status == 'closed', PosShift.sync_status.in_(['pending', 'failed'])
+        ).count()
+
+        pending_shift_outbox = session.query(Outbox).filter(
+            Outbox.event_type == 'shift_close', Outbox.status.in_(['pending', 'failed'])
+        ).count()
+
+        if pending_count == 0 and pending_outbox_count == 0 and pending_shifts_count == 0 and pending_shift_outbox == 0:
 
             session.close()
 
-            return True, "ไม่มีบิลค้างส่ง"
+            return True, "ไม่มีบิลหรือกะค้างส่ง"
+
+        # หากไม่มีบิลขายค้าง แต่มีกะที่ปิดออฟไลน์ค้าง ให้ซิงค์ปิดกะทันที
+        if pending_count == 0 and pending_outbox_count == 0:
+
+            shift_ok = self._sync_pending_closed_shifts(session, headers)
+
+            updated_pending = self.get_pending_count()
+
+            self.pending_count_updated.emit(updated_pending)
+
+            session.close()
+
+            if shift_ok:
+                return True, "ซิงค์ปิดกะขึ้น ERP สำเร็จเรียบร้อย"
+            return False, "ซิงค์ปิดกะขึ้น ERP ไม่สำเร็จ" 
 
         # ตรวจสอบกะที่เปิดอยู่บนเซิร์ฟเวอร์ ERP
 
@@ -778,6 +879,12 @@ class SyncWorker(QThread):
 
                         "customer_address": sale.customer_address,
 
+                        "discount_amount": float(getattr(sale, 'discount_amount', 0.0) or 0.0),
+
+                        "manual_discount_amount": float(getattr(sale, 'discount_amount', 0.0) or 0.0),
+
+                        "is_offline_sync": True,
+
                         "items": [
 
                             {
@@ -852,7 +959,7 @@ class SyncWorker(QThread):
 
             # 2. Process outbox queue
 
-            pending_outbox = session.query(Outbox).filter(Outbox.status.in_(['pending', 'failed'])).all()
+            pending_outbox = session.query(Outbox).filter(Outbox.event_type == 'sale_checkout', Outbox.status.in_(['pending', 'failed'])).all()
 
             failed_count = 0
 
@@ -877,9 +984,7 @@ class SyncWorker(QThread):
                             last4 = '0000'
                         payload['transfer_account_last4'] = last4
                         payload['payment_ref'] = payload.get('payment_ref') or last4
-                    entry.payload_json = json.dumps(payload)
                     entry.payload_prepared = True
-                    session.commit()
                 else:
                     # Auto-heal branch_id or shift_id if they don't match active terminal branch or if previous error was branch/shift invalid
                     current_branch_id = branch_id
@@ -902,68 +1007,70 @@ class SyncWorker(QThread):
                                 sale.shift_id = current_shift_id
                             if cashier_id:
                                 sale.cashier_salesman_id = cashier_id
-                        entry.payload_json = json.dumps(payload)
-                        session.commit()
 
-                    # Auto-heal discount and items if bill had discount or was rejected by manager approval / pricing / shortfall
-                    sale_total = float(sale.total_amount if sale else (payload.get('cash_received') or 0.0))
-                    payload_items = payload.get('items') or []
-                    needs_discount_healing = (
-                        payload_items
-                        and (
-                            payload.get('manual_discount_amount', 0) > 0
-                            or payload.get('discount_amount', 0) > 0
-                            or (entry.last_error and any(err in entry.last_error for err in ('ส่วนลดพิเศษ', 'สิทธิ์อนุมัติ', 'ไม่ครบ', 'ราคาหรือส่วนลดเปลี่ยน')))
-                            or (sale and sale.sync_error and any(err in sale.sync_error for err in ('ส่วนลดพิเศษ', 'สิทธิ์อนุมัติ', 'ไม่ครบ', 'ราคาหรือส่วนลดเปลี่ยน')))
-                        )
+                # Ensure offline sync flag is present
+                payload['is_offline_sync'] = True
+
+                # Auto-heal discount and items if bill had discount or was rejected by manager approval / pricing / shortfall
+                sale_total = float(sale.total_amount if sale else (payload.get('cash_received') or 0.0))
+                payload_items = payload.get('items') or []
+                gross_sum_raw = sum(float(i.get('qty', 0) or 0) * float(i.get('unit_price', 0) or 0) for i in payload_items)
+                has_price_reduction = (sale_total > 0 and gross_sum_raw > sale_total + 0.01)
+                needs_discount_healing = (
+                    payload_items
+                    and (
+                        has_price_reduction
+                        or payload.get('manual_discount_amount', 0) > 0
+                        or payload.get('discount_amount', 0) > 0
+                        or (sale and getattr(sale, 'discount_amount', 0.0) and float(sale.discount_amount) > 0)
+                        or (entry.last_error and any(err in entry.last_error for err in ('ส่วนลดพิเศษ', 'สิทธิ์อนุมัติ', 'ไม่ครบ', 'ราคาหรือส่วนลดเปลี่ยน')))
+                        or (sale and sale.sync_error and any(err in sale.sync_error for err in ('ส่วนลดพิเศษ', 'สิทธิ์อนุมัติ', 'ไม่ครบ', 'ราคาหรือส่วนลดเปลี่ยน')))
                     )
+                )
 
-                    if needs_discount_healing:
-                        # Ensure items have standard catalog prices so PosPricingGuard passes with 0 discrepancy
-                        for it in payload_items:
-                            prod_id = it.get('product_id')
-                            if prod_id:
-                                prod_record = session.query(Product).filter_by(id=prod_id).first()
-                                if prod_record:
-                                    cat_price = float(prod_record.pos_price or prod_record.default_price or it.get('unit_price', 0.0))
-                                    if cat_price > 0 and abs(float(it.get('unit_price', 0.0)) - cat_price) > 0.01:
-                                        it['unit_price'] = cat_price
+                if needs_discount_healing:
+                    # Ensure items have standard catalog prices so PosPricingGuard passes with 0 discrepancy
+                    for it in payload_items:
+                        prod_id = it.get('product_id')
+                        if prod_id:
+                            prod_record = session.query(Product).filter_by(id=prod_id).first()
+                            if prod_record:
+                                cat_price = float(prod_record.pos_price or prod_record.default_price or it.get('unit_price', 0.0))
+                                if cat_price > 0 and abs(float(it.get('unit_price', 0.0)) - cat_price) > 0.01:
+                                    it['unit_price'] = cat_price
 
-                        gross_sum = sum(float(i.get('qty', 0) or 0) * float(i.get('unit_price', 0) or 0) for i in payload_items)
-                        discount_val = max(0.0, round(gross_sum - sale_total, 2)) if (sale_total > 0 and gross_sum > sale_total) else float(payload.get('discount_amount') or 0.0)
+                    gross_sum = sum(float(i.get('qty', 0) or 0) * float(i.get('unit_price', 0) or 0) for i in payload_items)
+                    discount_val = max(0.0, round(gross_sum - sale_total, 2)) if (sale_total > 0 and gross_sum > sale_total) else float(payload.get('discount_amount') or (getattr(sale, 'discount_amount', 0.0) if sale else 0.0) or 0.0)
 
-                        # Update discount fields: manual_discount_amount must be 0 so manager permission is never required
-                        payload['discount_amount'] = discount_val
-                        payload['manual_discount_amount'] = 0.0
+                    # Update discount fields: manual_discount_amount must be 0 so manager permission is never required
+                    payload['discount_amount'] = discount_val
+                    payload['manual_discount_amount'] = 0.0
 
-                        # Fix cash payments: PosPaymentValidator requires cash_received >= gross sum
-                        if payload.get('method') == 'cash':
-                            orig_received = float(payload.get('cash_received') or 0.0)
-                            if orig_received < gross_sum:
-                                payload['cash_received'] = gross_sum
-                                payload['change_amount'] = max(0.0, round(gross_sum - sale_total, 2))
+                    # Fix cash payments: PosPaymentValidator requires cash_received >= gross sum
+                    if payload.get('method') == 'cash':
+                        orig_received = float(payload.get('cash_received') or 0.0)
+                        if orig_received < gross_sum:
+                            payload['cash_received'] = gross_sum
+                            payload['change_amount'] = max(0.0, round(gross_sum - sale_total, 2))
 
-                        # Fix mixed payments: cash_amount + transfer_amount == gross_sum
-                        if payload.get('method') == 'mixed' and gross_sum > 0:
-                            cur_mix_sum = float(payload.get('cash_amount') or 0.0) + float(payload.get('transfer_amount') or 0.0)
-                            diff = round(gross_sum - cur_mix_sum, 2)
-                            if abs(diff) > 0.01:
-                                payload['cash_amount'] = round(float(payload.get('cash_amount') or 0.0) + diff, 2)
+                    # Fix mixed payments: cash_amount + transfer_amount == gross_sum
+                    if payload.get('method') == 'mixed' and gross_sum > 0:
+                        cur_mix_sum = float(payload.get('cash_amount') or 0.0) + float(payload.get('transfer_amount') or 0.0)
+                        diff = round(gross_sum - cur_mix_sum, 2)
+                        if abs(diff) > 0.01:
+                            payload['cash_amount'] = round(float(payload.get('cash_amount') or 0.0) + diff, 2)
 
-                        entry.payload_json = json.dumps(payload)
-                        session.commit()
+                # If transfer or mixed, ensure transfer validation fields are present
+                if payload.get('method') in ('transfer', 'mixed'):
+                    payload['payment_confirmed'] = True
+                    last4 = payload.get('transfer_account_last4') or payload.get('payment_ref') or '0000'
+                    if not (isinstance(last4, str) and last4.isdigit() and len(last4) == 4):
+                        last4 = '0000'
+                    payload['transfer_account_last4'] = last4
+                    payload['payment_ref'] = payload.get('payment_ref') or last4
 
-                    # If already prepared but missing transfer validation fields, fix them
-                    if payload.get('method') in ('transfer', 'mixed'):
-                        payload['payment_confirmed'] = True
-                        if not payload.get('transfer_account_last4') or not payload.get('payment_ref'):
-                            last4 = payload.get('transfer_account_last4') or payload.get('payment_ref') or '0000'
-                            if not (isinstance(last4, str) and last4.isdigit() and len(last4) == 4):
-                                last4 = '0000'
-                            payload['transfer_account_last4'] = last4
-                            payload['payment_ref'] = payload.get('payment_ref') or last4
-                            entry.payload_json = json.dumps(payload)
-                            session.commit()
+                entry.payload_json = json.dumps(payload)
+                session.commit()
                 req_headers = dict(headers)
 
                 req_headers['Idempotency-Key'] = entry.idempotency_key
@@ -1049,9 +1156,12 @@ class SyncWorker(QThread):
 
                 session.commit()
 
+            # 3. Process pending closed shifts after sales are synced
+            self._sync_pending_closed_shifts(session, headers)
+
             # Emit updated pending count to update badge
 
-            updated_pending = session.query(Sale).filter(Sale.status.in_(['pending', 'failed'])).count()
+            updated_pending = self.get_pending_count()
 
             self.pending_count_updated.emit(updated_pending)
 
@@ -1074,4 +1184,145 @@ class SyncWorker(QThread):
         finally:
 
             session.close()
+
+    def _sync_pending_closed_shifts(self, session, headers):
+        """
+        ซิงค์กะที่ปิดแบบออฟไลน์ขึ้นระบบ ERP หลังจากส่งบิลขายของกะนั้นเสร็จสิ้นแล้ว
+        """
+        try:
+            pending_close_outbox = session.query(Outbox).filter(
+                Outbox.event_type == 'shift_close',
+                Outbox.status.in_(['pending', 'failed'])
+            ).all()
+
+            pending_closed_shifts = session.query(PosShift).filter(
+                PosShift.status == 'closed',
+                PosShift.sync_status.in_(['pending', 'failed'])
+            ).all()
+
+            if not pending_close_outbox and not pending_closed_shifts:
+                return True
+
+            for shift in pending_closed_shifts:
+                target_server_id = shift.server_id
+                counted_cash = float(shift.counted_cash) if shift.counted_cash is not None else 0.0
+                closing_note = "ปิดกะออฟไลน์ (Auto-sync by SyncWorker)"
+
+                matching_ob = next(
+                    (ob for ob in pending_close_outbox if ob.aggregate_id in (str(shift.id), str(shift.server_id))),
+                    None
+                )
+                if matching_ob:
+                    try:
+                        p = json.loads(matching_ob.payload_json)
+                        if not target_server_id and p.get('shift_id'):
+                            target_server_id = p.get('shift_id')
+                        if 'counted_cash' in p:
+                            counted_cash = float(p.get('counted_cash'))
+                        if p.get('closing_note'):
+                            closing_note = p.get('closing_note')
+                    except Exception:
+                        pass
+
+                if not target_server_id:
+                    try:
+                        branch_id, cashier_id = self._resolve_branch_and_cashier(session)
+                        shift_params = {}
+                        if branch_id: shift_params['branch_id'] = branch_id
+                        if cashier_id: shift_params['cashier_id'] = cashier_id
+                        s_res = requests.get(
+                            f"{self.api_url}/api/pos/shift",
+                            headers=headers,
+                            params=shift_params,
+                            timeout=15
+                        )
+                        if s_res.status_code == 200:
+                            s_data = s_res.json().get('shift')
+                            if s_data and s_data.get('id'):
+                                target_server_id = s_data['id']
+                                shift.server_id = target_server_id
+                                session.commit()
+                    except Exception:
+                        pass
+
+                if not target_server_id:
+                    continue
+
+                close_body = {
+                    'shift_id': target_server_id,
+                    'counted_cash': counted_cash,
+                    'closing_note': closing_note
+                }
+
+                try:
+                    close_res = requests.post(
+                        f"{self.api_url}/api/pos/shift/close",
+                        headers=headers,
+                        json=close_body,
+                        timeout=25
+                    )
+                    if close_res.status_code == 200:
+                        shift.sync_status = 'synced'
+                        if matching_ob:
+                            matching_ob.status = 'synced'
+                            matching_ob.synced_at = datetime.utcnow()
+                        log = SyncLog(
+                            direction='push',
+                            sync_type='shift_close',
+                            record_count=1,
+                            status='success',
+                            message=f"Shift {target_server_id} successfully closed on ERP (counted: {counted_cash})"
+                        )
+                        session.add(log)
+                        session.commit()
+                    elif close_res.status_code == 422:
+                        res_json = close_res.json() if close_res.text else {}
+                        err_msg = str(res_json.get('message', close_res.text))
+                        if "ไม่พบกะที่เปิดอยู่" in err_msg or "ปิดไปแล้ว" in err_msg:
+                            shift.sync_status = 'synced'
+                            if matching_ob:
+                                matching_ob.status = 'synced'
+                                matching_ob.synced_at = datetime.utcnow()
+                            session.commit()
+                        else:
+                            shift.sync_status = 'failed'
+                            if matching_ob:
+                                matching_ob.status = 'failed'
+                                matching_ob.last_error = err_msg
+                            session.commit()
+                    else:
+                        shift.sync_status = 'failed'
+                        if matching_ob:
+                            matching_ob.status = 'failed'
+                            matching_ob.last_error = f"HTTP {close_res.status_code}"
+                        session.commit()
+                except Exception as ex:
+                    if matching_ob:
+                        matching_ob.last_error = str(ex)
+                    pass
+
+            for ob in pending_close_outbox:
+                if ob.status == 'pending':
+                    try:
+                        p = json.loads(ob.payload_json)
+                        sid = p.get('shift_id')
+                        cc = float(p.get('counted_cash', 0.0))
+                        cn = p.get('closing_note', "ปิดกะออฟไลน์")
+                        if sid:
+                            c_res = requests.post(
+                                f"{self.api_url}/api/pos/shift/close",
+                                headers=headers,
+                                json={'shift_id': sid, 'counted_cash': cc, 'closing_note': cn},
+                                timeout=20
+                            )
+                            if c_res.status_code in (200, 422):
+                                ob.status = 'synced'
+                                ob.synced_at = datetime.utcnow()
+                                session.commit()
+                    except Exception:
+                        pass
+
+            return True
+        except Exception as e:
+            return False
 

@@ -36,6 +36,8 @@ from database.models import (
 
 from services.scale_service import ScaleBarcodeParser
 
+from services.barcode_lookup import lookup_product, matched_unit_factor, normalize_scan_text
+
 from sqlalchemy.orm import Session
 
 
@@ -1049,11 +1051,14 @@ class MainWindow(QMainWindow):
 
     def handle_barcode_scan(self):
 
-        query = str(self.search_input.text()).strip()
+        raw_query = str(self.search_input.text())
 
-        if not query: return
+        query, digits = normalize_scan_text(raw_query)
 
-        
+        if not query:
+            return
+
+        session = None
 
         try:
 
@@ -1061,104 +1066,241 @@ class MainWindow(QMainWindow):
 
             session = init_db(f"sqlite:///{db_path}")
 
-            
+            result = lookup_product(session, raw_query, scale_parser=ScaleBarcodeParser)
 
-            # 1. Try parsing scale barcode (e.g. 13-digit starting with 800, 801, 02, etc.)
+            status = result.get('status')
 
-            scale_data = ScaleBarcodeParser.parse(query, session)
+            if status == 'scale':
 
-            if scale_data:
-
-                # Search product by item_code (e.g. sku_code, barcode, or id)
-
-                item_code = scale_data['item_code']
-
-                weight = scale_data['weight']
-
-                
-
-                product = session.query(Product).filter(
-
-                    (Product.sku_code == item_code) | 
-
-                    (Product.sku_code.endswith(item_code)) |
-
-                    (Product.barcode == item_code) |
-
-                    (Product.barcode.endswith(item_code))
-
-                ).first()
-
-                
-
+                product = result['product']
+                weight = result['scale'].get('weight') or 1.0
                 session.close()
+                session = None
+                self.add_to_cart(product, qty=weight, is_scale=True)
+                self.search_input.clear()
+                return
 
-                if product:
+            if status == 'ambiguous':
 
-                    self.add_to_cart(product, qty=weight, is_scale=True)
-
-                    self.search_input.clear()
-
-                    return
-
-                else:
-
-                    QMessageBox.warning(self, "ไม่พบสินค้า", f"ไม่พบสินค้าในระบบ (บาร์โค้ดเครื่องชั่ง: '{query}')")
-
+                products = result.get('products') or []
+                labels = [f"{p.name_th}  [{p.barcode or p.sku_code}]  {float(p.pos_price if p.pos_price is not None else (p.default_price or 0)):,.2f}" for p in products]
+                choice, ok = QInputDialog.getItem(self, "พบสินค้าหลายรายการ", f"รหัส '{result.get('code')}' ตรงกับสินค้าหลายรายการ กรุณาเลือก:", labels, 0, False)
+                if not ok:
                     self.search_input.selectAll()
-
                     return
+                product = products[labels.index(choice)]
+                status = 'found'
+                result['product'] = product
 
+            if status == 'found':
 
-
-            # 2. Find normal product by exact sku_code, barcode (preserving string), or exact name_th
-
-            product = session.query(Product).filter(
-
-                (Product.sku_code == query) | (Product.name_th == query) | (Product.barcode == query)
-
-            ).first()
-
-            
+                product = result['product']
+                unit_factor = matched_unit_factor(session, product.id, raw_query)
+                session.close()
+                session = None
+                self._add_scanned_product(product, unit_factor)
+                return
 
             session.close()
+            session = None
 
-            
+            # Not in the local replica: ask the ERP directly (same search the web uses),
+            # e.g. a product or barcode created after the last product sync.
+            online_product = self._lookup_product_online(digits or query)
 
-            if product:
+            if online_product is not None:
 
-                # If product is flagged as scale/weight item but scanned via normal barcode, prompt weight
+                self._add_scanned_product(online_product, 1.0)
+                return
 
-                from ui.scale_weight_dialog import is_scale_product
-                if is_scale_product(product):
+            shown = digits if digits and digits != query else query
+            note = f"\n(แปลงจากแป้นพิมพ์ภาษาไทยเป็น: {digits})" if digits and digits != query else ""
+            QMessageBox.warning(self, "ไม่พบสินค้า", f"ไม่พบสินค้าในระบบ: '{shown}'{note}\n\nหากยิงบาร์โค้ดแล้วตัวเลขไม่ครบ ให้ตรวจว่าแป้นพิมพ์เป็นภาษาอังกฤษ (EN) และลองยิงใหม่อีกครั้ง")
+            self.search_input.selectAll()
 
-                    weight, ok = QInputDialog.getDouble(self, "สินค้าน้ำหนัก", f"ระบุน้ำหนักสำหรับ '{product.name_th}' (กก.):", 1.0, 0.001, 999.0, 3)
-
-                    if ok and weight > 0:
-
-                        self.add_to_cart(product, qty=weight, is_scale=True)
-
-                        self.search_input.clear()
-
-                else:
-
-                    self.add_to_cart(product, qty=1.0)
-
-                    self.search_input.clear()
-
-            else:
-
-                QMessageBox.warning(self, "ไม่พบสินค้า", f"ไม่พบสินค้าในระบบ: '{query}'")
-
-                self.search_input.selectAll()
-
-        except Exception as e:
+        except Exception:
 
             import traceback
 
             QMessageBox.critical(self, "Error", f"Error scanning barcode:\n{traceback.format_exc()}")
 
-            
+        finally:
+
+            if session is not None:
+                try:
+                    session.close()
+                except Exception:
+                    pass
+
+
+
+    def _add_scanned_product(self, product, unit_factor=1.0):
+
+        from ui.scale_weight_dialog import is_scale_product
+
+        if is_scale_product(product):
+
+            name = product.get('name_th') if isinstance(product, dict) else product.name_th
+            weight, ok = QInputDialog.getDouble(self, "สินค้าน้ำหนัก", f"ระบุน้ำหนักสำหรับ '{name}' (กก.):", 1.0, 0.001, 999.0, 3)
+
+            if ok and weight > 0:
+                self.add_to_cart(product, qty=weight, is_scale=True)
+                self.search_input.clear()
+
+            return
+
+        try:
+            qty = float(unit_factor or 1.0)
+        except (TypeError, ValueError):
+            qty = 1.0
+
+        self.add_to_cart(product, qty=qty if qty > 0 else 1.0)
+        self.search_input.clear()
+
+
+
+    def _lookup_product_online(self, code):
+
+        """Exact lookup on the ERP when the code is missing from the local replica.
+
+        Caches the product and all of its barcodes locally so the next scan works offline."""
+
+        api_url = (self.config.get('api_url') or '').rstrip('/')
+        pos_token = self.config.get('pos_token') or ''
+        code = str(code or '').strip()
+
+        if not api_url or not pos_token or not code:
+            return None
+
+        headers = {'Authorization': f'Bearer {pos_token}', 'Accept': 'application/json'}
+        branch_id = self.config.get('branch_id') or ''
+        attempts = [
+            {'q': code, 'exact': 1, 'lookup': 'mixed'},
+        ]
+        stripped = code.lstrip('0')
+        if code.isdigit() and len(stripped) >= 6:
+            attempts.append({'q': stripped, 'exact': 0})
+
+        for params in attempts:
+
+            if branch_id:
+                params['branch_id'] = branch_id
+
+            try:
+                res = requests.get(f"{api_url}/api/pos/products", params=params, headers=headers, timeout=4)
+            except Exception:
+                return None
+
+            if res.status_code != 200:
+                continue
+
+            try:
+                data = res.json()
+            except Exception:
+                continue
+
+            if isinstance(data, dict):
+                data = data.get('data') or data.get('products') or []
+
+            rows = [row for row in (data or []) if isinstance(row, dict) and row.get('id')]
+
+            if params.get('exact'):
+                matches = rows
+            else:
+                # partial ERP search: accept only one product whose code really contains the digits
+                matches = []
+                for row in rows:
+                    codes = [str(row.get('sku_code') or '')] + [str((b or {}).get('barcode') or '') for b in (row.get('barcodes') or [])]
+                    if any(stripped and stripped in c for c in codes):
+                        matches.append(row)
+
+            if len(matches) == 1:
+                return self._cache_online_product(matches[0])
+
+        return None
+
+
+
+    def _cache_online_product(self, row):
+
+        from database.models import ProductBarcode
+
+        session = None
+
+        try:
+
+            session = init_db(f"sqlite:///{self.db_path}")
+            pid = int(row['id'])
+            codes = []
+
+            for bc in (row.get('barcodes') or []):
+                code = str((bc or {}).get('barcode') or '').strip()
+                if code and code not in codes:
+                    codes.append(code)
+
+            name_th = str(row.get('name_th') or '')
+            sku = str(row.get('sku_code') or (codes[0] if codes else pid))
+
+            prod = session.query(Product).filter_by(id=pid).first() or Product(id=pid)
+            prod.sku_code = sku
+            prod.name_th = name_th
+            prod.default_price = float(row.get('default_price') or 0.0)
+            prod.pos_price = float(row.get('pos_price') if row.get('pos_price') is not None else (row.get('default_price') or 0.0))
+            prod.category_id = row.get('product_category_id')
+            prod.image_url = row.get('image_url')
+            prod.is_active = bool(row.get('is_active', True))
+            prod.barcode = codes[0] if codes else sku
+            prod.is_scale_item = bool(row.get('is_scale') or row.get('is_scale_item') or ('ชั่ง' in name_th) or ('(กก' in name_th))
+
+            # another local row may already own this sku_code (stale replica) -> drop it
+            clash = session.query(Product).filter(Product.sku_code == sku, Product.id != pid).first()
+            if clash is not None:
+                session.delete(clash)
+                session.flush()
+
+            session.merge(prod)
+            session.query(ProductBarcode).filter(ProductBarcode.product_id == pid).delete(synchronize_session=False)
+
+            for code in codes:
+                session.add(ProductBarcode(product_id=pid, barcode=code, barcode_norm=(code.lstrip('0') or '0')))
+
+            session.commit()
+
+            cached = session.query(Product).filter_by(id=pid).first()
+            if cached is None:
+                return None
+
+            return {
+                'id': cached.id,
+                'sku_code': cached.sku_code,
+                'name_th': cached.name_th,
+                'default_price': cached.default_price,
+                'pos_price': cached.pos_price,
+                'is_scale_item': cached.is_scale_item,
+                'barcode': cached.barcode,
+            }
+
+        except Exception:
+
+            if session is not None:
+                session.rollback()
+
+            # still sell it even if caching fails
+            return {
+                'id': row.get('id'),
+                'sku_code': row.get('sku_code'),
+                'name_th': row.get('name_th'),
+                'default_price': row.get('default_price'),
+                'pos_price': row.get('pos_price'),
+                'is_scale_item': bool(row.get('is_scale')),
+            }
+
+        finally:
+
+            if session is not None:
+                session.close()
+
+
 
     def add_quick_product(self, barcode):
 
@@ -1672,7 +1814,7 @@ class MainWindow(QMainWindow):
 
             if hasattr(self, 'customer_display') and self.customer_display and not self.customer_display.isHidden():
 
-                self.customer_display.update_cart(self.cart_table, grand_total)
+                self.customer_display.update_cart(self.cart_table, grand_total, subtotal=subtotal, discount=discount)
 
         except Exception as e:
 
@@ -1732,7 +1874,7 @@ class MainWindow(QMainWindow):
 
         
 
-        version_label = QLabel("v1.2.17")
+        version_label = QLabel("v1.2.21")
 
         version_label.setStyleSheet("font-size: 13px; color: #64748b; font-weight: bold; background: #e2e8f0; padding: 2px 6px; border-radius: 8px;")
 
@@ -2244,11 +2386,13 @@ class MainWindow(QMainWindow):
 
                         QMessageBox.information(self, "สำเร็จ", f"ปิดกะเรียบร้อย\nยอดขาด/เกิน: {diff_str}")
 
+                        old_shift = dict(self.current_shift or {})
+
                         self._close_shift_local(dialog.counted_cash, synced=True)
 
                         from ui.receipt_dialog import ShiftReportDialog
 
-                        shift_payload = dict(self.current_shift or {})
+                        shift_payload = old_shift
 
                         shift_payload.update(data.get('shift', {}))
 
@@ -2280,7 +2424,7 @@ class MainWindow(QMainWindow):
 
                         self._close_shift_local(dialog.counted_cash, synced=False)
 
-                        QMessageBox.information(self, "สำเร็จ", "ปิดกะแบบออฟไลน์เรียบร้อย (ระบบจะส่งข้อมูลภายหลัง)")
+                        QMessageBox.information(self, "สำเร็จ", "ปิดกะแบบออฟไลน์เรียบร้อย\n(ระบบจะส่งข้อมูลขึ้น ERP อัตโนมัติเมื่อออนไลน์)")
 
         else:
 
@@ -2336,13 +2480,19 @@ class MainWindow(QMainWindow):
 
                         server_id = shift_obj.get('id') or data.get('shift_id', 0)
 
-                        self._open_shift_local(dialog.opening_cash, server_id=server_id, synced=True)
+                        local_id = self._open_shift_local(dialog.opening_cash, server_id=server_id, synced=True)
 
                         if shift_obj:
 
-                            self.current_shift = shift_obj
+                            self.current_shift = dict(shift_obj)
 
                             self.current_shift['server_id'] = server_id
+
+                            self.current_shift['id'] = server_id
+
+                            if local_id:
+
+                                self.current_shift['local_id'] = local_id
 
                         msg_text = "เปิดกะเรียบร้อย (ออนไลน์)"
 
@@ -2358,11 +2508,10 @@ class MainWindow(QMainWindow):
 
                         if "มีกะเปิดอยู่แล้ว" in str(err_msg):
 
-                            # กะเปิดอยู่แล้ว ดึงข้อมูลกะกลับมา
+                            # กะเปิดอยู่แล้ว ดึงข้อมูลกะกลับมาและเปิดใช้งานปุ่มปิดกะทันที
+                            self.check_active_shift(show_resume_dialog=False, force_resume=True)
 
-                            self.check_active_shift(show_resume_dialog=False)
-
-                            QMessageBox.information(self, "แจ้งเตือน", "มีกะเปิดอยู่แล้วบนระบบ ERP เชื่อมต่อกะขายสำเร็จ")
+                            QMessageBox.information(self, "แจ้งเตือน", "มีกะเปิดอยู่แล้วบนระบบ ERP เชื่อมต่อกะขายเดิมสำเร็จ\n(คุณสามารถกด 'ปิดกะ' เพื่อปิดกะเดิม หรือขายต่อได้ทันที)")
 
                         else:
 
@@ -2386,274 +2535,228 @@ class MainWindow(QMainWindow):
 
     
 
-    def _close_shift_local(self, counted_cash, synced=False):
-
+    def _close_shift_local(self, counted_cash, synced=False, closing_note=None):
         try:
-
             from datetime import datetime
-
+            import json
+            import time
             session = init_db(f'sqlite:///{self.db_path}')
+            shift_dict = dict(self.current_shift or {})
+            local_id = shift_dict.get('local_id')
+            server_id = shift_dict.get('id') or shift_dict.get('server_id')
 
-            shift_id = self.current_shift.get('local_id')
+            shift = None
+            if local_id:
+                shift = session.query(PosShift).filter_by(id=local_id).first()
+            if not shift and server_id:
+                shift = session.query(PosShift).filter_by(server_id=server_id).first()
+            if not shift:
+                shift = session.query(PosShift).filter_by(status='open').order_by(PosShift.id.desc()).first()
+            if not shift:
+                shift = session.query(PosShift).order_by(PosShift.id.desc()).first()
 
-            shift = session.query(PosShift).filter_by(id=shift_id).first() if shift_id else None
+            if not shift:
+                shift = PosShift(
+                    server_id=server_id,
+                    branch_id=self.config.get('branch_id'),
+                    cashier_id=self.config.get('cashier_id'),
+                    cashier_name=self.config.get('cashier_name'),
+                    opening_cash=float(shift_dict.get('opening_cash', 0.0) or 0.0),
+                    expected_cash=float(shift_dict.get('expected_cash', 0.0) or 0.0),
+                    status='open',
+                    sync_status='synced' if synced else 'pending'
+                )
+                session.add(shift)
+                session.flush()
 
-            if shift:
+            shift.closed_at = datetime.utcnow()
+            shift.counted_cash = float(counted_cash)
+            shift.status = 'closed'
+            shift.sync_status = 'synced' if synced else 'pending'
+            if server_id and not shift.server_id:
+                shift.server_id = server_id
 
-                shift.closed_at = datetime.utcnow()
-
-                shift.counted_cash = counted_cash
-
-                shift.status = 'closed'
-
-                shift.sync_status = 'synced' if synced else 'pending'
-
-                session.commit()
-
-            self.current_shift = None
-
-            self.shift_btn.setText("เปิดกะ")
-
-            if hasattr(self, "branch_label"): self.branch_label.hide()
-
-            self.shift_btn.setStyleSheet("QPushButton { background-color: #f59e0b; border: none; color: white; padding: 5px 10px; border-radius: 6px; font-weight: bold;} QPushButton:hover { background-color: #d97706; }")
-
-            if hasattr(self, 'start_sync'):
-
-                self.start_sync()
-
-        except Exception as e:
-
-            pass
-
-            
-
-    def _open_shift_local(self, opening_cash, server_id=None, synced=False):
-
-        try:
-
-            session = init_db(f'sqlite:///{self.db_path}')
-
-            new_shift = PosShift(
-
-                server_id=server_id,
-
-                opening_cash=opening_cash,
-
-                expected_cash=opening_cash,
-
-                status='open',
-
-                sync_status='synced' if synced else 'pending'
-
-            )
-
-            session.add(new_shift)
+            # หากเป็นการปิดกะแบบออฟไลน์ ให้เพิ่มงานลงใน Outbox เพื่อให้ SyncWorker นำไปส่ง ERP
+            if not synced:
+                target_server_id = shift.server_id or server_id
+                outbox_payload = {
+                    'shift_id': target_server_id,
+                    'local_shift_id': shift.id,
+                    'counted_cash': float(counted_cash),
+                    'closing_note': closing_note or "ปิดกะออฟไลน์ (Auto-sync)"
+                }
+                agg_id = str(target_server_id or shift.id)
+                existing_ob = session.query(Outbox).filter(
+                    Outbox.event_type == 'shift_close',
+                    Outbox.aggregate_id == agg_id,
+                    Outbox.status.in_(['pending', 'failed'])
+                ).first()
+                if existing_ob:
+                    existing_ob.payload_json = json.dumps(outbox_payload)
+                    existing_ob.status = 'pending'
+                    existing_ob.retry_count = 0
+                else:
+                    ob_entry = Outbox(
+                        event_type='shift_close',
+                        aggregate_id=agg_id,
+                        idempotency_key=f"shift-close-{agg_id}-{int(time.time())}",
+                        payload_json=json.dumps(outbox_payload),
+                        status='pending',
+                        retry_count=0
+                    )
+                    session.add(ob_entry)
 
             session.commit()
+            session.close()
 
-            
+            self.current_shift = None
+            self.shift_btn.setText("เปิดกะ")
+            if hasattr(self, "branch_label"): self.branch_label.hide()
+            self.shift_btn.setStyleSheet("QPushButton { background-color: #f59e0b; border: none; color: white; padding: 5px 10px; border-radius: 6px; font-weight: bold;} QPushButton:hover { background-color: #d97706; }")
+            if hasattr(self, 'start_sync'):
+                self.start_sync()
+        except Exception as e:
+            print(f"[POS] Error in _close_shift_local: {e}")
+
+    def _open_shift_local(self, opening_cash, server_id=None, synced=False):
+        try:
+            session = init_db(f'sqlite:///{self.db_path}')
+            new_shift = PosShift(
+                server_id=server_id,
+                branch_id=self.config.get('branch_id'),
+                cashier_id=self.config.get('cashier_id'),
+                cashier_name=self.config.get('cashier_name'),
+                opening_cash=opening_cash,
+                expected_cash=opening_cash,
+                status='open',
+                sync_status='synced' if synced else 'pending'
+            )
+            session.add(new_shift)
+            session.commit()
+            local_id = new_shift.id
+            session.close()
 
             self.current_shift = {
-
                 'id': server_id,
-
-                'local_id': new_shift.id,
-
-                'expected_cash': opening_cash
-
+                'server_id': server_id,
+                'local_id': local_id,
+                'expected_cash': opening_cash,
+                'opening_cash': opening_cash
             }
-
             self.shift_btn.setText("ปิดกะ")
-
             if hasattr(self, "branch_label"): self.branch_label.show()
-
             self.shift_btn.setStyleSheet("QPushButton { background-color: #3b82f6; border: none; color: white; padding: 5px 10px; border-radius: 6px; font-weight: bold;} QPushButton:hover { background-color: #2563eb; }")
-
             if hasattr(self, 'start_sync'):
-
                 self.start_sync()
-
+            return local_id
         except Exception as e:
+            print(f"[POS] Error in _open_shift_local: {e}")
+            return None
 
-            pass
-
-
-
-    def check_active_shift(self, show_resume_dialog=False):
-
+    def check_active_shift(self, show_resume_dialog=False, force_resume=False):
         if not self.config.get('pos_token'): return
-
         try:
-
             # Fetch Ping for network status
-
             ping_res = requests.get(
-
                 f"{self.config['api_url']}/api/pos/ping",
-
                 headers={'Authorization': f"Bearer {self.config['pos_token']}", 'Accept': 'application/json'},
-
                 timeout=3
-
             )
-
             if ping_res.status_code == 200:
-
                 data = ping_res.json()
-
                 if 'branch_name' in data and data['branch_name']:
-
                     self.config['branch_name'] = data['branch_name']
-
                     if hasattr(self, 'branch_label'):
-
                         b_name = data['branch_name']
-
                         dev_id = self.config.get('device_id', '')
-
                         self.branch_label.setText(f"สาขา: {b_name}")
-
                         self.branch_label.setToolTip(f"สาขา: {b_name}" + (f"\nรหัสเครื่อง: {dev_id}" if dev_id else ""))
-
                 if 'qr_payment' in data and data['qr_payment']:
-
                     self.config['promptpay_id'] = data['qr_payment'].get('merchant_ref', '')
 
-                    
-
             # If local shift has no server id (offline shift), link it when online
-
             if getattr(self, 'current_shift', None) and not self.current_shift.get('id'):
-
                 try:
-
                     shift_params = {}
-
                     if self.config.get('branch_id'):
-
                         shift_params['branch_id'] = self.config['branch_id']
-
                     if self.config.get('cashier_id'):
-
                         shift_params['cashier_id'] = self.config['cashier_id']
-
                     s_res = requests.get(
-
                         f"{self.config['api_url']}/api/pos/shift",
-
                         headers={'Authorization': f"Bearer {self.config['pos_token']}", 'Accept': 'application/json'},
-
                         params=shift_params,
-
                         timeout=3
-
                     )
-
                     if s_res.status_code == 200:
-
                         s_data = s_res.json().get('shift')
-
                         if s_data and s_data.get('id'):
-
                             self.current_shift['id'] = s_data['id']
-
+                            self.current_shift['server_id'] = s_data['id']
                             session = init_db(f"sqlite:///{self.db_path}")
-
                             loc_id = self.current_shift.get('local_id')
-
                             if loc_id:
-
                                 loc_shift = session.query(PosShift).filter_by(id=loc_id).first()
-
                                 if loc_shift:
-
                                     loc_shift.server_id = s_data['id']
-
                                     loc_shift.sync_status = 'synced'
-
                                     session.commit()
-
                             session.close()
-
                 except Exception:
-
                     pass
 
-
-
-            # If local shift has no server id (offline shift), link it when online
-
-            if getattr(self, 'current_shift', None) and not self.current_shift.get('id'):
-
+            # If force_resume is requested, fetch and attach active ERP shift
+            if force_resume or (not getattr(self, 'current_shift', None) and show_resume_dialog):
                 try:
-
                     shift_params = {}
-
                     if self.config.get('branch_id'):
-
                         shift_params['branch_id'] = self.config['branch_id']
-
                     if self.config.get('cashier_id'):
-
                         shift_params['cashier_id'] = self.config['cashier_id']
-
                     s_res = requests.get(
-
                         f"{self.config['api_url']}/api/pos/shift",
-
                         headers={'Authorization': f"Bearer {self.config['pos_token']}", 'Accept': 'application/json'},
-
                         params=shift_params,
-
-                        timeout=3
-
+                        timeout=5
                     )
-
                     if s_res.status_code == 200:
-
                         s_data = s_res.json().get('shift')
-
                         if s_data and s_data.get('id'):
-
-                            self.current_shift['id'] = s_data['id']
-
+                            server_id = s_data['id']
                             session = init_db(f"sqlite:///{self.db_path}")
-
-                            loc_id = self.current_shift.get('local_id')
-
-                            if loc_id:
-
-                                loc_shift = session.query(PosShift).filter_by(id=loc_id).first()
-
-                                if loc_shift:
-
-                                    loc_shift.server_id = s_data['id']
-
-                                    loc_shift.sync_status = 'synced'
-
-                                    session.commit()
-
+                            loc_shift = session.query(PosShift).filter_by(server_id=server_id).first()
+                            if not loc_shift:
+                                loc_shift = PosShift(
+                                    server_id=server_id,
+                                    branch_id=self.config.get('branch_id'),
+                                    cashier_id=self.config.get('cashier_id'),
+                                    cashier_name=self.config.get('cashier_name'),
+                                    opening_cash=float(s_data.get('opening_cash', 0.0) or 0.0),
+                                    expected_cash=float(s_data.get('expected_cash', 0.0) or 0.0),
+                                    status='open',
+                                    sync_status='synced'
+                                )
+                                session.add(loc_shift)
+                                session.commit()
+                            local_id = loc_shift.id
                             session.close()
 
+                            self.current_shift = dict(s_data)
+                            self.current_shift['id'] = server_id
+                            self.current_shift['server_id'] = server_id
+                            self.current_shift['local_id'] = local_id
+
+                            self.shift_btn.setText("ปิดกะ")
+                            if hasattr(self, "branch_label"): self.branch_label.show()
+                            self.shift_btn.setStyleSheet("QPushButton { background-color: #3b82f6; border: none; color: white; padding: 5px 10px; border-radius: 6px; font-weight: bold;} QPushButton:hover { background-color: #2563eb; }")
                 except Exception:
-
                     pass
-
-
-
-            # Do not auto-open or silently resume shift. Cashier must manually open shift.
 
             if not getattr(self, 'current_shift', None):
-
                 self.shift_btn.setText("เปิดกะ")
-
                 self.shift_btn.setStyleSheet("QPushButton { background-color: #f59e0b; border: none; color: white; padding: 5px 10px; border-radius: 6px; font-weight: bold;} QPushButton:hover { background-color: #d97706; }")
-
-        except:
-
+        except Exception:
             pass
-
 
 
     def show_today_revenue(self):
@@ -2960,6 +3063,17 @@ class MainWindow(QMainWindow):
         self.search_input.setStyleSheet("padding: 10px; font-size: 16px; border: 1px solid #cbd5e1; border-radius: 6px; color: black;")
 
         self.search_input.returnPressed.connect(self.handle_barcode_scan)
+
+        # Barcode scanners "type" very fast. If focus is on the cart table or a button,
+        # the first digits used to be swallowed by that widget, so the code arrived
+        # incomplete. Route every printable key of the main window into the scan box.
+        self._scan_redirect_ts = 0.0
+
+        app_instance = QApplication.instance()
+
+        if app_instance is not None:
+
+            app_instance.installEventFilter(self)
 
         
 
@@ -3319,15 +3433,93 @@ class MainWindow(QMainWindow):
 
         
 
+    def eventFilter(self, obj, event):
+
+        try:
+
+            from PySide6.QtCore import QEvent
+
+            if event.type() != QEvent.KeyPress:
+                return super().eventFilter(obj, event)
+
+            search = getattr(self, 'search_input', None)
+
+            if search is None or obj is search or not isinstance(obj, QWidget):
+                return super().eventFilter(obj, event)
+
+            # only the main POS window; dialogs (payment, PIN, discount...) keep their keys
+            if obj.window() is not self or not self.isActiveWindow() or not search.isVisible():
+                return super().eventFilter(obj, event)
+
+            from PySide6.QtWidgets import QTextEdit, QPlainTextEdit, QAbstractSpinBox, QComboBox
+
+            focus = QApplication.focusWidget()
+
+            if focus is search:
+                return super().eventFilter(obj, event)
+
+            if isinstance(focus, (QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox)):
+                return super().eventFilter(obj, event)
+
+            if isinstance(focus, QComboBox) and focus.isEditable():
+                return super().eventFilter(obj, event)
+
+            mods = event.modifiers()
+
+            if mods & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier):
+                return super().eventFilter(obj, event)
+
+            import time
+
+            key = event.key()
+
+            if key in (Qt.Key_Return, Qt.Key_Enter):
+
+                # Enter that ends a scan whose digits were just redirected into the scan box
+                if search.text().strip() and (time.monotonic() - getattr(self, '_scan_redirect_ts', 0.0)) < 2.0:
+                    search.setFocus()
+                    self._scan_redirect_ts = 0.0
+                    self.handle_barcode_scan()
+                    return True
+
+                return super().eventFilter(obj, event)
+
+            text = event.text()
+
+            if text and text.isprintable():
+
+                search.setFocus()
+
+                if search.hasSelectedText():
+                    search.del_()
+                else:
+                    search.end(False)
+
+                search.insert(text)
+                self._scan_redirect_ts = time.monotonic()
+                return True
+
+        except Exception:
+
+            pass
+
+        return super().eventFilter(obj, event)
+
+
+
     def keyPressEvent(self, event):
 
         # If user starts typing, automatically focus search_input
 
-        if event.text() and not self.search_input.hasFocus():
+        if event.text() and event.text().isprintable() and not self.search_input.hasFocus():
 
             self.search_input.setFocus()
 
-            self.search_input.setText(self.search_input.text() + event.text())
+            self.search_input.end(False)
+
+            self.search_input.insert(event.text())
+
+            return
 
         super().keyPressEvent(event)
 
@@ -4168,23 +4360,16 @@ class MainWindow(QMainWindow):
             
 
             from ui.payment_dialog import PaymentDialog
-
             from ui.help_dialog import HelpDialog
-
             dialog = PaymentDialog(self, grand_total, total_items, total_qty, discount_amount=discount)
-
             
-
             if hasattr(self, 'customer_display') and self.customer_display and not self.customer_display.isHidden():
-
-                self.customer_display.show_payment(grand_total)
-
+                self.customer_display.show_payment("QR", override_amount=grand_total, discount=discount)
                 
-
             if dialog.exec() == QDialog.Accepted:
-
+                if hasattr(dialog, 'discount_amount'):
+                    self.discount_amount = float(dialog.discount_amount or 0.0)
                 if hasattr(self, 'customer_display') and self.customer_display and not self.customer_display.isHidden():
-
                     self.customer_display.show_payment("SUCCESS")
 
                     
@@ -4393,20 +4578,33 @@ class MainWindow(QMainWindow):
 
 
 
+            # Calculate standard catalog gross sum and ensure standard catalog prices for ERP
+            catalog_gross_sum = 0.0
+            sync_items = []
+            for it in api_items:
+                pid = it.get('product_id')
+                p_qty = float(it.get('qty') or 0.0)
+                p_price = float(it.get('unit_price') or 0.0)
+                std_price = p_price
+                if pid:
+                    db_p = session.query(Product).filter_by(id=pid).first()
+                    if db_p:
+                        std_price = float(db_p.pos_price or db_p.default_price or p_price)
+                catalog_gross_sum += p_qty * std_price
+                sync_items.append({
+                    "product_id": pid,
+                    "qty": p_qty,
+                    "unit_price": std_price
+                })
+
             totals = self._compute_rounded_totals(total_amount)
-
+            catalog_reduction = max(0.0, round(catalog_gross_sum - total_amount, 2)) if total_amount > 0 and catalog_gross_sum > total_amount else 0.0
             manual_discount = totals['manual_discount']
-
             satang_discount = totals['satang_discount']
-
-            discount_applied = totals['total_discount']
-
+            discount_applied = round(totals['total_discount'] + catalog_reduction, 2)
             net_total = totals['grand_total']
 
             idempotency_key = f"offline-receipt-{receipt_id}"
-
-            # Keep items with standard catalog unit prices so PosPricingGuard passes with 0 discrepancy
-            sync_items = list(api_items)
 
             # Prepare checkout payment fields for ERP validation
             cash_received_payload = received_amount
@@ -4415,12 +4613,11 @@ class MainWindow(QMainWindow):
             mixed_transfer = transfer_amount
 
             if method_map.get(method) == 'cash':
-                # PosPaymentValidator requires cash_received >= gross sum of items
-                cash_received_payload = max(float(received_amount), float(total_amount))
+                cash_received_payload = max(float(received_amount), float(net_total))
                 change_amount_payload = max(0.0, float(cash_received_payload) - float(net_total))
             elif method_map.get(method) == 'mixed' and discount_applied > 0 and total_amount > 0:
-                # PosPaymentValidator requires cash_amount + transfer_amount == gross sum of items
-                diff = round(float(total_amount) - (float(mixed_cash) + float(mixed_transfer)), 2)
+                cur_mix_sum = float(mixed_cash) + float(mixed_transfer)
+                diff = round(float(net_total) - cur_mix_sum, 2)
                 if diff != 0:
                     mixed_cash = round(float(mixed_cash) + diff, 2)
 
@@ -4445,6 +4642,8 @@ class MainWindow(QMainWindow):
                 total_amount=net_total,
 
                 received_amount=received_amount,
+
+                discount_amount=discount_applied,
 
                 payment_method=method_map.get(method, 'cash'),
 
@@ -4520,9 +4719,11 @@ class MainWindow(QMainWindow):
 
                 "customer_address": cust_addr,
 
-                "discount_amount": discount_applied,
+                "discount_amount": float(discount_applied),
 
-                "manual_discount_amount": 0.0,
+                "manual_discount_amount": float(discount_applied),
+
+                "is_offline_sync": True,
 
                 "items": sync_items
 

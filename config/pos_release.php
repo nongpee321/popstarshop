@@ -1,9 +1,9 @@
 <?php
 
 return [
-    'version' => '1.2.20',
-    'notes' => 'PopCentral POS 1.2.20: Real-time Discount Sync to ERP backend, Universal Discount Checkout, and Auto-healing.',
-    'pub_date' => '2026-10-31T16:00:00+07:00',
+    'version' => '1.2.21',
+    'notes' => 'PopCentral POS 1.2.21: Complete multi-barcode lookup (product_barcodes), POPSTAR 800/801 scale label decoding, Thai keyboard layout conversion, and scanner keystroke focus routing.',
+    'pub_date' => '2026-10-31T16:45:00+07:00',
     'platforms' => [
         'windows-x86_64' => [
             'signature' => 'dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTZmNtY0VocGZJR0RJOFlXL0VNNjRLN0pKNG44L016VDQ1MUVKZTMzS05xS3lJYk5xYnRDNk1KSUpoT29qaVFtVy84M0JyS2NJbjhreG5iYUZpWWhmV2t4OUVSY0x4eVFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1MzM4OTUzCWZpbGU6UE9QU1RBUiBQT1NfMS40LjNfeDY0LXNldHVwLmV4ZQpCaWtIRmpuQ2FjUUJxOEV5dFpZRkpyaUp0Z3hpS0ZBK2oxSVplRkJEV0RtM2ZmSHJXYVB4b2c5Z1F1TE12OEd0dmdpNVdIcWh5aFBBY09zS2E4Zm5DZz09Cg==',
