@@ -1,8 +1,8 @@
 <?php
 
 return [
-    'version' => '1.2.23',
-    'notes' => 'PopCentral POS 1.2.23: Bill History, Reprint, Void with stock/cash reversal, and Edit Bill (reload items and discounts into cart for modification).',
+    'version' => '1.2.24',
+    'notes' => 'PopCentral POS 1.2.24: Real-time search autocomplete & name substring suggestions dropdown (e.g. searching หมู displays all matching pork items with direct selection to cart), dynamic grid filtering, and full text search support.',
     'pub_date' => '2026-11-01T01:30:00+07:00',
     'platforms' => [
         'windows-x86_64' => [
