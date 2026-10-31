@@ -629,8 +629,9 @@ class PosApiController extends Controller
         $data = $request->validate([
             'receipt_no' => ['required', 'string', 'max:80'],
             'terminal_code' => ['nullable', 'string', 'max:80'],
-            'shift_id' => ['required', 'integer', 'exists:pos_shifts,id'],
+            'shift_id' => ['nullable', 'integer', 'exists:pos_shifts,id'],
             'reason' => ['required', 'string', 'max:500'],
+            'pin' => ['nullable', 'string', 'max:100'],
         ]);
 
         $receipt = PosReceipt::with(['shift', 'terminal'])
@@ -641,6 +642,10 @@ class PosApiController extends Controller
 
         if (! $receipt) {
             return response()->json(['success' => false, 'message' => 'ไม่พบบิลที่ต้องการยกเลิก'], 404);
+        }
+
+        if (empty($data['shift_id']) && $receipt->pos_shift_id) {
+            $request->merge(['shift_id' => $receipt->pos_shift_id]);
         }
 
         $user = $request->user();

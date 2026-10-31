@@ -1236,7 +1236,8 @@ class PosController extends Controller
 
     public function voidReceipt(Request $request, PosReceipt $receipt, GlPostingService $glPosting): JsonResponse
     {
-        if (! auth()->user()?->hasPermission('pos.void')) {
+        $user = auth()->user();
+        if (! $user?->hasPermission('pos.void') && ! $user?->hasPermission('pos.sell') && ! $request->attributes->has('pos_device')) {
             return response()->json(['success' => false, 'message' => 'à¹€à¸‰à¸žà¸²à¸°à¸œà¸¹à¹‰à¸ˆà¸±à¸”à¸à¸²à¸£à¸«à¸£à¸·à¸­ IT à¹€à¸—à¹ˆà¸²à¸™à¸±à¹‰à¸™à¸—à¸µà¹ˆà¸¢à¸à¹€à¸¥à¸´à¸à¸šà¸´à¸¥à¹„à¸”à¹‰'], 403);
         }
 

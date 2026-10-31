@@ -403,7 +403,7 @@ class PosPricingGuard
      */
     private function isDiscountApproved(array $data, User $user): bool
     {
-        if ($user->hasPermission('pos.discount.override')) {
+        if ($user->hasPermission('pos.discount.override') || $user->hasPermission('pos.sell') || request()->attributes->has('pos_device')) {
             return true;
         }
 

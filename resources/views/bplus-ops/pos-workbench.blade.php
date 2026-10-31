@@ -93,6 +93,7 @@
                         <th class="text-end">ยอดก่อนลด</th>
                         <th class="text-end">ส่วนลด</th>
                         <th class="text-end">ยอดสุทธิ</th>
+                        <th class="text-center">สถานะ</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -107,6 +108,13 @@
                                 {{ (float)$receipt->discount_amount > 0 ? '-'.number_format((float)$receipt->discount_amount, 2) : '0.00' }}
                             </td>
                             <td class="text-end fw-bold">{{ number_format((float) $receipt->net_sales, 2) }}</td>
+                            <td class="text-center">
+                                @if($receipt->status === 'void')
+                                    <span class="badge bg-danger" style="font-size: 11px;">ยกเลิกบิล (Void)</span>
+                                @else
+                                    <span class="badge bg-success" style="font-size: 11px;">ขายสำเร็จ</span>
+                                @endif
+                            </td>
                         </tr>
                     @empty
                         <tr>
