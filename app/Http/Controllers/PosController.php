@@ -1071,6 +1071,7 @@ class PosController extends Controller
             'transfer_amount' => ['nullable', 'numeric', 'min:0'],
             'discount_amount' => ['nullable', 'numeric', 'min:0'],
             'manual_discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'discount_approved_by' => ['nullable'],
             'discount_card_code' => ['nullable', 'string', 'max:30'],
             'vat_amount' => ['nullable', 'numeric', 'min:0'],
             'vat_mode' => ['nullable', 'string', 'in:included,excluded'],
@@ -1189,21 +1190,7 @@ class PosController extends Controller
                 $points,
                 $redeemPoints,
             ) {
-                $discountToPass = round((float) (($data['discount_amount'] ?? null) ?: ($data['manual_discount_amount'] ?? 0)), 2);
-                $itemsGross = round(collect($data['items'])->sum(fn ($item) => (float) $item['qty'] * (float) $item['unit_price']), 2);
-                if ($discountToPass <= 0.0) {
-                    $paidTotal = match ($data['method'] ?? 'cash') {
-                        'cash' => max(0.0, round((float) ($data['cash_received'] ?? $itemsGross) - (float) ($data['change_amount'] ?? 0), 2)),
-                        'transfer' => round((float) ($data['transfer_amount'] ?? ($data['total_amount'] ?? $itemsGross)), 2),
-                        'mixed' => round((float) ($data['cash_amount'] ?? 0) + (float) ($data['transfer_amount'] ?? 0), 2),
-                        default => round((float) ($data['total_amount'] ?? $itemsGross), 2),
-                    };
-                    if ($paidTotal > 0 && $itemsGross > ($paidTotal + 0.01)) {
-                        $discountToPass = round($itemsGross - $paidTotal, 2);
-                        $data['discount_amount'] = $discountToPass;
-                        $data['manual_discount_amount'] = $discountToPass;
-                    }
-                }
+                $discountToPass = round((float) (($data['manual_discount_amount'] ?? null) ?: ($data['discount_amount'] ?? 0)), 2);
 
                 $document = $service->create([
                     'branch_id' => $data['branch_id'],
@@ -1211,6 +1198,7 @@ class PosController extends Controller
                     'remark' => implode(' | ', $remarkParts),
                     'items' => $data['items'],
                     'discount_amount' => $discountToPass,
+                    'manual_discount_amount' => $discountToPass,
                     'allow_negative_stock' => (bool) ($data['allow_negative_stock'] ?? false),
                     // à¹€à¸‡à¸´à¸™à¸ªà¸”à¸‚à¸­à¸‡à¸šà¸´à¸¥à¸™à¸µà¹‰à¹€à¸‚à¹‰à¸²à¸ªà¸¡à¸¸à¸”à¹€à¸‡à¸´à¸™à¸ªà¸”à¸•à¸­à¸™à¸›à¸´à¸”à¸à¸° à¹„à¸¡à¹ˆà¹ƒà¸Šà¹ˆà¸•à¸­à¸™à¸™à¸µà¹‰ â€” à¸à¸±à¸™à¸™à¸±à¸šà¹€à¸‡à¸´à¸™à¸‹à¹‰à¸³
                     'source' => 'pos',
@@ -1431,19 +1419,7 @@ class PosController extends Controller
     {
         $items = collect($data['items']);
         $gross = round($items->sum(fn ($item) => (float) $item['qty'] * (float) $item['unit_price']), 2);
-        $discount = round((float) (($data['discount_amount'] ?? null) ?: ($data['manual_discount_amount'] ?? 0)), 2);
-
-        if ($discount <= 0.0) {
-            $paidTotal = match ($data['method'] ?? 'cash') {
-                'cash' => max(0.0, round((float) ($data['cash_received'] ?? $gross) - (float) ($data['change_amount'] ?? 0), 2)),
-                'transfer' => round((float) ($data['transfer_amount'] ?? ($data['total_amount'] ?? $gross)), 2),
-                'mixed' => round((float) ($data['cash_amount'] ?? 0) + (float) ($data['transfer_amount'] ?? 0), 2),
-                default => round((float) ($data['total_amount'] ?? $gross), 2),
-            };
-            if ($paidTotal > 0 && $gross > ($paidTotal + 0.01)) {
-                $discount = round($gross - $paidTotal, 2);
-            }
-        }
+        $discount = round((float) (($data['manual_discount_amount'] ?? null) ?: ($data['discount_amount'] ?? 0)), 2);
 
         $vat = round((float) ($data['vat_amount'] ?? 0), 2);
         $net = max(0.0, round($gross - $discount, 2));
@@ -1463,6 +1439,14 @@ class PosController extends Controller
             'net_sales' => $net,
             'status' => 'completed',
         ]);
+
+        if ($discount > 0) {
+            \App\Models\PosReceiptDiscount::create([
+                'pos_receipt_id' => $receipt->id,
+                'discount_type' => 'manual',
+                'amount' => $discount,
+            ]);
+        }
 
         foreach ($items->values() as $index => $item) {
             $lineNet = round((float) $item['qty'] * (float) $item['unit_price'], 2);

@@ -96,6 +96,26 @@ class PosPricingGuardTest extends TestCase
         app(PosPricingGuard::class)->validate($payload, $user);
     }
 
+    public function test_manual_discount_70_minus_10_with_discount_approved_by_validates_60_net(): void
+    {
+        [$user, $branch, $product] = $this->masters();
+        $product->update(['default_price' => 70, 'average_cost' => 40]);
+        ProductPrice::where('product_id', $product->id)->update(['price' => 70]);
+
+        $approver = User::factory()->create(['username' => 'approver_'.uniqid(), 'is_active' => true]);
+        $perm = \App\Models\Permission::firstOrCreate(['code' => 'pos.discount.override'], ['name' => 'อนุมัติส่วนลดพิเศษ POS']);
+        $role = \App\Models\Role::firstOrCreate(['code' => 'BRANCH_MGR'], ['name' => 'ผู้จัดการสาขา']);
+        $role->permissions()->syncWithoutDetaching([$perm->id]);
+        $approver->roles()->syncWithoutDetaching([$role->id]);
+
+        $payload = $this->payload($branch, $product, 70);
+        $payload['manual_discount_amount'] = 10;
+        $payload['discount_amount'] = 10;
+        $payload['discount_approved_by'] = $approver->id;
+
+        $this->assertSame(60.0, app(PosPricingGuard::class)->validate($payload, $user));
+    }
+
     public function test_verified_pack_barcode_is_normalized_to_base_stock_units(): void
     {
         [$user, $branch, $product] = $this->masters();

@@ -1,8 +1,8 @@
 <?php
 
 return [
-    'version' => '1.2.21',
-    'notes' => 'PopCentral POS 1.2.21: Complete multi-barcode lookup (product_barcodes), POPSTAR 800/801 scale label decoding, Thai keyboard layout conversion, and scanner keystroke focus routing.',
+    'version' => '1.2.22',
+    'notes' => 'PopCentral POS 1.2.22: Preserve manual_discount_amount, discount_approved_by, item prices, and actual receipt payment amounts on sync and retry; hold rejected discount bills for inspection instead of sending full-price bills.',
     'pub_date' => '2026-10-31T16:45:00+07:00',
     'platforms' => [
         'windows-x86_64' => [

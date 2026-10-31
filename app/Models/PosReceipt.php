@@ -16,28 +16,6 @@ class PosReceipt extends Model
 {
     const UPDATED_AT = null;
 
-    public function getDiscountAmountAttribute($value): float
-    {
-        $discount = (float) $value;
-        $gross = (float) ($this->attributes['gross_sales'] ?? 0);
-        $net = (float) ($this->attributes['net_sales'] ?? 0);
-        if ($discount <= 0 && $gross > $net + 0.01) {
-            return max(0.0, round($gross - $net, 2));
-        }
-        return $discount;
-    }
-
-    public function getNetSalesAttribute($value): float
-    {
-        $net = (float) $value;
-        $gross = (float) ($this->attributes['gross_sales'] ?? 0);
-        $discount = (float) ($this->attributes['discount_amount'] ?? 0);
-        if ($discount > 0 && abs($net - $gross) < 0.01) {
-            return max(0.0, round($gross - $discount, 2));
-        }
-        return $net;
-    }
-
     public function terminal(): BelongsTo
     {
         return $this->belongsTo(PosTerminal::class, 'pos_terminal_id');

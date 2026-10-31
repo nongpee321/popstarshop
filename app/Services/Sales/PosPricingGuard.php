@@ -165,11 +165,13 @@ class PosPricingGuard
         $qtyPromotionDiscount = $this->qtyPromotionDiscount($serverLines, (int) $data['branch_id']);
 
         $manualDiscount = DecimalMath::round(
-            (float) (($data['discount_amount'] ?? null) ?: ($data['manual_discount_amount'] ?? 0)),
+            (float) (($data['manual_discount_amount'] ?? null) ?: ($data['discount_amount'] ?? 0)),
             DecimalMath::DISPLAY_MONEY_SCALE
         );
         if (DecimalMath::compare($manualDiscount, 0) > 0) {
-            // อนุญาตให้พนักงานทุกคนสามารถใส่ส่วนลดบิลได้โดยไม่ต้องขอสิทธิ์ผู้จัดการ
+            if (! $this->isDiscountApproved($data, $user)) {
+                throw new RuntimeException('ส่วนลดพิเศษต้องให้ผู้จัดการที่มีสิทธิ์อนุมัติ');
+            }
             $expected = DecimalMath::subtract($expected, $manualDiscount, DecimalMath::DISPLAY_MONEY_SCALE);
         }
 
@@ -203,19 +205,17 @@ class PosPricingGuard
             );
         }
 
-        $submitted = DecimalMath::round(DecimalMath::sum($items->map(
+        $submittedRaw = DecimalMath::round(DecimalMath::sum($items->map(
             fn ($item) => DecimalMath::multiply($item['qty'], $item['unit_price'])
         )), DecimalMath::DISPLAY_MONEY_SCALE);
-        if (DecimalMath::compare($manualDiscount, 0) > 0) {
-            $submitted = DecimalMath::subtract($submitted, $manualDiscount, DecimalMath::DISPLAY_MONEY_SCALE);
-        }
-        if (DecimalMath::compare(DecimalMath::absoluteDifference($submitted, $expected, 2), '0.02') > 0) {
-            $isOffline = request()->attributes->has('pos_device')
-                || (request()->header('Idempotency-Key') && str_starts_with(request()->header('Idempotency-Key'), 'offline-receipt-'))
-                || (!empty($data['is_offline_sync']));
-            if (! $isOffline) {
-                throw new RuntimeException('ราคาหรือส่วนลดเปลี่ยนจากข้อมูลบนเซิร์ฟเวอร์ กรุณาโหลดสินค้าใหม่แล้วคิดเงินอีกครั้ง');
-            }
+        $submittedAfterDiscount = DecimalMath::compare($manualDiscount, 0) > 0
+            ? DecimalMath::subtract($submittedRaw, $manualDiscount, DecimalMath::DISPLAY_MONEY_SCALE)
+            : $submittedRaw;
+        $diffRaw = DecimalMath::absoluteDifference($submittedRaw, $expected, 2);
+        $diffNet = DecimalMath::absoluteDifference($submittedAfterDiscount, $expected, 2);
+        $submitted = DecimalMath::compare($diffNet, $diffRaw) <= 0 ? $submittedAfterDiscount : $submittedRaw;
+        if (DecimalMath::compare($diffRaw, '0.02') > 0 && DecimalMath::compare($diffNet, '0.02') > 0) {
+            throw new RuntimeException('ราคาหรือส่วนลดเปลี่ยนจากข้อมูลบนเซิร์ฟเวอร์ กรุณาโหลดสินค้าใหม่แล้วคิดเงินอีกครั้ง');
         }
 
         $cost = DecimalMath::round(DecimalMath::sum($items->map(
@@ -396,5 +396,34 @@ class PosPricingGuard
         }
 
         return round($discount, 2);
+    }
+
+    /**
+     * @param  array<string,mixed>  $data
+     */
+    private function isDiscountApproved(array $data, User $user): bool
+    {
+        if ($user->hasPermission('pos.discount.override')) {
+            return true;
+        }
+
+        $approvedBy = $data['discount_approved_by'] ?? null;
+        if (blank($approvedBy)) {
+            return false;
+        }
+
+        $approver = null;
+        if (is_numeric($approvedBy)) {
+            $approver = User::find((int) $approvedBy)
+                ?: \App\Models\Salesman::find((int) $approvedBy)?->user;
+        } else {
+            $code = trim((string) $approvedBy);
+            $approver = User::where('username', $code)->first()
+                ?: \App\Models\Salesman::where('code', $code)->first()?->user;
+        }
+
+        return $approver !== null
+            && (bool) $approver->is_active
+            && ($approver->hasPermission('pos.discount.override') || $approver->hasPermission('pos.sell'));
     }
 }
