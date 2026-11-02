@@ -1,8 +1,8 @@
 <?php
 
 return [
-    'version' => '1.2.25',
-    'notes' => 'PopCentral POS 1.2.25: Automatic Quantity & Bundle Promotions (e.g. 3 packs for 100 Baht, buy N get M free, buy N discount), real-time cart promo badges, thermal receipt promotion breakdown, and offline promotion sync.',
+    'version' => '1.2.26',
+    'notes' => 'PopCentral POS 1.2.26: Resizable draggable splitter for cart panel, debounced fast search, performance indexing, responsive product grid columns, and persistent layout sizing.',
     'pub_date' => '2026-11-01T01:30:00+07:00',
     'platforms' => [
         'windows-x86_64' => [
