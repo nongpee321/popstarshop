@@ -55,7 +55,7 @@
             background: #fff;
             padding: 10mm 6mm 14mm;
             box-shadow: 0 10px 30px rgba(15,23,42,.22), 0 1px 4px rgba(15,23,42,.1);
-            font-size: 12.5px;
+            font-size: 14.5px;
             line-height: 1.35;
             color: #000;
             position: relative;
@@ -78,7 +78,7 @@
 
         .slip-header { text-align: center; margin-bottom: 12px; }
         .slip-title { font-size: 19px; font-weight: 900; letter-spacing: 1px; margin: 0 0 4px; }
-        .slip-subtitle { font-size: 14px; font-weight: 800; margin: 0 0 4px; }
+        .slip-subtitle { font-size: 16px; font-weight: 800; margin: 0 0 4px; }
         
         .table-head {
             display: grid;
@@ -96,15 +96,15 @@
             justify-content: space-between;
             gap: 8px;
             padding: 1.5px 0;
-            font-size: 12px;
+            font-size: 14px;
         }
-        .line.sub { font-size: 11px; color: #111; }
+        .line.sub { font-size: 12.5px; color: #111; }
         .line.bold { font-weight: 800; }
         .line .num { font-variant-numeric: tabular-nums; text-align: right; }
 
         .section-header {
             font-weight: 800;
-            font-size: 12.5px;
+            font-size: 14.5px;
             margin: 10px 0 3px;
             text-decoration: underline;
         }
@@ -237,6 +237,15 @@
             <span>ยอดภพ. (VAT)</span>
             <span class="num">{{ number_format($vatAmount, 2) }}</span>
         </div>
+        <div class="separator-single"></div>
+
+        {{-- Shift activity summary --}}
+        <div class="section-header">สรุปกิจกรรมภายในกะ</div>
+        <div class="line"><span>บิลขายสำเร็จ</span><span class="num">{{ number_format($billCount) }} บิล</span></div>
+        <div class="line"><span>บิลพักทั้งหมด</span><span class="num">{{ number_format($heldBillCount) }} บิล</span></div>
+        <div class="line"><span>บิลพักที่เรียกกลับมาขายต่อ</span><span class="num">{{ number_format($resumedBillCount) }} บิล</span></div>
+        <div class="line"><span>บิลยกเลิก</span><span class="num">{{ number_format($voidedBillCount) }} บิล</span></div>
+        <div class="line"><span>บิลที่แก้ไข</span><span class="num">{{ number_format($editedBillCount) }} บิล</span></div>
         <div class="separator-single"></div>
 
         {{-- Payment Breakdown Section --}}

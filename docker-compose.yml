@@ -1,9 +1,9 @@
-version: '3.8'
+name: popfood
 
 services:
   db:
     image: postgres:15
-    container_name: pop_erp_db
+    container_name: popfood_erp_db
     restart: always
     environment:
       POSTGRES_DB: ${DB_DATABASE:-pop_erp}
@@ -12,15 +12,13 @@ services:
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - erppop-main_db-data:/var/lib/postgresql/data
     networks:
-      - pop_erp_network
+      - popfood_erp_network
 
   app:
-    build:
-      context: .
-      network: host
-    container_name: pop_erp_app
+    image: erppop-main-app
+    container_name: popfood_erp_app
     restart: always
     working_dir: /app
     volumes:
@@ -31,23 +29,26 @@ services:
       - 8.8.8.8
       - 1.1.1.1
     networks:
-      - pop_erp_network
+      - popfood_erp_network
     depends_on:
       - db
-    command: php artisan serve --host=0.0.0.0 --port=8000
+    environment:
+      PHP_CLI_SERVER_WORKERS: 8
+    command: php artisan serve --host=0.0.0.0 --port=8000 --no-reload
 
   adminer:
     image: adminer
-    container_name: pop_erp_adminer
+    container_name: popfood_erp_adminer
     restart: always
     ports:
       - "8080:8080"
     networks:
-      - pop_erp_network
+      - popfood_erp_network
 
 volumes:
-  db-data:
+  erppop-main_db-data:
+    external: true
 
 networks:
-  pop_erp_network:
+  popfood_erp_network:
     driver: bridge

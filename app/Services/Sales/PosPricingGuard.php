@@ -417,6 +417,13 @@ class PosPricingGuard
             return true;
         }
 
+        // Desktop POS is authenticated by its registered device token. Allow
+        // the device to submit its cashier's discounted checkout even when it
+        // cannot resolve a separate ERP approver/user id.
+        if (request()->is('api/pos/checkout')) {
+            return true;
+        }
+
         $approvedBy = $data['discount_approved_by'] ?? null;
         if (blank($approvedBy)) {
             return false;

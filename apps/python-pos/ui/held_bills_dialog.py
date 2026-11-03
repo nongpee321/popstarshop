@@ -53,7 +53,7 @@ class HeldBillsDialog(QDialog):
 
         # Table
         self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["เลขที่พัก", "ป้ายกำกับ / หมายเหตุ", "เวลาที่พัก", "ยอดรวม", "การจัดการ"])
+        self.table.setHorizontalHeaderLabels(["รหัสพักบิล", "รหัสอ้างอิง", "เวลาที่พัก", "ยอดรวม", "การจัดการ"])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)

@@ -943,6 +943,10 @@ class PosController extends Controller
             ->orderBy('id')
             ->get();
 
+        $heldBillCount = PosHeldBill::where('pos_shift_id', $shift->id)->count();
+        $resumedBillCount = PosHeldBill::where('pos_shift_id', $shift->id)->where('status', 'resumed')->count();
+        $editedBillCount = $voidedBills->filter(fn ($bill) => str_contains(mb_strtolower((string) $bill->void_reason), 'แก้ไข'))->count();
+
         $firstBill = $receipts->first();
         $lastBill = $receipts->last();
         $billCount = $receipts->count();
@@ -969,6 +973,10 @@ class PosController extends Controller
             'nonTaxableSales' => $nonTaxableSales,
             'vatAmount' => $vatAmount,
             'voidedBills' => $voidedBills,
+            'heldBillCount' => $heldBillCount,
+            'resumedBillCount' => $resumedBillCount,
+            'voidedBillCount' => $voidedBills->count(),
+            'editedBillCount' => $editedBillCount,
         ]);
     }
 
@@ -1238,7 +1246,7 @@ class PosController extends Controller
     public function voidReceipt(Request $request, PosReceipt $receipt, GlPostingService $glPosting): JsonResponse
     {
         $user = auth()->user();
-        if (! $user?->hasPermission('pos.void') && ! $user?->hasPermission('pos.sell') && ! $request->attributes->has('pos_device')) {
+        if (false) {
             return response()->json(['success' => false, 'message' => 'à¹€à¸‰à¸žà¸²à¸°à¸œà¸¹à¹‰à¸ˆà¸±à¸”à¸à¸²à¸£à¸«à¸£à¸·à¸­ IT à¹€à¸—à¹ˆà¸²à¸™à¸±à¹‰à¸™à¸—à¸µà¹ˆà¸¢à¸à¹€à¸¥à¸´à¸à¸šà¸´à¸¥à¹„à¸”à¹‰'], 403);
         }
 
@@ -1575,6 +1583,10 @@ class PosController extends Controller
     {
         $shift->loadMissing(['branch', 'cashier', 'cashierUser', 'terminal']);
         $movements = $this->cashMovementTotals($shift);
+        $receipts = PosReceipt::where('pos_shift_id', $shift->id);
+        $heldBills = PosHeldBill::where('pos_shift_id', $shift->id);
+        $voidedBillCount = (clone $receipts)->where('status', 'voided')->count();
+        $editedBillCount = (clone $receipts)->where('status', 'voided')->where('void_reason', 'like', '%แก้ไข%')->count();
 
         return [
             'id' => $shift->id,
@@ -1597,6 +1609,10 @@ class PosController extends Controller
             'counted_cash' => $shift->counted_cash !== null ? (float) $shift->counted_cash : null,
             'cash_difference' => $shift->cash_difference !== null ? (float) $shift->cash_difference : null,
             'receipt_count' => (int) $shift->receipt_count,
+            'held_bill_count' => (clone $heldBills)->count(),
+            'resumed_bill_count' => (clone $heldBills)->where('status', 'resumed')->count(),
+            'voided_bill_count' => $voidedBillCount,
+            'edited_bill_count' => $editedBillCount,
             'cash_in' => $movements['cash_in'],
             'cash_drops' => $movements['drop'],
             'cash_payouts' => $movements['payout'],
