@@ -1,8 +1,8 @@
 <?php
 
 return [
-    'version' => '1.1.1',
-    'notes' => 'PopCentral POS 1.1.1: Stock balance check by branch, promotions directory (3 packs 100), improved readable popup contrast, and offline reliability.',
+    'version' => '1.1.2',
+    'notes' => 'PopCentral POS 1.1.2: Edit bill, edit cart items directly, refined shift closing, and offline reliability check by branch, promotions directory (3 packs 100), improved readable popup contrast, and offline reliability.',
     'pub_date' => '2026-11-04T16:15:00+07:00',
     'platforms' => [
         'windows-x86_64' => [
