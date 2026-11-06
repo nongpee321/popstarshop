@@ -271,15 +271,70 @@ class PosController extends Controller
     public function promotions(Request $request): JsonResponse
     {
         $branchId = $this->enforcedBranchId((int) $request->query('branch_id', 0));
+        $now = now()->toDateString();
 
-        $promotions = QtyPromotion::with('freeProduct:id,sku_code,name_th')
+        // 1. QtyPromotion records
+        $qtyPromotions = QtyPromotion::with('freeProduct:id,sku_code,name_th')
             ->runningToday()
             ->where(fn ($w) => $w->whereNull('branch_id')->orWhere('branch_id', $branchId))
             ->get(['id', 'code', 'name', 'promo_type', 'product_id', 'min_qty',
-                'free_product_id', 'free_qty', 'discount_type', 'discount_value', 'bundle_price']);
+                'free_product_id', 'free_qty', 'discount_type', 'discount_value', 'bundle_price'])
+            ->map(function ($qp) {
+                return [
+                    'id' => $qp->id,
+                    'code' => $qp->code,
+                    'name' => $qp->name,
+                    'promo_type' => $qp->promo_type ?: 'bundle_price',
+                    'product_id' => $qp->product_id,
+                    'min_qty' => (float) ($qp->min_qty ?: 1.0),
+                    'free_product_id' => $qp->free_product_id,
+                    'free_qty' => (float) ($qp->free_qty ?: 0.0),
+                    'discount_type' => $qp->discount_type,
+                    'discount_value' => (float) ($qp->discount_value ?: 0.0),
+                    'bundle_price' => $qp->bundle_price !== null ? (float) $qp->bundle_price : null,
+                    'branch_id' => $qp->branch_id,
+                ];
+            });
 
-        return response()->json($promotions);
+        // 2. Standard Promotions (Promotion model from Promotion Manager)
+        $standardPromos = Promotion::query()
+            ->where('is_active', true)
+            ->where(function ($q) use ($now) {
+                $q->whereNull('starts_at')->orWhereDate('starts_at', '<=', $now);
+            })
+            ->where(function ($q) use ($now) {
+                $q->whereNull('ends_at')->orWhereDate('ends_at', '>=', $now);
+            })
+            ->where(function ($q) use ($branchId) {
+                $q->whereNull('branch_ids')
+                  ->orWhereJsonContains('branch_ids', $branchId)
+                  ->orWhereJsonContains('branch_ids', (string) $branchId);
+            })
+            ->get()
+            ->map(function ($p) {
+                $discType = ($p->discount_percent > 0) ? 'percent' : 'baht';
+                $discVal = ($p->discount_percent > 0) ? (float) $p->discount_percent : (float) ($p->discount_amount ?: 0.0);
+                return [
+                    'id' => 100000 + $p->id,
+                    'code' => $p->code,
+                    'name' => $p->name,
+                    'promo_type' => 'discount',
+                    'product_id' => $p->product_id,
+                    'min_qty' => (float) ($p->min_qty ?: 1.0),
+                    'free_product_id' => null,
+                    'free_qty' => 0.0,
+                    'discount_type' => $discType,
+                    'discount_value' => $discVal,
+                    'bundle_price' => null,
+                    'branch_id' => null,
+                ];
+            });
+
+        $allPromotions = $qtyPromotions->concat($standardPromos)->values();
+
+        return response()->json($allPromotions);
     }
+
     // Coupon verification endpoint for POS
     public function verifyCoupon(Request $request): JsonResponse
     {
@@ -1386,6 +1441,140 @@ class PosController extends Controller
         ]);
     }
 
+    private function findOpenShift(int $branchId, ?int $cashierId = null): ?PosShift
+    {
+        return PosShift::with(['branch', 'terminal', 'cashier'])
+            ->where('branch_id', $branchId)
+            ->where('status', 'open')
+            ->when($cashierId, fn ($query) => $query->where('cashier_id', $cashierId))
+            ->orderByDesc('opened_at')
+            ->first();
+    }
+
+    private function terminalForBranch(int $branchId): PosTerminal
+    {
+        $branch = Branch::findOrFail($branchId);
+
+        return PosTerminal::firstOrCreate(
+            ['code' => 'WEB-'.$branch->code],
+            ['branch_id' => $branchId, 'name' => 'JET POS '.$branch->code]
+        );
+    }
+
+    private function nextShiftNo(int $branchId): string
+    {
+        $branchCode = Branch::find($branchId)?->code ?? sprintf('%04d', $branchId);
+
+        return 'SHIFT-'.$branchCode.'-'.now()->format('Ymd-His');
+    }
+
+    private function nextHoldNo(int $branchId): string
+    {
+        $branchCode = Branch::find($branchId)?->code ?? sprintf('%04d', $branchId);
+        $prefix = 'HOLD-'.preg_replace('/[^A-Za-z0-9]/', '', $branchCode).'-'.now()->format('Ymd').'-';
+        $last = PosHeldBill::where('hold_no', 'like', $prefix.'%')
+            ->orderByDesc('hold_no')
+            ->lockForUpdate()
+            ->value('hold_no');
+
+        return $prefix.sprintf('%04d', $last ? ((int) substr($last, -4)) + 1 : 1);
+    }
+
+    private function nextPosReceiptNo(PosShift $shift): string
+    {
+        $rawBranchCode = $shift->branch?->code ?? Branch::find($shift->branch_id)?->code ?? sprintf('%04d', $shift->branch_id);
+        $branchCode = substr(preg_replace('/[^A-Za-z0-9]/', '', (string) $rawBranchCode) ?: sprintf('%04d', $shift->branch_id), 0, 8);
+        $prefix = 'CS'.$branchCode.now()->format('Ymd');
+        $lastReceiptNo = PosReceipt::where('pos_terminal_id', $shift->pos_terminal_id)
+            ->where('receipt_no', 'like', $prefix.'%')
+            ->orderByDesc('receipt_no')
+            ->lockForUpdate()
+            ->value('receipt_no');
+        $sequence = $lastReceiptNo ? ((int) substr($lastReceiptNo, -3)) + 1 : 1;
+
+        return $prefix.sprintf('%03d', $sequence);
+    }
+
+    private function recordPosReceipt(PosShift $shift, string $receiptNo, array $data, int $documentId): PosReceipt
+    {
+        $items = collect($data['items']);
+        $gross = round($items->sum(fn ($item) => (float) $item['qty'] * (float) $item['unit_price']), 2);
+        $discount = round((float) ($data['discount_amount'] ?? 0), 2);
+        $vat = round((float) ($data['vat_amount'] ?? 0), 2);
+        $net = round($gross, 2);
+
+        $receipt = PosReceipt::create([
+            'pos_terminal_id' => $shift->pos_terminal_id,
+            'pos_shift_id' => $shift->id,
+            'document_id' => $documentId,
+            'receipt_no' => $receiptNo,
+            'receipt_date' => now(),
+            'cashier_id' => $shift->cashier_user_id ?: auth()->id(),
+            'cashier_salesman_id' => $data['cashier_id'],
+            'member_id' => $data['member_id'] ?? null,
+            'gross_sales' => $gross,
+            'discount_amount' => $discount,
+            'vat_amount' => $vat,
+            'net_sales' => $net,
+            'status' => 'completed',
+        ]);
+
+        foreach ($items->values() as $index => $item) {
+            $lineNet = round((float) $item['qty'] * (float) $item['unit_price'], 2);
+            PosReceiptItem::create([
+                'pos_receipt_id' => $receipt->id,
+                'seq' => $index + 1,
+                'product_id' => $item['product_id'],
+                'qty' => $item['qty'],
+                'unit_price' => $item['unit_price'],
+                'discount_amount' => 0,
+                'vat_amount' => 0,
+                'net_amount' => $lineNet,
+            ]);
+        }
+
+        if ($data['method'] === 'mixed') {
+            // ├á┬╕╦å├á┬╣╦å├á┬╕┬▓├á┬╕┬ó├á┬╕┼ô├á┬╕┬¬├á┬╕┬í: ├á┬╣┬ü├á┬╕┬ó├á┬╕┬ü 2 ├á┬╣┬ü├á┬╕ΓÇô├á┬╕┬º├á┬╕ΓÇó├á┬╕┬▓├á┬╕┬í├á┬╕┼á├á┬╣╦å├á┬╕┬¡├á┬╕ΓÇí├á┬╕ΓÇö├á┬╕┬▓├á┬╕ΓÇí ├óΓé¼ΓÇ¥ ├á┬╕┬ó├á┬╕┬¡├á┬╕ΓÇ¥├á┬╕┬ü├á┬╕┬░/├á┬╕┬ú├á┬╕┬▓├á┬╕┬ó├á┬╕ΓÇí├á┬╕┬▓├á┬╕Γäó├á┬╕┬ú├á┬╕┬º├á┬╕┬í├á┬╕╦å├á┬╕┬▓├á┬╕┬ü pos_payments ├á┬╕╦å├á┬╕┬╢├á┬╕ΓÇí├á┬╣Γé¼├á┬╕ΓÇÜ├á┬╣ΓÇ░├á┬╕┬▓├á┬╕┼á├á┬╣╦å├á┬╕┬¡├á┬╕ΓÇí├á┬╕ΓÇô├á┬╕┬╣├á┬╕┬ü├á┬╣Γé¼├á┬╕┬¡├á┬╕ΓÇí
+            $cashPart = round((float) ($data['cash_amount'] ?? 0), 2);
+            $transferPart = round($net - $cashPart, 2); // ├á┬╕┼ô├á┬╕┬╣├á┬╕┬ü├á┬╕┬ü├á┬╕┬▒├á┬╕┼í├á┬╕┬ó├á┬╕┬¡├á┬╕ΓÇ¥├á┬╕┼í├á┬╕┬┤├á┬╕┬Ñ├á┬╕╦å├á┬╕┬ú├á┬╕┬┤├á┬╕ΓÇí ├á┬╕┬ü├á┬╕┬▒├á┬╕Γäó├á┬╣Γé¼├á┬╕┬¿├á┬╕┬⌐├á┬╕ΓÇ║├á┬╕┬▒├á┬╕ΓÇ¥├á┬╣ΓÇ₧├á┬╕┬í├á┬╣╦å├á┬╕┬Ñ├á┬╕ΓÇí├á┬╕ΓÇó├á┬╕┬▒├á┬╕┬º
+            PosPayment::create([
+                'pos_receipt_id' => $receipt->id,
+                'method' => 'cash',
+                'amount' => $cashPart,
+                'cash_received' => $data['cash_received'] ?? $cashPart,
+                'change_amount' => $data['change_amount'] ?? 0,
+            ]);
+            PosPayment::create([
+                'pos_receipt_id' => $receipt->id,
+                'method' => 'transfer',
+                'payment_reference' => $data['payment_ref'] ?? null,
+                'amount' => $transferPart,
+            ]);
+        } else {
+            PosPayment::create([
+                'pos_receipt_id' => $receipt->id,
+                'method' => $data['method'],
+                'payment_reference' => $data['payment_ref'] ?? null,
+                'amount' => $net,
+                'cash_received' => $data['method'] === 'cash' ? ($data['cash_received'] ?? $net) : null,
+                'change_amount' => $data['method'] === 'cash' ? ($data['change_amount'] ?? 0) : null,
+                'card_no' => $data['method'] === 'credit_card' ? ($data['payment_ref'] ?? null) : null,
+                'cheque_no' => $data['method'] === 'cheque' ? ($data['payment_ref'] ?? null) : null,
+            ]);
+        }
+
+        $totals = $this->calculateShiftTotals($shift);
+        $shift->update([
+            'cash_sales' => $totals['cash'],
+            'transfer_sales' => $totals['transfer'],
+            'card_sales' => $totals['credit_card'],
+            'cheque_sales' => $totals['cheque'],
+            'expected_cash' => $this->expectedCash($shift, $totals),
+            'receipt_count' => $totals['receipt_count'],
+        ]);
+
+        return $receipt;
+    }
 
     private function restoreStockForVoidedDocument(Document $document): void
     {
@@ -1406,7 +1595,7 @@ class PosController extends Controller
             ->groupBy('pos_payments.method')
             ->pluck('total', 'method');
 
-        $returns = \Illuminate\Support\Facades\DB::table('pos_receipt_returns')
+        $returns = DB::table('pos_receipt_returns')
             ->where('pos_shift_id', $shift->id)
             ->where('status', 'completed')
             ->selectRaw('refund_method, sum(total_amount) as total')
@@ -1449,5 +1638,45 @@ class PosController extends Controller
             - $cash['payout'],
             2,
         );
+    }
+
+    private function shiftPayload(PosShift $shift): array
+    {
+        $shift->loadMissing(['branch', 'cashier', 'cashierUser', 'terminal']);
+        $movements = $this->cashMovementTotals($shift);
+
+        return [
+            'id' => $shift->id,
+            'shift_no' => $shift->shift_no,
+            'status' => $shift->status,
+            'branch_id' => $shift->branch_id,
+            'branch_name' => $shift->branch?->name_th,
+            'cashier_id' => $shift->cashier_id,
+            'cashier_name' => $shift->cashier?->name,
+            'cashier_user_id' => $shift->cashier_user_id,
+            'cashier_user_name' => $shift->cashierUser?->name,
+            'opened_at' => $shift->opened_at?->format('Y-m-d H:i:s'),
+            'closed_at' => $shift->closed_at?->format('Y-m-d H:i:s'),
+            'opening_cash' => (float) $shift->opening_cash,
+            'cash_sales' => (float) $shift->cash_sales,
+            'transfer_sales' => (float) $shift->transfer_sales,
+            'card_sales' => (float) $shift->card_sales,
+            'cheque_sales' => (float) $shift->cheque_sales,
+            'expected_cash' => (float) $shift->expected_cash,
+            'counted_cash' => $shift->counted_cash !== null ? (float) $shift->counted_cash : null,
+            'cash_difference' => $shift->cash_difference !== null ? (float) $shift->cash_difference : null,
+            'receipt_count' => (int) $shift->receipt_count,
+            'cash_in' => $movements['cash_in'],
+            'cash_drops' => $movements['drop'],
+            'cash_payouts' => $movements['payout'],
+            'z_report_url' => route('pos.shift.z-report', $shift),
+        ];
+    }
+
+    private function cashierUserId(?int $cashierId): ?int
+    {
+        return $cashierId
+            ? (Salesman::whereKey($cashierId)->value('user_id') ?: auth()->id())
+            : auth()->id();
     }
 }
