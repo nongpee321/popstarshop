@@ -664,9 +664,7 @@ class PosApiController extends Controller
 
     public function returnReceipt(Request $request, SaleReturnService $service): JsonResponse
     {
-        if (! auth()->user()?->hasPermission('pos.void')) {
-            return response()->json(['success' => false, 'message' => 'เฉพาะผู้จัดการสาขาที่รับคืนสินค้า POS ได้'], 403);
-        }
+        // อนุญาตให้ผู้ใช้งาน POS ทุกคนมีสิทธิ์รับคืนสินค้า / คืนเงินได้
 
         $data = $request->validate([
             'receipt_no' => ['required', 'string', 'max:80'],
