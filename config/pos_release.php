@@ -1,8 +1,8 @@
 <?php
 
 return [
-    'version' => '1.1.2',
-    'notes' => 'PopCentral POS 1.1.2: Edit bill, edit cart items directly, refined shift closing, and offline reliability check by branch, promotions directory (3 packs 100), improved readable popup contrast, and offline reliability.',
+    'version' => '1.1.3',
+    'notes' => 'PopCentral POS 1.1.3: Fix auto-open shift issue, require explicit shift opening, handle unclosed shift gracefully with resume/close dialog, edit bill, edit cart items directly, refined shift closing.',
     'pub_date' => '2026-11-04T16:15:00+07:00',
     'platforms' => [
         'windows-x86_64' => [
@@ -11,5 +11,5 @@ return [
         ],
     ],
     'mandatory' => false,
-    'sha256' => 'e9aa390a41c5852f01885c2a61836c60818b77696065a1d4b115b01f3928e7bd',
+    'sha256' => '5939921536e662c0ea0daa748f3dd24f00bd6160ac2b001bed1ca1af020d2bcd',
 ];
