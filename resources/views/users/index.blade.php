@@ -171,11 +171,21 @@
                     </div>
                 </div>
                 <div class="col-12">
-                    <label class="form-label small text-muted d-flex align-items-center flex-wrap gap-1">
-                        <i class="bi bi-shield-check" style="color:var(--erp-primary)"></i>
-                        <span>บทบาท / สิทธิ์</span>
-                        <span class="text-muted">— เลือกได้หลายอัน (เช่น แคชเชียร์ที่รับ/โอนของด้วย ติ๊ก <b>Cashier</b> + <b>คลังสินค้า</b>)</span>
-                    </label>
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                        <label class="form-label small text-muted d-flex align-items-center flex-wrap gap-1 mb-0">
+                            <i class="bi bi-shield-check" style="color:var(--erp-primary)"></i>
+                            <span>บทบาท / สิทธิ์</span>
+                            <span class="text-muted">— เลือกได้หลายอัน</span>
+                        </label>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" style="font-size: 12px; padding: 3px 10px; font-weight: 600;" @click="form.role_ids = [...allRoleIds]; roleError = false">
+                                <i class="bi bi-check-all"></i> เลือกสิทธิ์ทั้งหมด
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size: 12px; padding: 3px 10px;" @click="form.role_ids = []">
+                                <i class="bi bi-x"></i> ล้างทั้งหมด
+                            </button>
+                        </div>
+                    </div>
                     <div class="role-grid" @change="roleError = false">
                         @foreach($roles as $role)
                             <label class="role-chip">
@@ -412,6 +422,7 @@ function userPage() {
         resultUsername: @js(data_get($resetResult, 'username', '')),
         resultPassword: @js(data_get($resetResult, 'password', '')),
         copied: false,
+        allRoleIds: @js($roles->pluck('id')),
         form: { username: '', name: '', email: '', phone: '', position: '', branch_id: '', branch_ids: [], sales_area_id: '', role_ids: [], is_active: true },
 
         editUser(user) {
