@@ -1253,9 +1253,6 @@ class PosController extends Controller
     public function voidReceipt(Request $request, PosReceipt $receipt, GlPostingService $glPosting): JsonResponse
     {
         $user = auth()->user();
-        if (false) {
-            return response()->json(['success' => false, 'message' => 'à¹€à¸‰à¸žà¸²à¸°à¸œà¸¹à¹‰à¸ˆà¸±à¸”à¸à¸²à¸£à¸«à¸£à¸·à¸­ IT à¹€à¸—à¹ˆà¸²à¸™à¸±à¹‰à¸™à¸—à¸µà¹ˆà¸¢à¸à¹€à¸¥à¸´à¸à¸šà¸´à¸¥à¹„à¸”à¹‰'], 403);
-        }
 
         $data = $request->validate([
             'reason' => ['required', 'string', 'max:500'],
@@ -1263,25 +1260,17 @@ class PosController extends Controller
         ]);
 
         if ($receipt->status !== 'completed') {
-            return response()->json(['success' => false, 'message' => 'à¸šà¸´à¸¥à¸™à¸µà¹‰à¸–à¸¹à¸à¸¢à¸à¹€à¸¥à¸´à¸à¹„à¸›à¹à¸¥à¹‰à¸§à¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆà¸­à¸¢à¸¹à¹ˆà¹ƒà¸™à¸ªà¸–à¸²à¸™à¸°à¸—à¸µà¹ˆà¸¢à¸à¹€à¸¥à¸´à¸à¹„à¸”à¹‰'], 422);
+            return response()->json(['success' => false, 'message' => 'บิลนี้ไม่ได้อยู่ในสถานะที่สามารถยกเลิกได้ (อาจถูกยกเลิกไปแล้ว)'], 422);
         }
 
         $receipt->loadMissing(['shift', 'terminal']);
-        if (! $receipt->shift || $receipt->shift->status !== 'open') {
-            return response()->json(['success' => false, 'message' => 'à¸¢à¸à¹€à¸¥à¸´à¸à¸šà¸´à¸¥à¹„à¸”à¹‰à¹€à¸‰à¸žà¸²à¸°à¸šà¸´à¸¥à¹ƒà¸™à¸à¸°à¸—à¸µà¹ˆà¸¢à¸±à¸‡à¹€à¸›à¸´à¸”à¸­à¸¢à¸¹à¹ˆ à¸«à¸²à¸à¸›à¸´à¸”à¸à¸°à¹à¸¥à¹‰à¸§à¹ƒà¸«à¹‰à¹ƒà¸Šà¹‰à¸£à¸±à¸šà¸„à¸·à¸™à¸ªà¸´à¸™à¸„à¹‰à¸²'], 422);
-        }
-        if (! empty($data['shift_id']) && (int) $receipt->shift->id !== (int) $data['shift_id']) {
-            return response()->json(['success' => false, 'message' => 'à¸¢à¸à¹€à¸¥à¸´à¸à¹„à¸”à¹‰à¹€à¸‰à¸žà¸²à¸°à¸šà¸´à¸¥à¹ƒà¸™à¸à¸°à¸›à¸±à¸ˆà¸ˆà¸¸à¸šà¸±à¸™à¸‚à¸­à¸‡à¹€à¸„à¸£à¸·à¹ˆà¸­à¸‡à¸™à¸µà¹‰'], 422);
-        }
-        if ($receipt->receipt_date?->toDateString() !== now()->toDateString()) {
-            return response()->json(['success' => false, 'message' => 'à¸¢à¸à¹€à¸¥à¸´à¸à¸šà¸´à¸¥à¸‚à¹‰à¸²à¸¡à¸§à¸±à¸™à¹„à¸¡à¹ˆà¹„à¸”à¹‰ à¹ƒà¸«à¹‰à¹ƒà¸Šà¹‰à¸£à¸±à¸šà¸„à¸·à¸™à¸ªà¸´à¸™à¸„à¹‰à¸²à¹à¸—à¸™'], 422);
-        }
+
         $hasReturn = DB::table('pos_receipt_returns')
             ->where('pos_receipt_id', $receipt->id)
             ->where('status', 'completed')
             ->exists();
         if ($hasReturn) {
-            return response()->json(['success' => false, 'message' => 'à¸šà¸´à¸¥à¸™à¸µà¹‰à¸¡à¸µà¸à¸²à¸£à¸£à¸±à¸šà¸„à¸·à¸™à¸ªà¸´à¸™à¸„à¹‰à¸²à¹à¸¥à¹‰à¸§ à¸¢à¸à¹€à¸¥à¸´à¸à¸—à¸±à¹‰à¸‡à¸šà¸´à¸¥à¹„à¸¡à¹ˆà¹„à¸”à¹‰'], 422);
+            return response()->json(['success' => false, 'message' => 'บิลนี้มีการรับคืนสินค้าแล้ว ไม่สามารถยกเลิกทั้งบิลได้'], 422);
         }
 
         try {
@@ -1292,23 +1281,15 @@ class PosController extends Controller
                     ->firstOrFail();
 
                 if ($receipt->status !== 'completed') {
-                    throw new RuntimeException('à¸šà¸´à¸¥à¸™à¸µà¹‰à¸–à¸¹à¸à¸¢à¸à¹€à¸¥à¸´à¸à¹„à¸›à¹à¸¥à¹‰à¸§');
+                    throw new RuntimeException('บิลนี้ถูกยกเลิกไปแล้ว');
                 }
-                if (! $receipt->shift || $receipt->shift->status !== 'open') {
-                    throw new RuntimeException('à¸¢à¸à¹€à¸¥à¸´à¸à¸šà¸´à¸¥à¹„à¸”à¹‰à¹€à¸‰à¸žà¸²à¸°à¸šà¸´à¸¥à¹ƒà¸™à¸à¸°à¸—à¸µà¹ˆà¸¢à¸±à¸‡à¹€à¸›à¸´à¸”à¸­à¸¢à¸¹à¹ˆ à¸«à¸²à¸à¸›à¸´à¸”à¸à¸°à¹à¸¥à¹‰à¸§à¹ƒà¸«à¹‰à¹ƒà¸Šà¹‰à¸£à¸±à¸šà¸„à¸·à¸™à¸ªà¸´à¸™à¸„à¹‰à¸²');
-                }
-                if (! empty($data['shift_id']) && (int) $receipt->shift->id !== (int) $data['shift_id']) {
-                    throw new RuntimeException('à¸¢à¸à¹€à¸¥à¸´à¸à¹„à¸”à¹‰à¹€à¸‰à¸žà¸²à¸°à¸šà¸´à¸¥à¹ƒà¸™à¸à¸°à¸›à¸±à¸ˆà¸ˆà¸¸à¸šà¸±à¸™à¸‚à¸­à¸‡à¹€à¸„à¸£à¸·à¹ˆà¸­à¸‡à¸™à¸µà¹‰');
-                }
-                if ($receipt->receipt_date?->toDateString() !== now()->toDateString()) {
-                    throw new RuntimeException('à¸¢à¸à¹€à¸¥à¸´à¸à¸šà¸´à¸¥à¸‚à¹‰à¸²à¸¡à¸§à¸±à¸™à¹„à¸¡à¹ˆà¹„à¸”à¹‰ à¹ƒà¸«à¹‰à¹ƒà¸Šà¹‰à¸£à¸±à¸šà¸„à¸·à¸™à¸ªà¸´à¸™à¸„à¹‰à¸²à¹à¸—à¸™');
-                }
+
                 $hasReturn = DB::table('pos_receipt_returns')
                     ->where('pos_receipt_id', $receipt->id)
                     ->where('status', 'completed')
                     ->exists();
                 if ($hasReturn) {
-                    throw new RuntimeException('à¸šà¸´à¸¥à¸™à¸µà¹‰à¸¡à¸µà¸à¸²à¸£à¸£à¸±à¸šà¸„à¸·à¸™à¸ªà¸´à¸™à¸„à¹‰à¸²à¹à¸¥à¹‰à¸§ à¸¢à¸à¹€à¸¥à¸´à¸à¸—à¸±à¹‰à¸‡à¸šà¸´à¸¥à¹„à¸¡à¹ˆà¹„à¸”à¹‰');
+                    throw new RuntimeException('บิลนี้มีการรับคืนสินค้าแล้ว ไม่สามารถยกเลิกทั้งบิลได้');
                 }
 
                 $oldValues = [
@@ -1370,7 +1351,7 @@ class PosController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'à¸¢à¸à¹€à¸¥à¸´à¸à¸šà¸´à¸¥à¹€à¸£à¸µà¸¢à¸šà¸£à¹‰à¸­à¸¢',
+                'message' => 'ยกเลิกบิลเรียบร้อยแล้ว',
                 'receipt_no' => $receipt->receipt_no,
             ]);
         } catch (RuntimeException $e) {
@@ -1378,149 +1359,33 @@ class PosController extends Controller
         }
     }
 
-    private function findOpenShift(int $branchId, ?int $cashierId = null): ?PosShift
+    public function verifyDrawerPin(Request $request): JsonResponse
     {
-        return PosShift::with(['branch', 'terminal', 'cashier'])
-            ->where('branch_id', $branchId)
-            ->where('status', 'open')
-            ->when($cashierId, fn ($query) => $query->where('cashier_id', $cashierId))
-            ->orderByDesc('opened_at')
-            ->first();
-    }
-
-    private function terminalForBranch(int $branchId): PosTerminal
-    {
-        $branch = Branch::findOrFail($branchId);
-
-        return PosTerminal::firstOrCreate(
-            ['code' => 'WEB-'.$branch->code],
-            ['branch_id' => $branchId, 'name' => 'JET POS '.$branch->code]
-        );
-    }
-
-    private function nextShiftNo(int $branchId): string
-    {
-        $branchCode = Branch::find($branchId)?->code ?? sprintf('%04d', $branchId);
-
-        return 'SHIFT-'.$branchCode.'-'.now()->format('Ymd-His');
-    }
-
-    private function nextHoldNo(int $branchId): string
-    {
-        $branchCode = Branch::find($branchId)?->code ?? sprintf('%04d', $branchId);
-        $prefix = 'HOLD-'.preg_replace('/[^A-Za-z0-9]/', '', $branchCode).'-'.now()->format('Ymd').'-';
-        $last = PosHeldBill::where('hold_no', 'like', $prefix.'%')
-            ->orderByDesc('hold_no')
-            ->lockForUpdate()
-            ->value('hold_no');
-
-        return $prefix.sprintf('%04d', $last ? ((int) substr($last, -4)) + 1 : 1);
-    }
-
-    private function nextPosReceiptNo(PosShift $shift): string
-    {
-        $rawBranchCode = $shift->branch?->code ?? Branch::find($shift->branch_id)?->code ?? sprintf('%04d', $shift->branch_id);
-        $branchCode = substr(preg_replace('/[^A-Za-z0-9]/', '', (string) $rawBranchCode) ?: sprintf('%04d', $shift->branch_id), 0, 8);
-        $prefix = 'CS'.$branchCode.now()->format('Ymd');
-        $lastReceiptNo = PosReceipt::where('pos_terminal_id', $shift->pos_terminal_id)
-            ->where('receipt_no', 'like', $prefix.'%')
-            ->orderByDesc('receipt_no')
-            ->lockForUpdate()
-            ->value('receipt_no');
-        $sequence = $lastReceiptNo ? ((int) substr($lastReceiptNo, -3)) + 1 : 1;
-
-        return $prefix.sprintf('%03d', $sequence);
-    }
-
-    private function recordPosReceipt(PosShift $shift, string $receiptNo, array $data, int $documentId): PosReceipt
-    {
-        $items = collect($data['items']);
-        $gross = round($items->sum(fn ($item) => (float) $item['qty'] * (float) $item['unit_price']), 2);
-        $discount = round((float) (array_key_exists('discount_amount', $data) && $data['discount_amount'] !== null ? $data['discount_amount'] : (((float) ($data['manual_discount_amount'] ?? 0)) + ((float) ($data['promo_discount_amount'] ?? 0)))), 2);
-
-        $vat = round((float) ($data['vat_amount'] ?? 0), 2);
-        $net = max(0.0, round($gross - $discount, 2));
-
-        $receipt = PosReceipt::create([
-            'pos_terminal_id' => $shift->pos_terminal_id,
-            'pos_shift_id' => $shift->id,
-            'document_id' => $documentId,
-            'receipt_no' => $receiptNo,
-            'receipt_date' => now(),
-            'cashier_id' => $shift->cashier_user_id ?: auth()->id(),
-            'cashier_salesman_id' => $data['cashier_id'],
-            'member_id' => $data['member_id'] ?? null,
-            'gross_sales' => $gross,
-            'discount_amount' => $discount,
-            'vat_amount' => $vat,
-            'net_sales' => $net,
-            'status' => 'completed',
+        $request->validate([
+            'password' => 'required|string',
         ]);
 
-        if ($discount > 0) {
-            \App\Models\PosReceiptDiscount::create([
-                'pos_receipt_id' => $receipt->id,
-                'discount_type' => 'manual',
-                'amount' => $discount,
-            ]);
+        $user = $request->user();
+        if (!$user) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบใหม่',
+            ], 401);
         }
 
-        foreach ($items->values() as $index => $item) {
-            $lineNet = round((float) $item['qty'] * (float) $item['unit_price'], 2);
-            PosReceiptItem::create([
-                'pos_receipt_id' => $receipt->id,
-                'seq' => $index + 1,
-                'product_id' => $item['product_id'],
-                'qty' => $item['qty'],
-                'unit_price' => $item['unit_price'],
-                'discount_amount' => 0,
-                'vat_amount' => 0,
-                'net_amount' => $lineNet,
-            ]);
+        if (!\Illuminate\Support\Facades\Hash::check($request->input('password'), $user->password)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'รหัสผ่านเข้าสู่ระบบไม่ถูกต้อง',
+            ], 422);
         }
 
-        if ($data['method'] === 'mixed') {
-            // à¸ˆà¹ˆà¸²à¸¢à¸œà¸ªà¸¡: à¹à¸¢à¸ 2 à¹à¸–à¸§à¸•à¸²à¸¡à¸Šà¹ˆà¸­à¸‡à¸—à¸²à¸‡ â€” à¸¢à¸­à¸”à¸à¸°/à¸£à¸²à¸¢à¸‡à¸²à¸™à¸£à¸§à¸¡à¸ˆà¸²à¸ pos_payments à¸ˆà¸¶à¸‡à¹€à¸‚à¹‰à¸²à¸Šà¹ˆà¸­à¸‡à¸–à¸¹à¸à¹€à¸­à¸‡
-            $cashPart = round((float) ($data['cash_amount'] ?? 0), 2);
-            $transferPart = round($net - $cashPart, 2); // à¸œà¸¹à¸à¸à¸±à¸šà¸¢à¸­à¸”à¸šà¸´à¸¥à¸ˆà¸£à¸´à¸‡ à¸à¸±à¸™à¹€à¸¨à¸©à¸›à¸±à¸”à¹„à¸¡à¹ˆà¸¥à¸‡à¸•à¸±à¸§
-            PosPayment::create([
-                'pos_receipt_id' => $receipt->id,
-                'method' => 'cash',
-                'amount' => $cashPart,
-                'cash_received' => $data['cash_received'] ?? $cashPart,
-                'change_amount' => $data['change_amount'] ?? 0,
-            ]);
-            PosPayment::create([
-                'pos_receipt_id' => $receipt->id,
-                'method' => 'transfer',
-                'payment_reference' => $data['payment_ref'] ?? null,
-                'amount' => $transferPart,
-            ]);
-        } else {
-            PosPayment::create([
-                'pos_receipt_id' => $receipt->id,
-                'method' => $data['method'],
-                'payment_reference' => $data['payment_ref'] ?? null,
-                'amount' => $net,
-                'cash_received' => $data['method'] === 'cash' ? ($data['cash_received'] ?? $net) : null,
-                'change_amount' => $data['method'] === 'cash' ? ($data['change_amount'] ?? 0) : null,
-                'card_no' => $data['method'] === 'credit_card' ? ($data['payment_ref'] ?? null) : null,
-                'cheque_no' => $data['method'] === 'cheque' ? ($data['payment_ref'] ?? null) : null,
-            ]);
-        }
-
-        $totals = $this->calculateShiftTotals($shift);
-        $shift->update([
-            'cash_sales' => $totals['cash'],
-            'transfer_sales' => $totals['transfer'],
-            'card_sales' => $totals['credit_card'],
-            'cheque_sales' => $totals['cheque'],
-            'expected_cash' => $this->expectedCash($shift, $totals),
-            'receipt_count' => $totals['receipt_count'],
+        return response()->json([
+            'ok' => true,
+            'message' => 'ยืนยันรหัสผ่านสำเร็จ',
         ]);
-
-        return $receipt;
     }
+
 
     private function restoreStockForVoidedDocument(Document $document): void
     {
@@ -1541,7 +1406,7 @@ class PosController extends Controller
             ->groupBy('pos_payments.method')
             ->pluck('total', 'method');
 
-        $returns = DB::table('pos_receipt_returns')
+        $returns = \Illuminate\Support\Facades\DB::table('pos_receipt_returns')
             ->where('pos_shift_id', $shift->id)
             ->where('status', 'completed')
             ->selectRaw('refund_method, sum(total_amount) as total')
@@ -1585,80 +1450,4 @@ class PosController extends Controller
             2,
         );
     }
-
-    private function shiftPayload(PosShift $shift): array
-    {
-        $shift->loadMissing(['branch', 'cashier', 'cashierUser', 'terminal']);
-        $movements = $this->cashMovementTotals($shift);
-        $receipts = PosReceipt::where('pos_shift_id', $shift->id);
-        $heldBills = PosHeldBill::where('pos_shift_id', $shift->id);
-        $voidedBillCount = (clone $receipts)->where('status', 'voided')->count();
-        $editedBillCount = (clone $receipts)->where('status', 'voided')->where('void_reason', 'like', '%แก้ไข%')->count();
-
-        return [
-            'id' => $shift->id,
-            'shift_no' => $shift->shift_no,
-            'status' => $shift->status,
-            'branch_id' => $shift->branch_id,
-            'branch_name' => $shift->branch?->name_th,
-            'cashier_id' => $shift->cashier_id,
-            'cashier_name' => $shift->cashier?->name,
-            'cashier_user_id' => $shift->cashier_user_id,
-            'cashier_user_name' => $shift->cashierUser?->name,
-            'opened_at' => $shift->opened_at?->format('Y-m-d H:i:s'),
-            'closed_at' => $shift->closed_at?->format('Y-m-d H:i:s'),
-            'opening_cash' => (float) $shift->opening_cash,
-            'cash_sales' => (float) $shift->cash_sales,
-            'transfer_sales' => (float) $shift->transfer_sales,
-            'card_sales' => (float) $shift->card_sales,
-            'cheque_sales' => (float) $shift->cheque_sales,
-            'expected_cash' => (float) $shift->expected_cash,
-            'counted_cash' => $shift->counted_cash !== null ? (float) $shift->counted_cash : null,
-            'cash_difference' => $shift->cash_difference !== null ? (float) $shift->cash_difference : null,
-            'receipt_count' => (int) $shift->receipt_count,
-            'held_bill_count' => (clone $heldBills)->count(),
-            'resumed_bill_count' => (clone $heldBills)->where('status', 'resumed')->count(),
-            'voided_bill_count' => $voidedBillCount,
-            'edited_bill_count' => $editedBillCount,
-            'cash_in' => $movements['cash_in'],
-            'cash_drops' => $movements['drop'],
-            'cash_payouts' => $movements['payout'],
-            'z_report_url' => route('pos.shift.z-report', $shift),
-        ];
-    }
-
-    private function cashierUserId(?int $cashierId): ?int
-    {
-        return $cashierId
-            ? (Salesman::whereKey($cashierId)->value('user_id') ?: auth()->id())
-            : auth()->id();
-    }
-
-    public function verifyDrawerPin(Request $request): JsonResponse
-    {
-        $request->validate([
-            'password' => 'required|string',
-        ]);
-
-        $user = $request->user();
-        if (!$user) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบใหม่',
-            ], 401);
-        }
-
-        if (!\Illuminate\Support\Facades\Hash::check($request->input('password'), $user->password)) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'รหัสผ่านเข้าสู่ระบบไม่ถูกต้อง',
-            ], 422);
-        }
-
-        return response()->json([
-            'ok' => true,
-            'message' => 'ยืนยันรหัสผ่านสำเร็จ',
-        ]);
-    }
-
 }
