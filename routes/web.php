@@ -2,12 +2,15 @@
 
 use App\Http\Controllers\AccountingAutomationController;
 use App\Http\Controllers\AccountingPeriodController;
+use App\Http\Controllers\ApPaymentController;
 use App\Http\Controllers\AppLauncherController;
+use App\Http\Controllers\ApprovalRuleController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BankAccountController;
 use App\Http\Controllers\BillingNoteController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\BplusOperationController;
+use App\Http\Controllers\BranchReplenishmentController;
 use App\Http\Controllers\CashSaleController;
 use App\Http\Controllers\CashTransferController;
 use App\Http\Controllers\ChartOfAccountController;
@@ -21,24 +24,24 @@ use App\Http\Controllers\DeliveryNoteController;
 use App\Http\Controllers\DiscountCardController;
 use App\Http\Controllers\DocumentBookController;
 use App\Http\Controllers\DocumentBrowserController;
+use App\Http\Controllers\DocumentLifecycleController;
+use App\Http\Controllers\DocumentVoidController;
 use App\Http\Controllers\EcommerceChannelController;
 use App\Http\Controllers\EmployeeController;
-use App\Http\Controllers\ErpMockupController;
 use App\Http\Controllers\ExecutiveDashboardController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\FinancialStatementController;
 use App\Http\Controllers\FixedAssetController;
 use App\Http\Controllers\FlashSaleController;
+use App\Http\Controllers\FleetController;
 use App\Http\Controllers\GlJournalController;
-use App\Http\Controllers\LegacyBackofficeSalesController;
-use App\Http\Controllers\LegacyReportController;
-use App\Http\Controllers\LegacyTableMappingController;
 use App\Http\Controllers\LineIntegrationController;
 use App\Http\Controllers\ManagementControlController;
 use App\Http\Controllers\ManualController;
 use App\Http\Controllers\MasterDataSetupController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\MemberPointController;
+use App\Http\Controllers\MemberPortalController;
 use App\Http\Controllers\ModuleControlController;
 use App\Http\Controllers\MonthlyAccountingController;
 use App\Http\Controllers\NotificationController;
@@ -46,17 +49,21 @@ use App\Http\Controllers\OcrDocumentController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\OrganizationalUnitController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\PosAdminController;
 use App\Http\Controllers\PosBuildController;
 use App\Http\Controllers\PosController;
+use App\Http\Controllers\PosOfflineSaleController;
 use App\Http\Controllers\PosReleaseController;
-use App\Http\Controllers\PortalController;
 use App\Http\Controllers\PriceTableController;
 use App\Http\Controllers\PriceTagController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductionController;
+use App\Http\Controllers\ProductionEfficiencyController;
+use App\Http\Controllers\ProductScanLogController;
 use App\Http\Controllers\ProductUnitController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\PurchaseController;
+use App\Http\Controllers\PurchaseCostAdjustmentController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\QtyPromotionController;
 use App\Http\Controllers\QuotationController;
@@ -73,8 +80,10 @@ use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockCountController;
 use App\Http\Controllers\StockIssueController;
 use App\Http\Controllers\StockTransferController;
+use App\Http\Controllers\StockTransferReceiptController;
 use App\Http\Controllers\StockTransformController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupplierNoteController;
 use App\Http\Controllers\SystemSettingController;
 use App\Http\Controllers\TaxComplianceController;
 use App\Http\Controllers\UserController;
@@ -96,25 +105,35 @@ Route::get('/download/pos', fn () => redirect()->route('python-pos.download'))->
 Route::get('/download/pos/latest.json', [PosReleaseController::class, 'latest'])->name('pos.release.latest');
 Route::get('/download/pos/releases/{filename}', [PosReleaseController::class, 'download'])->name('pos.release.download');
 Route::get('/download/python-pos', [SystemSettingController::class, 'downloadPythonPos'])->name('python-pos.download');
+Route::get('/pos-admin', [PosAdminController::class, 'index'])->name('pos-admin.index');
 Route::get('/password/change', [AuthController::class, 'showChangePassword'])->name('password.change');
 Route::post('/password/change', [AuthController::class, 'updatePassword'])->name('password.update');
 Route::get('/security/mfa', [AuthController::class, 'showMfaSetup'])->name('mfa.setup');
 Route::post('/security/mfa', [AuthController::class, 'enableMfa'])->name('mfa.enable');
 Route::delete('/security/mfa', [AuthController::class, 'disableMfa'])->name('mfa.disable');
 
-Route::get('/portal', [PortalController::class, 'index'])->name('portal');
-Route::get('/', fn () => auth()->check() ? redirect()->route('dashboard') : redirect()->route('login'))->name('home');
+Route::get('/', function () {
+    if (request()->getHost() === 'pos.popstarcenter.com') {
+        // เครื่องแคชเชียร์ใช้ POS Python; ขายบนเว็บใช้ /pos ของ ERP — โดเมนนี้จึงพาไปหน้าดาวน์โหลด POS
+        return redirect()->route('python-pos.download');
+    }
+
+    return view('portal');
+})->name('portal');
 Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');
 Route::post('/employees', [EmployeeController::class, 'store'])->name('employees.store');
-// หน้าตัวอย่างการออกแบบระบบหลังบ้าน — ข้อมูลจำลองล้วน ไม่แตะฐานข้อมูล
-Route::prefix('erp-mockup')->name('erp-mockup.')->group(function () {
-    Route::get('/', [ErpMockupController::class, 'launcher'])->name('launcher');
-    Route::get('/dashboard', [ErpMockupController::class, 'dashboard'])->name('dashboard');
-    Route::get('/products', [ErpMockupController::class, 'products'])->name('products');
-    Route::get('/products/form', [ErpMockupController::class, 'productForm'])->name('product-form');
-    Route::get('/pos-orders', [ErpMockupController::class, 'posOrders'])->name('pos-orders');
-    Route::get('/inventory', [ErpMockupController::class, 'inventory'])->name('inventory');
-    Route::get('/purchase', [ErpMockupController::class, 'purchase'])->name('purchase');
+Route::prefix('fleet')->name('fleet.')->group(function () {
+    Route::get('/', [FleetController::class, 'index'])->name('index');
+    Route::get('/report', [FleetController::class, 'report'])->name('report');
+    Route::get('/board', [FleetController::class, 'board'])->name('board');
+    Route::get('/driver', [FleetController::class, 'driver'])->name('driver');
+    Route::get('/load-sheet/{booking}', [FleetController::class, 'loadSheet'])->name('load-sheet');
+    Route::post('/load-sheet/{booking}', [FleetController::class, 'saveLoadSheet'])->name('load-sheet.save');
+    Route::post('/board/{booking}', [FleetController::class, 'updateBoard'])->name('board.update');
+    Route::post('/board/{booking}/payment', [FleetController::class, 'collectPayment'])->name('board.payment');
+    Route::post('/vehicles', [FleetController::class, 'vehicle'])->name('vehicles.store');
+    Route::post('/trips', [FleetController::class, 'trip'])->name('trips.store');
+    Route::post('/repairs', [FleetController::class, 'repair'])->name('repairs.store');
 });
 Route::prefix('master-data-setup')->name('master-data-setup.')->group(function () {
     Route::get('/', [MasterDataSetupController::class, 'index'])->name('index');
@@ -174,11 +193,8 @@ Route::prefix('ocr/documents')->name('ocr.documents.')->group(function () {
 Route::prefix('pos')->name('pos.')->group(function () {
     Route::get('/', [PosController::class, 'index'])->name('index');
     Route::get('/preview', [PosController::class, 'preview'])->name('preview');
-    Route::get('/customer-display', [PosController::class, 'customerDisplay'])->name('customer-display');
-    Route::view('/compare', 'pos.compare')->name('compare');
     Route::get('/control', [PosController::class, 'control'])->name('control');
     Route::get('/products', [PosController::class, 'products'])->name('products');
-    Route::post('/products/quick-add', [PosController::class, 'quickAddProduct'])->name('products.quick-add');
     Route::get('/members', [PosController::class, 'members'])->name('members');
     Route::get('/promotions', [PosController::class, 'promotions'])->name('promotions');
     Route::get('/shift', [PosController::class, 'activeShift'])->name('shift.active');
@@ -190,240 +206,42 @@ Route::prefix('pos')->name('pos.')->group(function () {
     Route::post('/held-bills', [PosController::class, 'holdBill'])->name('held-bills.store');
     Route::post('/held-bills/{heldBill}/resume', [PosController::class, 'resumeHeldBill'])->name('held-bills.resume');
     Route::post('/receipts/{receipt}/void', [PosController::class, 'voidReceipt'])->name('receipts.void');
-    Route::post('/drawer/verify-pin', [PosController::class, 'verifyDrawerPin'])->name('drawer.verify-pin');
-    Route::post('/drawer/update-pin', [PosController::class, 'updateDrawerPin'])->name('drawer.update-pin');
+    Route::get('/checkout', fn () => redirect()->route('pos.index'))->name('checkout.redirect');
     Route::post('/checkout', [PosController::class, 'checkout'])->name('checkout');
-    Route::post('/activate-token', [PosController::class, 'activateToken'])->name('activate-token');
-    Route::post('/unbind-device', [PosController::class, 'unbindDevice'])->name('unbind-device');
+    Route::post('/scan-logs', [ProductScanLogController::class, 'store'])->name('scan-logs.store');
+    Route::get('/ping', [PosOfflineSaleController::class, 'ping'])->name('ping');
+    Route::post('/offline-sales/sync', [PosOfflineSaleController::class, 'sync'])->name('offline-sales.sync');
+    Route::get('/offline-sales', [PosOfflineSaleController::class, 'index'])->name('offline-sales.index');
+    Route::post('/offline-sales/{offlineSale}/retry', [PosOfflineSaleController::class, 'retry'])->name('offline-sales.retry');
+    Route::post('/offline-sales/{offlineSale}/resolve', [PosOfflineSaleController::class, 'resolve'])->name('offline-sales.resolve');
 });
-// คลังมือถือ: หน้าเดียวสำหรับมือถือ/PDA — รับเข้า (ใบซื้อ/รับตาม PO) + เช็คสต๊อก + ตรวจนับสินค้า
+// คลังมือถือ: หน้าเดียวสำหรับมือถือ/PDA — รับเข้า (ใบซื้อ/รับตาม PO) + เช็คสต๊อก
 Route::prefix('wh')->name('wh.')->group(function () {
     Route::get('/', [WarehouseMobileController::class, 'index'])->name('index');
     Route::get('/lookup', [WarehouseMobileController::class, 'lookup'])->name('lookup');
+    Route::post('/scan-logs', [ProductScanLogController::class, 'store'])->name('scan-logs.store');
     Route::get('/products/{product}', [WarehouseMobileController::class, 'productDetail'])->name('products.detail');
     Route::get('/stock', [WarehouseMobileController::class, 'stock'])->name('stock');
+    Route::post('/stock-counts', [WarehouseMobileController::class, 'countStart'])->name('stock-counts.start');
+    Route::post('/stock-counts/{stockCount}/item', [WarehouseMobileController::class, 'countItem'])->name('stock-counts.item');
     Route::post('/receive', [WarehouseMobileController::class, 'receiveStore'])->name('receive');
     Route::get('/purchase-orders', [WarehouseMobileController::class, 'purchaseOrders'])->name('purchase-orders');
     Route::get('/purchase-orders/{purchaseOrder}', [WarehouseMobileController::class, 'purchaseOrderDetail'])->name('purchase-orders.detail');
     Route::post('/purchase-orders/{purchaseOrder}/receive', [WarehouseMobileController::class, 'purchaseOrderReceive'])->name('purchase-orders.receive');
-    Route::get('/stock-counts', [WarehouseMobileController::class, 'stockCounts'])->name('stock-counts');
-    Route::get('/stock-counts/{stockCount}', [WarehouseMobileController::class, 'stockCountDetail'])->name('stock-counts.detail');
-    Route::post('/stock-counts/{stockCount}/save', [WarehouseMobileController::class, 'stockCountSave'])->name('stock-counts.save');
-    Route::post('/stock-counts/{stockCount}/submit', [WarehouseMobileController::class, 'stockCountSubmit'])->name('stock-counts.submit');
 });
 
 Route::get('/apps', [AppLauncherController::class, 'index'])->name('apps.launcher');
 // หน้าตัวอย่างแพตเทิร์นผิวใหม่ (Vue 3 + Tailwind v4 + โทน JET) — แยกขาดจากหลังบ้านเดิม
-Route::view('/greenfield', 'greenfield.index')->name('greenfield');
 Route::get('/crm', [CrmController::class, 'index'])->name('crm.index');
 Route::post('/crm/activities', [CrmController::class, 'storeActivity'])->name('crm.activities.store');
 Route::patch('/crm/activities/{activity}/complete', [CrmController::class, 'completeActivity'])->name('crm.activities.complete');
+Route::get('/crm/search-customers', [CrmController::class, 'searchCustomers'])->name('crm.search-customers');
 Route::get('/crm/pipeline', [CrmController::class, 'pipeline'])->name('crm.pipeline');
 Route::post('/crm/opportunities', [CrmController::class, 'storeOpportunity'])->name('crm.opportunities.store');
 Route::patch('/crm/opportunities/{opportunity}/stage', [CrmController::class, 'updateOpportunityStage'])->name('crm.opportunities.stage');
 Route::get('/features', [FeatureController::class, 'index'])->name('features.index');
-Route::get('/core-modules', [ManualController::class, 'coreModules'])->name('core-modules.index');
-Route::get('/manual', [ManualController::class, 'index'])->name('manual');
-Route::get('/settings-preview', function () {
-    auth()->loginUsingId(1);
-    request()->merge(['tab' => request('tab', 'func')]);
-    return app(\App\Http\Controllers\SystemSettingController::class)->index();
-})->name('settings.preview');
-Route::get('/settings-module-preview', function () {
-    auth()->loginUsingId(1);
-    return app(\App\Http\Controllers\ModuleControlController::class)->index();
-})->name('settings.module-preview');
-Route::get('/settings-pos-designer-preview', function () {
-    auth()->loginUsingId(1);
-    return app(\App\Http\Controllers\SystemSettingController::class)->posDesigner();
-})->name('settings.pos-designer-preview');
-Route::get('/settings-receipt-preview', function () {
-    auth()->loginUsingId(1);
-    return app(\App\Http\Controllers\ReceiptTemplateController::class)->edit();
-})->name('settings.receipt-preview');
-Route::get('/settings-workflows-preview', function () {
-    auth()->loginUsingId(1);
-    return app(\App\Http\Controllers\WorkflowDefinitionController::class)->index();
-})->name('settings.workflows-preview');
-Route::get('/settings-operations-preview', function () {
-    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-    auth()->login($user);
-    return app(\App\Http\Controllers\OperationsController::class)->index();
-})->name('settings.operations-preview');
-Route::get('/users-preview', function () {
-    auth()->loginUsingId(1);
-    return app(\App\Http\Controllers\UserController::class)->index(request());
-})->name('users.preview');
-Route::get('/finance-preview/{page?}', function ($page = 'finance') {
-    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-    auth()->login($user);
-    return match ($page) {
-        'finance' => app(\App\Http\Controllers\BplusOperationController::class)->finance(),
-        'bank-accounts' => app(\App\Http\Controllers\BankAccountController::class)->index(request()),
-        'cash-transfers' => app(\App\Http\Controllers\CashTransferController::class)->index(request()),
-        'cheques' => app(\App\Http\Controllers\ChequeController::class)->index(request()),
-        'chart-of-accounts' => app(\App\Http\Controllers\ChartOfAccountController::class)->index(request()),
-        'gl-journals' => app(\App\Http\Controllers\GlJournalController::class)->index(request()),
-        'financial-statements' => app(\App\Http\Controllers\FinancialStatementController::class)->index(request()),
-        'tax-compliance' => app(\App\Http\Controllers\TaxComplianceController::class)->index(request()),
-        default => abort(404),
-    };
-})->name('finance.preview');
-Route::get('/pos-user-preview', function () {
-    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-    auth()->login($user);
-    return app(\App\Http\Controllers\PosController::class)->index(app(\App\Services\Sales\MemberPointService::class));
-})->name('pos.user-preview');
-
-Route::get('/products-preview', function () {
-    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-    auth()->login($user);
-    return app(\App\Http\Controllers\ProductController::class)->index(request());
-})->name('products.preview');
-Route::get('/inventory-preview/{page?}', function ($page = 'transfers') {
-    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-    auth()->login($user);
-    return match ($page) {
-        'transfers' => app(\App\Http\Controllers\StockTransferController::class)->index(request()),
-        'transfer-request' => app(\App\Http\Controllers\StockTransferController::class)->requestForm(request()),
-        'transfer-detail' => app(\App\Http\Controllers\StockTransferController::class)->show(\App\Models\Document::whereHas('documentType', fn($q) => $q->where('code', 'STOCK_TRANSFER'))->latest('id')->firstOrFail()),
-        'counts' => app(\App\Http\Controllers\StockCountController::class)->index(request()),
-        'count-detail' => app(\App\Http\Controllers\StockCountController::class)->show(\App\Models\StockCount::latest('id')->firstOrFail()),
-        default => abort(404),
-    };
-})->name('inventory.preview');
-foreach (['documents', 'quotations', 'bookings', 'cash-sales', 'sale-returns', 'billing-notes', 'credit-debit-notes', 'crm', 'pipeline'] as $sp) {
-    Route::get('/sales-preview/' . $sp, function () use ($sp) {
-        $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-        auth()->login($user);
-        if ($sp === 'pipeline') {
-            return app(\App\Http\Controllers\CrmController::class)->pipeline(request());
-        }
-        $ctrl = match ($sp) {
-            'documents' => \App\Http\Controllers\DocumentBrowserController::class,
-            'quotations' => \App\Http\Controllers\QuotationController::class,
-            'bookings' => \App\Http\Controllers\BookingController::class,
-            'cash-sales' => \App\Http\Controllers\CashSaleController::class,
-            'sale-returns' => \App\Http\Controllers\SaleReturnController::class,
-            'billing-notes' => \App\Http\Controllers\BillingNoteController::class,
-            'credit-debit-notes' => \App\Http\Controllers\CreditDebitNoteController::class,
-            'crm' => \App\Http\Controllers\CrmController::class,
-        };
-        return app($ctrl)->index(request());
-    })->name('sales.preview.' . $sp);
-}
-Route::get('/sales-preview', function () {
-    return redirect()->route('sales.preview.documents');
-})->name('sales.preview');
-
-$masterDataControllers = [
-    'master-data-setup' => \App\Http\Controllers\MasterDataSetupController::class,
-    'customers' => \App\Http\Controllers\CustomerController::class,
-    'suppliers' => \App\Http\Controllers\SupplierController::class,
-    'members' => \App\Http\Controllers\MemberController::class,
-    'warehouse-locations' => \App\Http\Controllers\WarehouseLocationController::class,
-    'price-tables' => \App\Http\Controllers\PriceTableController::class,
-    'scale-prices' => \App\Http\Controllers\ScalePriceController::class,
-    'promotions' => \App\Http\Controllers\PromotionController::class,
-    'flash-sales' => \App\Http\Controllers\FlashSaleController::class,
-    'price-tags' => \App\Http\Controllers\PriceTagController::class,
-    'discount-cards' => \App\Http\Controllers\DiscountCardController::class,
-    'member-points' => \App\Http\Controllers\MemberPointController::class,
-    'qty-promotions' => \App\Http\Controllers\QtyPromotionController::class,
-];
-foreach ($masterDataControllers as $mdp => $ctrl) {
-    Route::get('/master-data-preview/' . $mdp, function () use ($ctrl) {
-        $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-        auth()->login($user);
-        return app()->call([app($ctrl), 'index']);
-    })->name('master-data.preview.' . $mdp);
-}
-Route::get('/master-data-preview', function () {
-    return redirect()->route('master-data.preview.master-data-setup');
-})->name('master-data.preview');
-
-// Purchasing & Production preview routes
-Route::get('/purchasing-preview/purchase-orders', function () {
-    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-    auth()->login($user);
-    return app(\App\Http\Controllers\PurchaseOrderController::class)->index(request());
-})->name('purchasing.preview.purchase-orders');
-
-Route::get('/purchasing-preview/stock-issues-req', function () {
-    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-    auth()->login($user);
-    request()->merge(['type' => 'requisition']);
-    return app(\App\Http\Controllers\StockIssueController::class)->index(request());
-})->name('purchasing.preview.stock-issues-req');
-
-Route::get('/purchasing-preview/stock-issues-ret', function () {
-    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-    auth()->login($user);
-    request()->merge(['type' => 'requisition_return']);
-    return app(\App\Http\Controllers\StockIssueController::class)->index(request());
-})->name('purchasing.preview.stock-issues-ret');
-
-Route::get('/purchasing-preview/stock-issues-dam', function () {
-    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-    auth()->login($user);
-    request()->merge(['type' => 'damage']);
-    return app(\App\Http\Controllers\StockIssueController::class)->index(request());
-})->name('purchasing.preview.stock-issues-dam');
-
-Route::get('/purchasing-preview/production', function () {
-    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-    auth()->login($user);
-    return app(\App\Http\Controllers\ProductionController::class)->index();
-})->name('purchasing.preview.production');
-
-Route::get('/purchasing-preview/low-stock', function () {
-    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-    auth()->login($user);
-    request()->merge(['category' => 'inventory', 'report' => 'stock_alerts']);
-    return app(\App\Http\Controllers\ReportController::class)->index(request());
-})->name('purchasing.preview.low-stock');
-
-// Reports preview routes
-foreach (['sales', 'purchasing', 'inventory', 'payment', 'tax'] as $cat) {
-    Route::get('/reports-preview/' . $cat, function () use ($cat) {
-        $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-        auth()->login($user);
-        request()->merge(['category' => $cat]);
-        return app(\App\Http\Controllers\ReportController::class)->index(request());
-    })->name('reports.preview.' . $cat);
-}
-Route::get('/reports-preview/legacy', function () {
-    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-    auth()->login($user);
-    return app(\App\Http\Controllers\LegacyReportController::class)->index(request());
-})->name('reports.preview.legacy');
-
-// Integrations preview routes
-Route::get('/integrations-preview/line', function () {
-    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-    auth()->login($user);
-    return app(\App\Http\Controllers\LineIntegrationController::class)->index();
-})->name('integrations.preview.line');
-
-// Overview preview routes
-Route::get('/overview-preview/dashboard', function () {
-    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-    auth()->login($user);
-    return app(\App\Http\Controllers\DashboardController::class)->index(request());
-})->name('overview.preview.dashboard');
-
-Route::get('/overview-preview/controls', function () {
-    $user = \App\Models\User::where('username', 'nongpee')->first() ?? \App\Models\User::first();
-    auth()->login($user);
-    return app(\App\Http\Controllers\ManagementControlController::class)->index(request());
-})->name('overview.preview.controls');
-Route::get('/inventory/low-stock', function() {
-    return redirect()->route('reports.index', ['category' => 'inventory', 'report' => 'stock_alerts']);
-})->name('inventory.low-stock');
-
+Route::get('/core-modules', [ManualController::class, 'index'])->name('core-modules.index');
 Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
-Route::get('/legacy-reports', [LegacyReportController::class, 'index'])->name('legacy-reports.index');
-Route::get('/legacy-backoffice-sales', [LegacyBackofficeSalesController::class, 'index'])->name('legacy-backoffice-sales.index');
 
 // Typeahead search (Alpine.js pickers on the booking/sale/purchase forms).
 Route::get('/search/customers', [SearchController::class, 'customers'])->name('search.customers');
@@ -439,7 +257,6 @@ Route::prefix('bookings')->name('bookings.')->group(function () {
     Route::get('/', [BookingController::class, 'index'])->name('index');
     Route::get('/create', [BookingController::class, 'create'])->name('create');
     Route::post('/', [BookingController::class, 'store'])->name('store');
-    Route::get('/legacy/{diKey}', [BookingController::class, 'legacyShow'])->name('legacy-show');
     Route::get('/{booking}', [BookingController::class, 'show'])->name('show');
     Route::post('/{booking}/convert', [BookingController::class, 'convert'])->name('convert');
     Route::post('/{booking}/delivery', [BookingController::class, 'recordDelivery'])->name('delivery');
@@ -456,10 +273,19 @@ Route::prefix('cash-sales')->name('cash-sales.')->group(function () {
 Route::prefix('sale-returns')->name('sale-returns.')->group(function () {
     Route::get('/', [SaleReturnController::class, 'index'])->name('index');
     Route::post('/', [SaleReturnController::class, 'store'])->name('store');
+    Route::get('/source', [SaleReturnController::class, 'source'])->name('source');
     Route::get('/{saleReturn}', [SaleReturnController::class, 'show'])->name('show');
+    Route::post('/{saleReturn}/approve', [SaleReturnController::class, 'approve'])->name('approve');
 });
 
 // Payment receipt / voucher show page.
+// จ่ายชำระเจ้าหนี้: เลือกใบซื้อค้างจ่ายได้หลายใบ เงินสด/โอน/เช็ค + หัก ณ ที่จ่าย
+Route::prefix('ap-payments')->name('ap-payments.')->group(function () {
+    Route::get('/', [ApPaymentController::class, 'index'])->name('index');
+    Route::get('/create', [ApPaymentController::class, 'create'])->name('create');
+    Route::post('/', [ApPaymentController::class, 'store'])->name('store');
+});
+
 Route::get('/payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
 Route::get('/payments/{payment}/print', [PaymentController::class, 'print'])->name('payments.print');
 
@@ -469,6 +295,7 @@ Route::prefix('quotations')->name('quotations.')->group(function () {
     Route::post('/', [QuotationController::class, 'store'])->name('store');
     Route::get('/{quotation}', [QuotationController::class, 'show'])->name('show');
     Route::post('/{quotation}/status', [QuotationController::class, 'updateStatus'])->name('status');
+    Route::post('/{quotation}/accept', [QuotationController::class, 'accept'])->name('accept');
     Route::post('/{quotation}/convert', [QuotationController::class, 'convert'])->name('convert');
 });
 
@@ -525,11 +352,24 @@ Route::prefix('purchase-orders')->name('purchase-orders.')->group(function () {
     Route::post('/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('cancel');
 });
 
+Route::get('/settings/approval-rules', [ApprovalRuleController::class, 'index'])->name('settings.approval-rules.index');
+Route::post('/settings/approval-rules', [ApprovalRuleController::class, 'store'])->name('settings.approval-rules.store');
+Route::patch('/settings/approval-rules/{rule}', [ApprovalRuleController::class, 'toggle'])->name('settings.approval-rules.toggle');
+
+Route::prefix('supplier-notes')->name('supplier-notes.')->group(function () {
+    Route::get('/', [SupplierNoteController::class, 'index'])->name('index');
+    Route::post('/', [SupplierNoteController::class, 'store'])->name('store');
+    Route::post('/{note}/approve', [SupplierNoteController::class, 'approve'])->name('approve');
+    Route::post('/{note}/reject', [SupplierNoteController::class, 'reject'])->name('reject');
+});
+
 Route::prefix('purchases')->name('purchases.')->group(function () {
     Route::get('/', [PurchaseController::class, 'index'])->name('index');
     Route::get('/create', [PurchaseController::class, 'create'])->name('create');
     Route::post('/', [PurchaseController::class, 'store'])->name('store');
     Route::get('/{purchase}', [PurchaseController::class, 'show'])->name('show');
+    Route::get('/{purchase}/cost-adjustments', [PurchaseCostAdjustmentController::class, 'create'])->name('cost-adjustments.create');
+    Route::post('/{purchase}/cost-adjustments', [PurchaseCostAdjustmentController::class, 'store'])->name('cost-adjustments.store');
 });
 
 // Product master data (สินค้า/หน่วยนับ): the read-only ETL'd catalog is now editable
@@ -537,7 +377,6 @@ Route::prefix('purchases')->name('purchases.')->group(function () {
 Route::prefix('products')->name('products.')->group(function () {
     Route::get('/', [ProductController::class, 'index'])->name('index');
     Route::post('/', [ProductController::class, 'store'])->name('store');
-    Route::get('/{product}/barcode-label', [ProductController::class, 'barcodeLabel'])->name('barcode-label');
     Route::get('/{product}', [ProductController::class, 'show'])->name('show');
     Route::put('/{product}', [ProductController::class, 'update'])->name('update');
     Route::get('/{product}/lots/{stockLot}/trace', [ProductController::class, 'lotTrace'])->name('lots.trace');
@@ -547,7 +386,6 @@ Route::prefix('products')->name('products.')->group(function () {
     Route::put('/recall-contacts/{recallContact}', [ProductController::class, 'updateRecallContact'])->name('recall-contacts.update');
     Route::post('/{product}/barcodes', [ProductController::class, 'addBarcode'])->name('barcodes.store');
     Route::put('/{product}/barcodes/{productBarcode}', [ProductController::class, 'updateBarcode'])->name('barcodes.update');
-    Route::get('/{product}/branch-prices', [ProductController::class, 'getBranchPrices'])->name('branch-prices');
     Route::post('/{product}/prices', [ProductController::class, 'upsertPrice'])->name('prices.upsert');
     Route::post('/{product}/pos-price-schedules', [ProductController::class, 'storePosPriceSchedule'])->name('pos-price-schedules.store');
     Route::delete('/{product}/pos-price-schedules/{schedule}', [ProductController::class, 'cancelPosPriceSchedule'])->name('pos-price-schedules.destroy');
@@ -555,8 +393,6 @@ Route::prefix('products')->name('products.')->group(function () {
     Route::delete('/{product}/suppliers/{productSupplier}', [ProductController::class, 'removeSupplier'])->name('suppliers.destroy');
     Route::post('/{product}/supplier-prices', [ProductController::class, 'storeSupplierPrice'])->name('supplier-prices.store');
     Route::delete('/{product}/supplier-prices/{supplierPriceSchedule}', [ProductController::class, 'removeSupplierPrice'])->name('supplier-prices.destroy');
-    Route::delete('/{product}', [ProductController::class, 'destroy'])->name('destroy');
-    Route::post('/{product}/quick-stock-in', [ProductController::class, 'quickStockIn'])->name('quick-stock-in');
 });
 
 // Stock transfer (โอนย้ายสต็อก) and stock count adjustment (ตรวจนับสต็อก) - both
@@ -566,9 +402,16 @@ Route::prefix('stock-transfers')->name('stock-transfers.')->group(function () {
     // ขอโอน (พนักงานสาขา, stock.request) - ต้องมาก่อน /{stockTransfer}
     Route::get('/request', [StockTransferController::class, 'requestForm'])->name('request');
     Route::post('/request', [StockTransferController::class, 'requestStore'])->name('request.store');
+    // แนะนำเติมสินค้าระหว่างสาขา (คำนวณจาก branch_stock_policies) - ต้องมาก่อน /{stockTransfer}
+    Route::get('/replenishment', [BranchReplenishmentController::class, 'index'])->name('replenishment.index');
+    Route::post('/replenishment', [BranchReplenishmentController::class, 'store'])->name('replenishment.store');
     Route::post('/', [StockTransferController::class, 'store'])->name('store');
     Route::post('/{stockTransfer}/approve', [StockTransferController::class, 'approve'])->name('approve');
     Route::post('/{stockTransfer}/reject', [StockTransferController::class, 'reject'])->name('reject');
+    // ตรวจรับสินค้าโอนย้ายด้วยสแกนบาร์โค้ดที่ปลายทาง (เสริม ไม่แทนที่ approve/reject เดิม)
+    Route::get('/{stockTransfer}/receipt', [StockTransferReceiptController::class, 'create'])->name('receipt.create');
+    Route::post('/{stockTransfer}/receipt/items', [StockTransferReceiptController::class, 'saveItems'])->name('receipt.save-items');
+    Route::post('/{stockTransfer}/receipt/complete', [StockTransferReceiptController::class, 'complete'])->name('receipt.complete');
     Route::get('/{stockTransfer}', [StockTransferController::class, 'show'])->name('show');
 });
 
@@ -739,7 +582,8 @@ Route::prefix('operations')->name('operations.')->group(function () {
     Route::post('/users/{user}/mfa-reset', [OperationsController::class, 'resetMfa'])->name('mfa-reset');
 });
 Route::get('/database-structure', [DatabaseStructureController::class, 'index'])->name('database-structure.index');
-Route::get('/legacy-mappings', [LegacyTableMappingController::class, 'index'])->name('legacy-mappings.index');
+Route::get('/member/liff', [MemberPortalController::class, 'liff'])->name('member.liff');
+Route::get('/member', [MemberPortalController::class, 'page'])->name('member.portal');
 
 Route::prefix('members')->name('members.')->group(function () {
     Route::get('/', [MemberController::class, 'index'])->name('index');
@@ -749,6 +593,7 @@ Route::prefix('members')->name('members.')->group(function () {
 
 Route::prefix('production')->name('production.')->group(function () {
     Route::get('/', [ProductionController::class, 'index'])->name('index');
+    Route::get('/efficiency', [ProductionEfficiencyController::class, 'index'])->name('efficiency');
     Route::post('/recipes', [ProductionController::class, 'storeRecipe'])->name('recipes.store');
     Route::put('/recipes/{recipe}', [ProductionController::class, 'updateRecipe'])->name('recipes.update');
     Route::post('/recipes/{recipe}/items', [ProductionController::class, 'storeRecipeItem'])->name('recipes.items.store');
@@ -756,6 +601,7 @@ Route::prefix('production')->name('production.')->group(function () {
     Route::post('/orders', [ProductionController::class, 'storeOrder'])->name('orders.store');
     Route::put('/orders/{order}', [ProductionController::class, 'updateOrder'])->name('orders.update');
     Route::post('/orders/{order}/receive', [ProductionController::class, 'receiveOrder'])->name('orders.receive');
+    Route::post('/orders/{order}/close', [ProductionController::class, 'closeOrder'])->name('orders.close');
 });
 
 // สมุดเอกสาร (Document Books): แยกเอกสารประเภทเดียวเป็นหลายเล่ม แต่ละเล่มเลขรันเอง
@@ -767,10 +613,13 @@ Route::prefix('document-books')->name('document-books.')->group(function () {
 
 // ศูนย์เอกสารย้อนหลัง: ต้นไม้ ประเภท->ปี->เดือน + กรองรายวัน ทุกประเภทเอกสาร
 Route::get('/documents', [DocumentBrowserController::class, 'index'])->name('documents.browser');
-Route::get('/documents/legacy/{diKey}', [DocumentBrowserController::class, 'legacyShow'])->name('documents.legacy-show');
 
 // ใบส่งของ/ใบส่งของชั่วคราว (A5): พิมพ์ได้จากใบจองและใบขายทุกชนิด
 Route::get('/documents/{document}/delivery-note', [DeliveryNoteController::class, 'show'])->name('documents.delivery-note');
+Route::post('/documents/{document}/submit', [DocumentLifecycleController::class, 'submit'])->name('documents.submit');
+Route::post('/documents/{document}/void', [DocumentVoidController::class, 'store'])->name('documents.void');
+Route::post('/documents/{document}/approve', [DocumentLifecycleController::class, 'approve'])->name('documents.approve');
+Route::post('/documents/{document}/reject', [DocumentLifecycleController::class, 'reject'])->name('documents.reject');
 // ใบกำกับภาษีเต็มรูปแบบ A4 (ขายสด/ขายเชื่อ) ตามหลัก 9 จุดของสรรพากร
 Route::get('/documents/{document}/tax-invoice', [DeliveryNoteController::class, 'taxInvoice'])->name('documents.tax-invoice');
 
@@ -808,7 +657,6 @@ Route::prefix('scale-prices')->name('scale-prices.')->group(function () {
 Route::prefix('promotions')->name('promotions.')->group(function () {
     Route::get('/', [PromotionController::class, 'index'])->name('index');
     Route::post('/', [PromotionController::class, 'store'])->name('store');
-    Route::post('/bulk', [PromotionController::class, 'bulkCreate'])->name('bulk');
     Route::put('/{promotion}', [PromotionController::class, 'update'])->name('update');
     Route::delete('/{promotion}', [PromotionController::class, 'destroy'])->name('destroy');
 });
@@ -830,7 +678,9 @@ Route::prefix('flash-sales')->name('flash-sales.')->group(function () {
 Route::prefix('price-tags')->name('price-tags.')->group(function () {
     Route::get('/', [PriceTagController::class, 'index'])->name('index');
     Route::post('/', [PriceTagController::class, 'store'])->name('store');
+    Route::get('/{priceTag}/edit', [PriceTagController::class, 'edit'])->name('edit');
     Route::put('/{priceTag}', [PriceTagController::class, 'update'])->name('update');
+    Route::delete('/{priceTag}', [PriceTagController::class, 'destroy'])->name('destroy');
     Route::get('/print', [PriceTagController::class, 'print'])->name('print');
     Route::get('/search-products', [PriceTagController::class, 'searchProducts'])->name('search-products');
     Route::post('/preview', [PriceTagController::class, 'preview'])->name('preview');
@@ -866,7 +716,6 @@ Route::prefix('qty-promotions')->name('qty-promotions.')->group(function () {
 Route::prefix('settings')->name('settings.')->group(function () {
     Route::get('/', [SystemSettingController::class, 'index'])->name('index');
     Route::post('/', [SystemSettingController::class, 'update'])->name('update');
-    Route::post('/logo', [SystemSettingController::class, 'updateLogo'])->name('logo.update');
     Route::post('/layout', [SystemSettingController::class, 'updateLayout'])->name('layout.update');
     Route::get('/pos-designer', [SystemSettingController::class, 'posDesigner'])->name('pos-designer');
     Route::post('/pos-designer', [SystemSettingController::class, 'savePosLayout'])->name('pos-designer.save');
@@ -877,6 +726,8 @@ Route::prefix('settings')->name('settings.')->group(function () {
     Route::post('/reports', [ReportGovernanceController::class, 'update'])->name('reports.update');
     Route::get('/workflows', [WorkflowDefinitionController::class, 'index'])->name('workflows');
     Route::put('/workflows/{workflowDefinition}', [WorkflowDefinitionController::class, 'update'])->name('workflows.update');
+    Route::get('/stock-policies', [SystemSettingController::class, 'stockPolicies'])->name('stock-policies');
+    Route::post('/stock-policies', [SystemSettingController::class, 'updateStockPolicies'])->name('stock-policies.update');
     Route::get('/module-controls', [ModuleControlController::class, 'index'])->name('module-controls');
     Route::post('/module-controls/taxonomies/{type}', [ModuleControlController::class, 'storeTaxonomy'])->name('module-controls.taxonomies.store');
     Route::put('/module-controls/taxonomies/{type}/{id}', [ModuleControlController::class, 'updateTaxonomy'])->name('module-controls.taxonomies.update');
@@ -885,14 +736,18 @@ Route::prefix('settings')->name('settings.')->group(function () {
     Route::post('/receipt-template', [ReceiptTemplateController::class, 'update'])->name('receipt-template.update');
     Route::post('/pos-token', [SystemSettingController::class, 'issuePosToken'])->name('pos-token.issue');
     Route::post('/pos-token/rotate', [SystemSettingController::class, 'rotatePosToken'])->name('pos-token.rotate');
+    Route::post('/pos-token/update', [SystemSettingController::class, 'updatePosDevice'])->name('pos-token.update');
     Route::post('/pos-token/change-branch', [SystemSettingController::class, 'updatePosDeviceBranch'])->name('pos-token.change-branch');
-    Route::post('/pos-token/destroy', [SystemSettingController::class, 'destroyPosDevice'])->name('pos-token.destroy');
+    Route::post('/pos-token/delete', [SystemSettingController::class, 'deletePosDevice'])->name('pos-token.destroy');
+    Route::delete('/pos-token', [SystemSettingController::class, 'deletePosDevice'])->name('pos-token.delete');
+    Route::post('/pos-cashiers/{salesman}/reset-pin', [SystemSettingController::class, 'resetCashierPin'])->name('pos-cashiers.reset-pin');
     Route::post('/pos-terminal/hardware', [SystemSettingController::class, 'updatePosTerminalHardware'])->name('pos-terminal.hardware');
     Route::post('/pos-release', [SystemSettingController::class, 'publishPosRelease'])->name('pos-release.publish');
 });
 
 Route::prefix('line-integrations')->name('line-integrations.')->group(function () {
     Route::get('/', [LineIntegrationController::class, 'index'])->name('index');
+    Route::delete('/members/{memberLineAccount}', [LineIntegrationController::class, 'unlinkMember'])->name('members.unlink');
     Route::post('/', [LineIntegrationController::class, 'store'])->name('store');
     Route::put('/{lineIntegration}', [LineIntegrationController::class, 'update'])->name('update');
 });
@@ -923,6 +778,3 @@ Route::prefix('bplus')->name('bplus.')->group(function () {
     Route::get('/show-price', [BplusOperationController::class, 'showPrice'])->name('show-price');
     Route::post('/show-price', [BplusOperationController::class, 'storeShowPrice'])->name('show-price.store');
 });
-
-Route::post('/api/ai-chat', [\App\Http\Controllers\AiChatController::class, 'chat'])->name('ai.chat');
-Route::get('/ai-assistant', [\App\Http\Controllers\AiChatController::class, 'index'])->name('ai.assistant');
