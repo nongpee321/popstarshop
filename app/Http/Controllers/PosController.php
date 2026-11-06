@@ -739,9 +739,16 @@ class PosController extends Controller
             'closing_note' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $shift = PosShift::where('id', $data['shift_id'])->where('status', 'open')->first();
+        $shift = PosShift::where('id', $data['shift_id'])->first();
         if (! $shift) {
-            return response()->json(['success' => false, 'message' => 'à¹„à¸¡à¹ˆà¸žà¸šà¸à¸°à¸—à¸µà¹ˆà¹€à¸›à¸´à¸”à¸­à¸¢à¸¹à¹ˆ'], 422);
+            return response()->json(['success' => false, 'message' => 'ไม่พบข้อมูลกะนี้ในระบบ'], 422);
+        }
+        if ($shift->status === 'closed') {
+            return response()->json([
+                'success' => true,
+                'message' => 'กะนี้ถูกปิดเรียบร้อยแล้ว',
+                'shift' => $shift,
+            ], 200);
         }
         $branchId = $this->enforcedBranchId((int) $shift->branch_id);
         $cashierId = $this->enforcedCashierId((int) $shift->cashier_id);
