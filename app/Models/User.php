@@ -204,6 +204,24 @@ class User extends Authenticatable
         return $this->hasMany(Document::class, 'created_by');
     }
 
+    public function canSeeAllReportBranches(): bool
+    {
+        return true;
+    }
+
+    public function resolveReportBranch($requestedBranch = null): ?int
+    {
+        if ($requestedBranch !== null && $requestedBranch !== '' && $requestedBranch !== 'all') {
+            return (int) $requestedBranch;
+        }
+        return $this->branch_id ? (int) $this->branch_id : null;
+    }
+
+    public function reportBranchIds(): \Illuminate\Support\Collection
+    {
+        return \App\Models\Branch::pluck('id');
+    }
+
     public function posReceipts(): HasMany
     {
         return $this->hasMany(PosReceipt::class, 'cashier_id');
