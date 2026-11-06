@@ -14,7 +14,9 @@ class PosPaymentValidator
         )), DecimalMath::DISPLAY_MONEY_SCALE);
 
         $discount = DecimalMath::round(
-            (float) (($data['discount_amount'] ?? null) ?: ($data['manual_discount_amount'] ?? 0)),
+            (float) (array_key_exists('discount_amount', $data) && $data['discount_amount'] !== null
+                ? $data['discount_amount']
+                : (((float) ($data['manual_discount_amount'] ?? 0)) + ((float) ($data['promo_discount_amount'] ?? 0)))),
             DecimalMath::DISPLAY_MONEY_SCALE
         );
 
