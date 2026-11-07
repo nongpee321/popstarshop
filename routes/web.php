@@ -7,6 +7,7 @@ use App\Http\Controllers\AppLauncherController;
 use App\Http\Controllers\ApprovalRuleController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BankAccountController;
+use App\Http\Controllers\BasicMasterController;
 use App\Http\Controllers\BillingNoteController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\BplusOperationController;
@@ -134,6 +135,11 @@ Route::prefix('fleet')->name('fleet.')->group(function () {
     Route::post('/vehicles', [FleetController::class, 'vehicle'])->name('vehicles.store');
     Route::post('/trips', [FleetController::class, 'trip'])->name('trips.store');
     Route::post('/repairs', [FleetController::class, 'repair'])->name('repairs.store');
+});
+Route::prefix('basic-master')->name('basic-master.')->group(function () {
+    Route::get('/{type}', [BasicMasterController::class, 'index'])->name('index');
+    Route::post('/{type}', [BasicMasterController::class, 'store'])->name('store');
+    Route::put('/{type}/{id}', [BasicMasterController::class, 'update'])->name('update');
 });
 Route::prefix('master-data-setup')->name('master-data-setup.')->group(function () {
     Route::get('/', [MasterDataSetupController::class, 'index'])->name('index');

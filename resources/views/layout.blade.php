@@ -2066,7 +2066,7 @@
                                 }
                                 $mark = \App\Support\AppMark::forItem($i, $loop->index, $item['tone'] ?? 'blue');
                             @endphp
-                            <a href="{{ route($item['route'], $item['params'] ?? []) }}"
+                            <a href="{{ \Illuminate\Support\Facades\Route::has($item['route']) ? route($item['route'], $item['params'] ?? []) : '#' }}"
                                class="odn-item t-{{ $item['tone'] ?? 'blue' }} {{ $active ? 'active' : '' }}"
                                data-s="{{ mb_strtolower($item['label']) }}"
                                @if(isset($item['target'])) target="{{ $item['target'] }}" @endif>
@@ -2128,7 +2128,7 @@
                                     $active = !request()->filled('category');
                                 }
                             @endphp
-                            <a href="{{ route($item['route'], $item['params'] ?? []) }}" class="fa-subnav-link {{ $active ? 'active' : '' }}" @if(isset($item['target'])) target="{{ $item['target'] }}" @endif>
+                            <a href="{{ \Illuminate\Support\Facades\Route::has($item['route']) ? route($item['route'], $item['params'] ?? []) : '#' }}" class="fa-subnav-link {{ $active ? 'active' : '' }}" @if(isset($item['target'])) target="{{ $item['target'] }}" @endif>
                                 <i class="bi {{ $item['icon'] }}"></i>
                                 <span>{{ $item['label'] }}</span>
                             </a>
