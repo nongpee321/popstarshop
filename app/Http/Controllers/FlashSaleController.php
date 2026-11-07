@@ -24,11 +24,35 @@ class FlashSaleController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        if (empty(trim((string)$request->input('code')))) {
+            $request->merge(['code' => 'FS-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4))]);
+        }
         $data = $this->validateFlashSale($request);
+        $items = $request->input('items', []);
+        unset($data['items']);
+
         $flashSale = FlashSale::create($data);
+
+        // บันทึกสินค้าที่เลือกเข้าร่วมนาทีทองทันทีถ้ามี
+        if (is_array($items)) {
+            foreach ($items as $item) {
+                if (!empty($item['product_id']) && isset($item['flash_price']) && is_numeric($item['flash_price'])) {
+                    FlashSaleItem::updateOrCreate(
+                        ['flash_sale_id' => $flashSale->id, 'product_id' => (int)$item['product_id']],
+                        [
+                            'flash_price' => (float)$item['flash_price'],
+                            'max_qty_per_bill' => !empty($item['max_qty_per_bill']) ? (float)$item['max_qty_per_bill'] : null,
+                        ]
+                    );
+                }
+            }
+        }
+
         \App\Support\PosSyncNotifier::notifyChange();
 
-        return redirect()->route('flash-sales.show', $flashSale)->with('success', "สร้างแคมเปญนาทีทอง {$flashSale->code} แล้ว");
+        $itemCount = $flashSale->items()->count();
+        $msg = "สร้างแคมเปญนาทีทอง {$flashSale->code} สำเร็จ" . ($itemCount > 0 ? " พร้อมสินค้า {$itemCount} รายการ" : "");
+        return redirect()->route('flash-sales.show', $flashSale)->with('success', $msg);
     }
 
     public function show(Request $request, FlashSale $flashSale): View
@@ -122,6 +146,10 @@ class FlashSaleController extends Controller
             'days_of_week.*' => ['integer', 'min:0', 'max:6'],
             'note' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['nullable', 'boolean'],
+            'items' => ['nullable', 'array'],
+            'items.*.product_id' => ['required_with:items', 'integer', 'exists:products,id'],
+            'items.*.flash_price' => ['required_with:items', 'numeric', 'min:0'],
+            'items.*.max_qty_per_bill' => ['nullable', 'numeric', 'min:0.0001'],
         ], [
             'code.required' => 'กรุณาระบุรหัสกลุ่มนาทีทอง',
             'code.unique' => 'รหัสนี้ถูกใช้ไปแล้ว กรุณาใช้รหัสอื่น',

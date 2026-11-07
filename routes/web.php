@@ -666,6 +666,7 @@ Route::prefix('promotions')->name('promotions.')->group(function () {
 Route::prefix('flash-sales')->name('flash-sales.')->group(function () {
     Route::get('/', [FlashSaleController::class, 'index'])->name('index');
     Route::post('/', [FlashSaleController::class, 'store'])->name('store');
+    Route::get('/search-products', [FlashSaleController::class, 'searchProducts'])->name('search-products-global');
     Route::get('/{flashSale}', [FlashSaleController::class, 'show'])->name('show');
     Route::put('/{flashSale}', [FlashSaleController::class, 'update'])->name('update');
     Route::post('/{flashSale}/items', [FlashSaleController::class, 'upsertItem'])->name('items.upsert');

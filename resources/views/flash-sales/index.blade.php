@@ -136,6 +136,44 @@
         font-weight: 700;
         box-shadow: 0 2px 6px rgba(220, 38, 38, 0.15);
     }
+    .product-search-dropdown {
+        position: absolute;
+        z-index: 1050;
+        left: 0;
+        right: 0;
+        top: 100%;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15);
+        max-height: 280px;
+        overflow-y: auto;
+        padding: 6px;
+        margin-top: 4px;
+    }
+    .product-search-item {
+        padding: 10px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.12s;
+    }
+    .product-search-item:hover {
+        background: #fee2e2;
+    }
+    .product-quick-box {
+        background: #ffffff;
+        border: 1.5px solid #fca5a5;
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.08);
+        margin-bottom: 16px;
+    }
+    .item-table {
+        background: #ffffff;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+    }
     .btn-create-flash {
         background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
         border: none;
@@ -204,7 +242,7 @@
             </div>
             <h1 class="h3 fw-bold mb-1 text-white">แคมเปญราคานาทีทอง (Flash Sale)</h1>
             <p class="text-white text-opacity-90 small mb-0">
-                ตั้งราคานาทีทองล่วงหน้า กำหนดช่วงเวลาเป็นรายวัน/สัปดาห์ เมื่อถึงเวลาระบบ POS จะเปลี่ยนราคาอัตโนมัติทันที
+                ตั้งราคานาทีทองล่วงหน้า เลือกสินค้าและใส่ราคาพิเศษได้ทันที เมื่อถึงเวลาระบบ POS จะเปลี่ยนราคาอัตโนมัติ
             </p>
         </div>
         <div class="d-flex gap-2">
@@ -268,7 +306,7 @@
                 </div>
                 <div>
                     <h2 class="h6 fw-bold mb-0 text-dark">สร้างแคมเปญนาทีทองใหม่</h2>
-                    <span class="text-muted small">กรอกข้อมูลง่ายๆ ในไม่กี่ขั้นตอน พร้อมปุ่มลัดเลือกช่วงเวลา</span>
+                    <span class="text-muted small">กำหนดช่วงเวลา สาขา และเลือกสินค้าที่เข้าร่วมนาทีทองได้ทันทีในหน้านี้</span>
                 </div>
             </div>
             <div class="form-check form-switch mb-0">
@@ -386,7 +424,7 @@
                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
                         <div class="section-title mb-0">
                             <i class="bi bi-calendar-week-fill text-danger fs-5"></i>
-                            <span>3. วันที่มีผลในสัปดาห์ & เงื่อนไขเพิ่มเติม</span>
+                            <span>3. วันที่มีผลในสัปดาห์ & หมายเหตุ</span>
                         </div>
                         {{-- ปุ่มลัดเลือกวัน --}}
                         <div class="d-flex flex-wrap align-items-center gap-1 mt-1 mt-md-0">
@@ -440,17 +478,151 @@
                     </div>
                 </div>
 
+                {{-- ส่วนที่ 4: เลือกสินค้าและกำหนดราคานาทีทอง --}}
+                <div class="section-box" style="background: #ffffff; border: 1.5px solid #fecaca;">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="section-title mb-0 text-danger">
+                            <i class="bi bi-box-seam-fill fs-5"></i>
+                            <span>4. เลือกสินค้าที่เข้าร่วมนาทีทอง (กำหนดราคานาทีทองที่นี่ได้ทันที)</span>
+                        </div>
+                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2.5 py-1 rounded-pill" x-text="'เลือกแล้ว ' + items.length + ' รายการ'"></span>
+                    </div>
+
+                    {{-- ช่องค้นหาสินค้า --}}
+                    <div class="position-relative mb-3">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white text-danger border-end-0"><i class="bi bi-search"></i></span>
+                            <input type="text" x-model="searchQuery" @input.debounce.250ms="searchProducts()"
+                                placeholder="พิมพ์ชื่อสินค้า, รหัส SKU, หรือยิงสแกนบาร์โค้ดเพื่อเลือกสินค้า..." class="form-control border-start-0 ps-0" autocomplete="off">
+                            <button type="button" class="btn btn-outline-secondary" x-show="searchQuery" @click="searchQuery = ''; searchResults = []">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+
+                        {{-- Dropdown ผลการค้นหา --}}
+                        <div class="product-search-dropdown" x-show="searchResults.length > 0" x-cloak>
+                            <template x-for="p in searchResults" :key="p.id">
+                                <div class="product-search-item" @click="selectProduct(p)">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <span class="badge bg-light text-dark border me-1" x-text="p.sku_code"></span>
+                                            <strong class="text-dark" x-text="p.name_th"></strong>
+                                        </div>
+                                        <div class="text-end small">
+                                            <span class="text-muted me-2" x-text="'ราคาปกติ ฿' + Number(p.default_price).toFixed(2)"></span>
+                                            <span class="badge bg-secondary bg-opacity-10 text-secondary" x-text="'ทุน ฿' + Number(p.average_cost || 0).toFixed(2)"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    {{-- กล่องกำหนดราคาของสินค้าที่เลือก --}}
+                    <div class="product-quick-box" x-show="selectedProduct" x-cloak x-transition>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-danger text-white px-2 py-1" x-text="selectedProduct?.sku_code"></span>
+                                <strong class="fs-6 text-dark" x-text="selectedProduct?.name_th"></strong>
+                            </div>
+                            <button type="button" @click="cancelSelectProduct()" class="btn-close btn-sm" title="ปิด"></button>
+                        </div>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted mb-1">ราคาปกติปัจจุบัน</label>
+                                <input type="text" readonly class="form-control form-control-sm bg-light text-end fw-semibold" :value="'฿ ' + Number(selectedProduct?.default_price || 0).toFixed(2)">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-danger mb-1">ราคานาทีทอง (฿) <span class="text-danger">*</span></label>
+                                <input type="number" step="0.01" min="0" x-model="newItemPrice" x-ref="flashPriceInput" class="form-control form-control-sm text-end fw-bold text-danger" placeholder="0.00">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted mb-1">จำกัดต่อบิล (เว้นว่าง = ไม่จำกัด)</label>
+                                <input type="number" step="0.0001" min="0" x-model="newItemMaxQty" class="form-control form-control-sm text-end" placeholder="ไม่จำกัด">
+                            </div>
+                            <div class="col-md-3 d-flex gap-2">
+                                <button type="button" @click="addItem()" class="btn btn-success btn-sm w-100 fw-bold">
+                                    <i class="bi bi-plus-lg me-1"></i> เพิ่มลงรายการ
+                                </button>
+                                <button type="button" @click="cancelSelectProduct()" class="btn btn-light btn-sm border">
+                                    ยกเลิก
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- ตารางรายการสินค้าที่เลือกแล้ว --}}
+                    <div class="item-table table-responsive">
+                        <table class="table modern-table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">#</th>
+                                    <th>สินค้า</th>
+                                    <th class="text-end" style="width: 130px;">ราคาปกติ</th>
+                                    <th class="text-end" style="width: 160px;">ราคานาทีทอง</th>
+                                    <th class="text-center" style="width: 110px;">ส่วนลด</th>
+                                    <th class="text-center" style="width: 130px;">จำกัด/บิล</th>
+                                    <th class="text-end" style="width: 80px;">ลบ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="(item, index) in items" :key="item.product_id">
+                                    <tr>
+                                        <td class="text-muted small" x-text="index + 1"></td>
+                                        <td>
+                                            <span class="badge bg-light text-dark border me-1" x-text="item.sku_code"></span>
+                                            <span class="fw-semibold text-dark" x-text="item.name_th"></span>
+                                            {{-- Hidden form inputs --}}
+                                            <input type="hidden" :name="'items[' + index + '][product_id]'" :value="item.product_id">
+                                            <input type="hidden" :name="'items[' + index + '][flash_price]'" :value="item.flash_price">
+                                            <input type="hidden" :name="'items[' + index + '][max_qty_per_bill]'" :value="item.max_qty_per_bill">
+                                        </td>
+                                        <td class="text-end text-muted">
+                                            <span x-text="'฿ ' + Number(item.default_price).toFixed(2)"></span>
+                                        </td>
+                                        <td class="text-end">
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text bg-white text-danger border-end-0">฿</span>
+                                                <input type="number" step="0.01" min="0" x-model.number="item.flash_price" class="form-control form-control-sm text-end fw-bold text-danger border-start-0 ps-0">
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge bg-danger bg-opacity-10 text-danger"
+                                                x-text="item.default_price > 0 ? ('-' + Math.round((1 - (item.flash_price / item.default_price)) * 100) + '%') : '-'">
+                                            </span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge bg-light text-dark border" x-text="item.max_qty_per_bill ? item.max_qty_per_bill : 'ไม่จำกัด'"></span>
+                                        </td>
+                                        <td class="text-end">
+                                            <button type="button" @click="removeItem(index)" class="btn btn-outline-danger btn-sm p-1 px-2 rounded-circle" title="ลบรายการนี้">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr x-show="items.length === 0">
+                                    <td colspan="7" class="text-center py-4 text-muted">
+                                        <i class="bi bi-box-arrow-in-down fs-4 d-block mb-1 text-secondary"></i>
+                                        ยังไม่ได้เลือกสินค้า — ค้นหาและกดเพิ่มสินค้าด้านบนได้ทันที (หรือสร้างแคมเปญก่อนแล้วไปเลือกสินค้าทีหลังก็ได้)
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
                 {{-- Action Buttons --}}
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 pt-2">
                     <span class="text-muted small">
-                        <i class="bi bi-shield-check text-success me-1"></i> เมื่อสร้างแคมเปญเสร็จ ระบบจะนำคุณไปสู่หน้ากำหนดรายการสินค้าและราคานาทีทองทันที
+                        <i class="bi bi-shield-check text-success me-1"></i> สินค้าและราคานาทีทองที่เลือกจะถูกบันทึกและซิงค์ไปยังเครื่อง POS อัตโนมัติทันที
                     </span>
                     <div class="d-flex gap-2">
                         <button type="reset" @click="resetForm()" class="btn btn-light px-4 py-2 border rounded-pill text-muted">
                             <i class="bi bi-arrow-counterclockwise me-1"></i> ล้างข้อมูล
                         </button>
                         <button type="submit" class="btn-create-flash rounded-pill">
-                            <i class="bi bi-plus-circle me-1"></i> สร้างแคมเปญนาทีทอง → กำหนดสินค้า
+                            <i class="bi bi-plus-circle me-1"></i> บันทึกและสร้างแคมเปญนาทีทอง
                         </button>
                     </div>
                 </div>
@@ -600,6 +772,14 @@ function flashSaleApp() {
         noEndDate: false,
         selectedDays: @json(old('days_of_week', [])),
 
+        // ค้นหาและจัดการสินค้า
+        searchQuery: '',
+        searchResults: [],
+        selectedProduct: null,
+        newItemPrice: '',
+        newItemMaxQty: '',
+        items: [],
+
         generateCode() {
             const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
             const rand = Math.floor(1000 + Math.random() * 9000);
@@ -629,12 +809,81 @@ function flashSaleApp() {
             }
         },
 
+        searchProducts() {
+            const q = this.searchQuery.trim();
+            if (q.length < 1) {
+                this.searchResults = [];
+                return;
+            }
+            fetch('{{ route("flash-sales.search-products-global") }}?q=' + encodeURIComponent(q))
+                .then(res => res.json())
+                .then(data => {
+                    this.searchResults = data;
+                })
+                .catch(() => {
+                    this.searchResults = [];
+                });
+        },
+
+        selectProduct(p) {
+            this.selectedProduct = p;
+            this.newItemPrice = Number(p.default_price || 0).toFixed(2);
+            this.newItemMaxQty = '';
+            this.searchResults = [];
+            this.searchQuery = '';
+            this.$nextTick(() => {
+                if (this.$refs.flashPriceInput) {
+                    this.$refs.flashPriceInput.focus();
+                    this.$refs.flashPriceInput.select();
+                }
+            });
+        },
+
+        cancelSelectProduct() {
+            this.selectedProduct = null;
+            this.newItemPrice = '';
+            this.newItemMaxQty = '';
+        },
+
+        addItem() {
+            if (!this.selectedProduct) return;
+            const price = parseFloat(this.newItemPrice);
+            if (isNaN(price) || price < 0) {
+                alert('กรุณาระบุราคานาทีทองที่ถูกต้อง');
+                return;
+            }
+
+            const existing = this.items.find(i => i.product_id === this.selectedProduct.id);
+            if (existing) {
+                existing.flash_price = price;
+                existing.max_qty_per_bill = this.newItemMaxQty ? parseFloat(this.newItemMaxQty) : null;
+            } else {
+                this.items.push({
+                    product_id: this.selectedProduct.id,
+                    sku_code: this.selectedProduct.sku_code,
+                    name_th: this.selectedProduct.name_th,
+                    default_price: parseFloat(this.selectedProduct.default_price || 0),
+                    average_cost: parseFloat(this.selectedProduct.average_cost || 0),
+                    flash_price: price,
+                    max_qty_per_bill: this.newItemMaxQty ? parseFloat(this.newItemMaxQty) : null
+                });
+            }
+
+            this.cancelSelectProduct();
+        },
+
+        removeItem(index) {
+            this.items.splice(index, 1);
+        },
+
         resetForm() {
             this.generateCode();
             this.startTime = '17:00';
             this.endTime = '19:30';
             this.noEndDate = false;
             this.selectedDays = [];
+            this.items = [];
+            this.cancelSelectProduct();
         }
     };
 }
