@@ -12,6 +12,7 @@ use App\Models\PosCashMovement;
 use App\Models\PosHeldBill;
 use App\Models\PosPayment;
 use App\Models\PosReceipt;
+use App\Models\PosReceiptDiscount;
 use App\Models\PosReceiptItem;
 use App\Models\PosShift;
 use App\Models\PosTerminal;
@@ -1499,9 +1500,9 @@ class PosController extends Controller
     {
         $items = collect($data['items']);
         $gross = round($items->sum(fn ($item) => (float) $item['qty'] * (float) $item['unit_price']), 2);
-        $discount = round((float) ($data['discount_amount'] ?? 0), 2);
+        $discount = round((float) (array_key_exists('discount_amount', $data) && $data['discount_amount'] !== null ? $data['discount_amount'] : (((float) ($data['manual_discount_amount'] ?? 0)) + ((float) ($data['promo_discount_amount'] ?? 0)))), 2);
         $vat = round((float) ($data['vat_amount'] ?? 0), 2);
-        $net = round($gross, 2);
+        $net = max(0.0, round($gross - $discount, 2));
 
         $receipt = PosReceipt::create([
             'pos_terminal_id' => $shift->pos_terminal_id,
@@ -1518,6 +1519,13 @@ class PosController extends Controller
             'net_sales' => $net,
             'status' => 'completed',
         ]);
+
+        if ($discount > 0) {
+            PosReceiptDiscount::updateOrCreate(
+                ['pos_receipt_id' => $receipt->id, 'discount_type' => ((float) ($data['promo_discount_amount'] ?? 0) > 0 ? 'promo' : 'manual')],
+                ['amount' => $discount]
+            );
+        }
 
         foreach ($items->values() as $index => $item) {
             $lineNet = round((float) $item['qty'] * (float) $item['unit_price'], 2);
