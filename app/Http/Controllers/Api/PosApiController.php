@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\PosController;
 use App\Models\AppSetting;
+use App\Models\Document;
 use App\Models\AuditLog;
 use App\Models\PosDevice;
 use App\Models\PosReceipt;
@@ -765,10 +766,14 @@ class PosApiController extends Controller
                     ];
                 }
 
+                $sourceDoc = $receipt->document_id ? Document::find($receipt->document_id) : null;
+
                 $document = $service->create([
                     'branch_id' => (int) $branchId,
-                    'customer_id' => null,
+                    'customer_id' => $sourceDoc?->customer_id,
                     'customer_open_item_id' => null,
+                    'source_doc_number' => $sourceDoc?->doc_number,
+                    'allow_unreferenced' => true,
                     'remark' => trim('POS return '.$receipt->receipt_no.': '.$data['reason']),
                     'items' => array_map(fn ($item) => [
                         'product_id' => $item['product_id'],
