@@ -7,11 +7,11 @@
         font-family: "Sarabun", "Segoe UI", Tahoma, sans-serif;
     }
     .hero-banner {
-        background: linear-gradient(135deg, #b91c1c 0%, #dc2626 50%, #ea580c 100%);
+        background: linear-gradient(135deg, #991b1b 0%, #dc2626 50%, #f97316 100%);
         border-radius: 20px;
         color: white;
         padding: 24px 28px;
-        box-shadow: 0 10px 25px -5px rgba(220, 38, 38, 0.3);
+        box-shadow: 0 10px 25px -5px rgba(220, 38, 38, 0.35);
         margin-bottom: 24px;
         position: relative;
         overflow: hidden;
@@ -21,9 +21,9 @@
         position: absolute;
         top: -50%;
         right: -10%;
-        width: 300px;
-        height: 300px;
-        background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 70%);
+        width: 320px;
+        height: 320px;
+        background: radial-gradient(circle, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 70%);
         border-radius: 50%;
         pointer-events: none;
     }
@@ -55,9 +55,9 @@
         background: #ffffff;
         border: 1px solid #e2e8f0;
         border-radius: 18px;
-        box-shadow: 0 4px 14px rgba(0,0,0,0.03);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.04);
         overflow: hidden;
-        margin-bottom: 24px;
+        margin-bottom: 28px;
     }
     .form-card-header {
         background: #f8fafc;
@@ -68,48 +68,90 @@
         justify-content: space-between;
     }
     .form-card-body {
-        padding: 24px;
+        padding: 26px 28px;
     }
-    .section-label {
-        font-size: 13px;
+    .section-box {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 18px 20px;
+        margin-bottom: 20px;
+    }
+    .section-title {
+        font-size: 13.5px;
         font-weight: 700;
-        color: #475569;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 12px;
+        color: #1e293b;
+        letter-spacing: 0.3px;
+        margin-bottom: 14px;
         display: flex;
         align-items: center;
         gap: 8px;
     }
-    .day-selector-pill {
+    .quick-preset-btn {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        padding: 6px 12px;
-        background: #f1f5f9;
-        border: 1px solid #cbd5e1;
+        padding: 5px 12px;
         border-radius: 20px;
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 600;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
         color: #334155;
         cursor: pointer;
-        user-select: none;
-        transition: all 0.15s;
+        transition: all 0.15s ease;
     }
-    .day-selector-pill:hover {
-        background: #e2e8f0;
-    }
-    .day-selector-pill input:checked + span {
-        color: #b91c1c;
-        font-weight: 700;
-    }
-    .day-selector-pill:has(input:checked) {
+    .quick-preset-btn:hover {
         background: #fee2e2;
         border-color: #f87171;
         color: #b91c1c;
+        transform: translateY(-1px);
     }
-    .modern-table {
-        margin-bottom: 0;
+    .day-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 14px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        border: 1.5px solid #cbd5e1;
+        background: #ffffff;
+        color: #475569;
+        transition: all 0.15s ease;
+        user-select: none;
+    }
+    .day-pill:hover {
+        background: #f1f5f9;
+        border-color: #94a3b8;
+    }
+    .day-pill input {
+        display: none;
+    }
+    .day-pill.active {
+        border-color: #dc2626 !important;
+        background: #fef2f2 !important;
+        color: #b91c1c !important;
+        font-weight: 700;
+        box-shadow: 0 2px 6px rgba(220, 38, 38, 0.15);
+    }
+    .btn-create-flash {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        border: none;
+        color: #ffffff;
+        font-weight: 700;
+        padding: 12px 28px;
+        border-radius: 12px;
+        box-shadow: 0 4px 14px rgba(220, 38, 38, 0.3);
+        transition: all 0.2s;
+        font-size: 14.5px;
+    }
+    .btn-create-flash:hover {
+        background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(220, 38, 38, 0.4);
+        color: #ffffff;
     }
     .modern-table th {
         background: #f8fafc;
@@ -122,16 +164,16 @@
         border-bottom: 1px solid #e2e8f0;
     }
     .modern-table td {
-        padding: 16px 18px;
+        padding: 15px 18px;
         vertical-align: middle;
         border-bottom: 1px solid #f1f5f9;
-        font-size: 14px;
+        font-size: 13.5px;
     }
     .modern-table tbody tr:hover {
         background-color: #fef2f2;
     }
     .status-badge {
-        padding: 6px 12px;
+        padding: 5px 12px;
         border-radius: 20px;
         font-size: 12px;
         font-weight: 700;
@@ -147,27 +189,11 @@
         background: #f1f5f9;
         color: #64748b;
     }
-    .btn-create-flash {
-        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-        border: none;
-        color: #ffffff;
-        font-weight: 700;
-        padding: 12px 24px;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
-        transition: all 0.2s;
-    }
-    .btn-create-flash:hover {
-        background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
-        transform: translateY(-1px);
-        box-shadow: 0 6px 16px rgba(220, 38, 38, 0.35);
-        color: #ffffff;
-    }
 </style>
 
-<div class="container-fluid px-4 py-4 flash-sale-wrapper">
+<div class="container-fluid px-4 py-4 flash-sale-wrapper" x-data="flashSaleApp()">
 
-    {{-- ── Banner หัวหน้าจอ ── --}}
+    {{-- Banner หัวหน้าจอ --}}
     <div class="hero-banner d-flex flex-wrap align-items-center justify-content-between gap-3">
         <div>
             <div class="d-flex align-items-center gap-2 mb-1">
@@ -191,7 +217,7 @@
         </div>
     </div>
 
-    {{-- ── บัตรสรุปสถานะ (KPI Summary Cards) ── --}}
+    {{-- บัตรสรุปสถานะ (KPI Summary Cards) --}}
     @php
         $totalCampaigns = $flashSales->total();
         $activeCampaigns = \App\Models\FlashSale::where('is_active', true)->count();
@@ -233,16 +259,16 @@
         </div>
     </div>
 
-    {{-- ── การ์ดแบบฟอร์มสร้างแคมเปญ (New Form Layout) ── --}}
+    {{-- การ์ดแบบฟอร์มสร้างแคมเปญใหม่ --}}
     <div class="form-card">
         <div class="form-card-header">
             <div class="d-flex align-items-center gap-2">
-                <div class="bg-danger text-white rounded-circle p-2 d-inline-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                <div class="bg-danger text-white rounded-circle p-2 d-inline-flex align-items-center justify-content-center" style="width: 34px; height: 34px;">
                     <i class="bi bi-plus-lg fs-6"></i>
                 </div>
                 <div>
                     <h2 class="h6 fw-bold mb-0 text-dark">สร้างแคมเปญนาทีทองใหม่</h2>
-                    <span class="text-muted small">กำหนดช่วงเวลา สาขา และเงื่อนไขวันในสัปดาห์</span>
+                    <span class="text-muted small">กรอกข้อมูลง่ายๆ ในไม่กี่ขั้นตอน พร้อมปุ่มลัดเลือกช่วงเวลา</span>
                 </div>
             </div>
             <div class="form-check form-switch mb-0">
@@ -255,111 +281,184 @@
             <form id="createFlashSaleForm" method="post" action="{{ route('flash-sales.store') }}">
                 @csrf
 
-                {{-- ส่วนที่ 1: ข้อมูลพื้นฐาน --}}
-                <div class="section-label">
-                    <i class="bi bi-info-circle-fill text-danger"></i> 1. ข้อมูลแคมเปญและสาขา
-                </div>
-                <div class="row g-3 mb-4">
-                    <div class="col-md-3">
-                        <label class="form-label small fw-bold text-slate-700">รหัสแคมเปญ <span class="text-danger">*</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-upc"></i></span>
-                            <input name="code" required class="form-control border-start-0 ps-0" placeholder="เช่น FS-001" value="{{ old('code', 'FS-' . date('ymd') . '-' . rand(10, 99)) }}">
+                {{-- ส่วนที่ 1: ข้อมูลแคมเปญและสาขา --}}
+                <div class="section-box">
+                    <div class="section-title">
+                        <i class="bi bi-info-circle-fill text-danger fs-5"></i>
+                        <span>1. ข้อมูลแคมเปญและสาขา</span>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label small fw-bold text-slate-700">
+                                ชื่อกลุ่มนาทีทอง <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white text-muted border-end-0"><i class="bi bi-megaphone-fill text-danger"></i></span>
+                                <input name="name" required class="form-control border-start-0 ps-0" placeholder="เช่น นาทีทองหมูสามชั้นรอบเย็น / นาทีทองปลาดุก" value="{{ old('name') }}">
+                            </div>
                         </div>
-                    </div>
-                    <div class="col-md-5">
-                        <label class="form-label small fw-bold text-slate-700">ชื่อกลุ่มนาทีทอง <span class="text-danger">*</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-megaphone-fill"></i></span>
-                            <input name="name" required class="form-control border-start-0 ps-0" placeholder="เช่น นาทีทองหมูสามชั้นรอบเย็น / นาทีทองปลาดุก" value="{{ old('name') }}">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-slate-700">สาขาที่เข้าร่วม</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white text-muted border-end-0"><i class="bi bi-shop text-primary"></i></span>
+                                <select name="branch_id" class="form-select border-start-0 ps-0">
+                                    <option value="">-- ทุกสาขา (แคมเปญกลาง) --</option>
+                                    @foreach($branches as $b)
+                                        <option value="{{ $b->id }}" @selected(old('branch_id') == $b->id)>{{ $b->code }} - {{ $b->name_th }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
                         </div>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label small fw-bold text-slate-700">สาขาที่เข้าร่วม</label>
-                        <div class="input-group">
-                            <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-shop"></i></span>
-                            <select name="branch_id" class="form-select border-start-0 ps-0">
-                                <option value="">-- ทุกสาขา (แคมเปญกลาง) --</option>
-                                @foreach($branches as $b)
-                                    <option value="{{ $b->id }}" @selected(old('branch_id') == $b->id)>{{ $b->code }} - {{ $b->name_th }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                {{-- ส่วนที่ 2: ช่วงวันที่และเวลา --}}
-                <div class="section-label">
-                    <i class="bi bi-clock-fill text-danger"></i> 2. กำหนดช่วงวันที่และเวลาที่มีผล (Date & Time Window)
-                </div>
-                <div class="row g-3 mb-4">
-                    <div class="col-md-3">
-                        <label class="form-label small fw-bold text-slate-700">วันที่เริ่มต้น <span class="text-danger">*</span></label>
-                        <input type="date" name="starts_date" required class="form-control" value="{{ old('starts_date', now()->toDateString()) }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label small fw-bold text-slate-700">วันที่สิ้นสุด <span class="text-muted fw-normal">(เว้นว่างถ้าไม่มีกำหนด)</span></label>
-                        <input type="date" name="ends_date" class="form-control" value="{{ old('ends_date') }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label small fw-bold text-slate-700">เวลาเริ่มนาทีทอง</label>
-                        <div class="input-group">
-                            <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-clock"></i></span>
-                            <input type="time" name="start_time" class="form-control border-start-0 ps-0" placeholder="เช่น 17:00" value="{{ old('start_time', '17:00') }}">
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label small fw-bold text-slate-700">เวลาสิ้นสุดนาทีทอง</label>
-                        <div class="input-group">
-                            <span class="input-group-text bg-light text-muted border-end-0"><i class="bi bi-clock-history"></i></span>
-                            <input type="time" name="end_time" class="form-control border-start-0 ps-0" placeholder="เช่น 19:30" value="{{ old('end_time', '19:00') }}">
+                        <div class="col-md-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <label class="form-label small fw-bold text-slate-700 mb-1">รหัสแคมเปญ</label>
+                                <span class="text-muted" style="font-size: 11px;">(เว้นว่างได้ ระบบรันให้)</span>
+                            </div>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white text-muted border-end-0"><i class="bi bi-upc"></i></span>
+                                <input name="code" x-model="code" class="form-control border-start-0 ps-0" placeholder="เว้นว่างได้ ระบบรันให้อัตโนมัติ" value="{{ old('code') }}">
+                                <button type="button" @click="generateCode()" class="btn btn-outline-secondary btn-sm" title="สุ่มรหัสใหม่">
+                                    <i class="bi bi-arrow-repeat"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                {{-- ส่วนที่ 3: เงื่อนไขวันในสัปดาห์ & หมายเหตุ --}}
-                <div class="section-label">
-                    <i class="bi bi-calendar-week-fill text-danger"></i> 3. วันที่มีผลในสัปดาห์ & เงื่อนไขเพิ่มเติม
-                </div>
-                <div class="row g-3 mb-4">
-                    <div class="col-md-12">
-                        <label class="form-label small fw-bold text-slate-700 d-block mb-2">
-                            เลือกวันในสัปดาห์ที่มีผล <span class="text-muted fw-normal">(หากไม่เลือกวันใดเลย = มีผลทุกวัน)</span>
-                        </label>
-                        <div class="d-flex flex-wrap gap-2">
-                            @foreach([
-                                '0' => ['อาทิตย์', 'text-danger'],
-                                '1' => ['จันทร์', 'text-warning'],
-                                '2' => ['อังคาร', 'text-pink'],
-                                '3' => ['พุธ', 'text-success'],
-                                '4' => ['พฤหัสบดี', 'text-orange'],
-                                '5' => ['ศุกร์', 'text-primary'],
-                                '6' => ['เสาร์', 'text-purple']
-                            ] as $val => [$label, $colorClass])
-                                <label class="day-selector-pill">
-                                    <input type="checkbox" name="days_of_week[]" value="{{ $val }}" class="form-check-input mt-0" @checked(in_array((string)$val, old('days_of_week', []), true))>
-                                    <span>{{ $label }}</span>
+                {{-- ส่วนที่ 2: ช่วงวันที่และเวลา พร้อม Quick Presets --}}
+                <div class="section-box">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+                        <div class="section-title mb-0">
+                            <i class="bi bi-clock-fill text-danger fs-5"></i>
+                            <span>2. กำหนดช่วงวันที่และเวลาที่มีผล (Date & Time Window)</span>
+                        </div>
+                        {{-- ปุ่มลัดเลือกเวลายอดนิยม --}}
+                        <div class="d-flex flex-wrap align-items-center gap-1 mt-1 mt-md-0">
+                            <span class="text-muted small me-1">ปุ่มลัดเวลา:</span>
+                            <button type="button" class="quick-preset-btn" @click="setTimePreset('17:00', '19:30')">
+                                <i class="bi bi-sunset-fill text-danger"></i> รอบเย็น (17:00-19:30)
+                            </button>
+                            <button type="button" class="quick-preset-btn" @click="setTimePreset('14:00', '16:00')">
+                                <i class="bi bi-sun-fill text-warning"></i> รอบบ่าย (14:00-16:00)
+                            </button>
+                            <button type="button" class="quick-preset-btn" @click="setTimePreset('06:00', '09:00')">
+                                <i class="bi bi-brightness-alt-high text-primary"></i> รอบเช้า (06:00-09:00)
+                            </button>
+                            <button type="button" class="quick-preset-btn" @click="setTimePreset('00:00', '23:59')">
+                                <i class="bi bi-clock"></i> ทั้งวัน
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 pt-2">
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-slate-700">วันที่เริ่มต้น <span class="text-danger">*</span></label>
+                            <input type="date" name="starts_date" required class="form-control" value="{{ old('starts_date', now()->toDateString()) }}">
+                        </div>
+                        <div class="col-md-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <label class="form-label small fw-bold text-slate-700 mb-1">วันที่สิ้นสุด</label>
+                                <label class="small text-muted mb-1" style="font-size: 11px; cursor: pointer;">
+                                    <input type="checkbox" x-model="noEndDate" @change="toggleNoEndDate()" class="form-check-input me-1">ตลอดไป
                                 </label>
-                            @endforeach
+                            </div>
+                            <input type="date" name="ends_date" x-ref="endsDateInput" :disabled="noEndDate" class="form-control" value="{{ old('ends_date') }}">
                         </div>
-                    </div>
-                    <div class="col-md-12">
-                        <label class="form-label small fw-bold text-slate-700">หมายเหตุ / เงื่อนไขบันทึกความจำ</label>
-                        <input name="note" class="form-control" placeholder="เช่น จำกัดเฉพาะหน้าร้านสาขาวารินเท่านั้น หรือลดราคาช่วงค่ำระบายสต็อก" value="{{ old('note') }}">
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-slate-700">เวลาเริ่มนาทีทอง</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white text-muted border-end-0"><i class="bi bi-clock"></i></span>
+                                <input type="time" name="start_time" x-model="startTime" class="form-control border-start-0 ps-0" placeholder="เช่น 17:00">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-slate-700">เวลาสิ้นสุดนาทีทอง</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white text-muted border-end-0"><i class="bi bi-clock-history"></i></span>
+                                <input type="time" name="end_time" x-model="endTime" class="form-control border-start-0 ps-0" placeholder="เช่น 19:30">
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="d-flex justify-content-end gap-2 pt-2 border-top">
-                    <button type="reset" class="btn btn-light px-4 py-2 border rounded-pill">ล้างข้อมูล</button>
-                    <button type="submit" class="btn-create-flash rounded-pill">
-                        <i class="bi bi-plus-circle me-1"></i> สร้างแคมเปญนาทีทอง → กำหนดสินค้า
-                    </button>
+                {{-- ส่วนที่ 3: วันที่มีผลในสัปดาห์ & หมายเหตุ --}}
+                <div class="section-box">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+                        <div class="section-title mb-0">
+                            <i class="bi bi-calendar-week-fill text-danger fs-5"></i>
+                            <span>3. วันที่มีผลในสัปดาห์ & เงื่อนไขเพิ่มเติม</span>
+                        </div>
+                        {{-- ปุ่มลัดเลือกวัน --}}
+                        <div class="d-flex flex-wrap align-items-center gap-1 mt-1 mt-md-0">
+                            <span class="text-muted small me-1">ปุ่มลัดวัน:</span>
+                            <button type="button" class="quick-preset-btn" @click="setDayPreset('all')">
+                                <i class="bi bi-calendar-check text-success"></i> ทุกวัน
+                            </button>
+                            <button type="button" class="quick-preset-btn" @click="setDayPreset('weekdays')">
+                                <i class="bi bi-briefcase text-primary"></i> จันทร์-ศุกร์
+                            </button>
+                            <button type="button" class="quick-preset-btn" @click="setDayPreset('weekends')">
+                                <i class="bi bi-cup-hot text-danger"></i> เสาร์-อาทิตย์
+                            </button>
+                            <button type="button" class="quick-preset-btn" @click="setDayPreset('none')">
+                                ล้าง
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 pt-2">
+                        <div class="col-md-12">
+                            <label class="form-label small fw-bold text-slate-700 d-block mb-2">
+                                เลือกวันในสัปดาห์ที่มีผล <span class="text-muted fw-normal">(หากไม่เลือกวันใดเลย = มีผลทุกวันอัตโนมัติ)</span>
+                            </label>
+                            <div class="d-flex flex-wrap gap-2">
+                                @php
+                                    $dayConfig = [
+                                        '0' => ['อาทิตย์', '#dc2626'],
+                                        '1' => ['จันทร์', '#d97706'],
+                                        '2' => ['อังคาร', '#db2777'],
+                                        '3' => ['พุธ', '#16a34a'],
+                                        '4' => ['พฤหัสบดี', '#ea580c'],
+                                        '5' => ['ศุกร์', '#2563eb'],
+                                        '6' => ['เสาร์', '#7c3aed']
+                                    ];
+                                @endphp
+                                @foreach($dayConfig as $val => [$label, $color])
+                                    <label class="day-pill" :class="{ 'active': selectedDays.includes('{{ $val }}') }">
+                                        <input type="checkbox" name="days_of_week[]" value="{{ $val }}" x-model="selectedDays">
+                                        <span style="width: 10px; height: 10px; border-radius: 50%; background: {{ $color }}; display: inline-block;"></span>
+                                        <span>{{ $label }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+                        </div>
+
+                        <div class="col-md-12 pt-2">
+                            <label class="form-label small fw-bold text-slate-700">หมายเหตุ / เงื่อนไขบันทึกความจำ</label>
+                            <input name="note" class="form-control" placeholder="เช่น จำกัดเฉพาะหน้าร้านสาขาวารินเท่านั้น หรือลดราคาช่วงค่ำระบายสต็อก" value="{{ old('note') }}">
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Action Buttons --}}
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 pt-2">
+                    <span class="text-muted small">
+                        <i class="bi bi-shield-check text-success me-1"></i> เมื่อสร้างแคมเปญเสร็จ ระบบจะนำคุณไปสู่หน้ากำหนดรายการสินค้าและราคานาทีทองทันที
+                    </span>
+                    <div class="d-flex gap-2">
+                        <button type="reset" @click="resetForm()" class="btn btn-light px-4 py-2 border rounded-pill text-muted">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i> ล้างข้อมูล
+                        </button>
+                        <button type="submit" class="btn-create-flash rounded-pill">
+                            <i class="bi bi-plus-circle me-1"></i> สร้างแคมเปญนาทีทอง → กำหนดสินค้า
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
     </div>
 
-    {{-- ── การ์ดรายการแคมเปญนาทีทอง (Campaign Listing Table) ── --}}
+    {{-- การ์ดรายการแคมเปญนาทีทองทั้งหมด (Campaign Listing Table) --}}
     <div class="form-card">
         <div class="form-card-header">
             <div class="d-flex align-items-center gap-2">
@@ -375,7 +474,7 @@
             <table class="table modern-table align-middle">
                 <thead>
                     <tr>
-                        <th style="width: 120px;">รหัส</th>
+                        <th style="width: 130px;">รหัส</th>
                         <th>กลุ่มนาทีทอง</th>
                         <th>สาขา</th>
                         <th>ช่วงวันที่</th>
@@ -491,4 +590,53 @@
     </div>
 
 </div>
+
+<script>
+function flashSaleApp() {
+    return {
+        code: '{{ old("code", "FS-" . date("ymd") . "-" . rand(10, 99)) }}',
+        startTime: '{{ old("start_time", "17:00") }}',
+        endTime: '{{ old("end_time", "19:30") }}',
+        noEndDate: false,
+        selectedDays: @json(old('days_of_week', [])),
+
+        generateCode() {
+            const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+            const rand = Math.floor(1000 + Math.random() * 9000);
+            this.code = 'FS-' + dateStr + '-' + rand;
+        },
+
+        setTimePreset(start, end) {
+            this.startTime = start;
+            this.endTime = end;
+        },
+
+        toggleNoEndDate() {
+            if (this.noEndDate && this.$refs.endsDateInput) {
+                this.$refs.endsDateInput.value = '';
+            }
+        },
+
+        setDayPreset(type) {
+            if (type === 'all') {
+                this.selectedDays = ['0', '1', '2', '3', '4', '5', '6'];
+            } else if (type === 'weekdays') {
+                this.selectedDays = ['1', '2', '3', '4', '5'];
+            } else if (type === 'weekends') {
+                this.selectedDays = ['0', '6'];
+            } else if (type === 'none') {
+                this.selectedDays = [];
+            }
+        },
+
+        resetForm() {
+            this.generateCode();
+            this.startTime = '17:00';
+            this.endTime = '19:30';
+            this.noEndDate = false;
+            this.selectedDays = [];
+        }
+    };
+}
+</script>
 @endsection
