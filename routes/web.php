@@ -106,7 +106,11 @@ Route::get('/download/pos', fn () => redirect()->route('python-pos.download'))->
 Route::get('/download/pos/latest.json', [PosReleaseController::class, 'latest'])->name('pos.release.latest');
 Route::get('/download/pos/releases/{filename}', [PosReleaseController::class, 'download'])->name('pos.release.download');
 Route::get('/download/python-pos', [SystemSettingController::class, 'downloadPythonPos'])->name('python-pos.download');
-Route::get('/pos-admin', [PosAdminController::class, 'index'])->name('pos-admin.index');
+Route::prefix('pos-admin')->name('pos-admin.')->group(function () {
+    Route::get('/', [PosAdminController::class, 'index'])->name('index');
+    Route::post('/devices/{device}/pair-code', [PosAdminController::class, 'newPairCode'])->name('devices.pair-code');
+    Route::post('/cashiers/{salesman}/move', [PosAdminController::class, 'moveCashier'])->name('cashiers.move');
+});
 Route::get('/password/change', [AuthController::class, 'showChangePassword'])->name('password.change');
 Route::post('/password/change', [AuthController::class, 'updatePassword'])->name('password.update');
 Route::get('/security/mfa', [AuthController::class, 'showMfaSetup'])->name('mfa.setup');
@@ -748,6 +752,7 @@ Route::prefix('settings')->name('settings.')->group(function () {
     Route::post('/pos-token/delete', [SystemSettingController::class, 'deletePosDevice'])->name('pos-token.destroy');
     Route::delete('/pos-token', [SystemSettingController::class, 'deletePosDevice'])->name('pos-token.delete');
     Route::post('/pos-cashiers/{salesman}/reset-pin', [SystemSettingController::class, 'resetCashierPin'])->name('pos-cashiers.reset-pin');
+    Route::post('/pos-cashiers/{salesman}/set-pin', [SystemSettingController::class, 'setCashierPin'])->name('pos-cashiers.set-pin');
     Route::post('/pos-terminal/hardware', [SystemSettingController::class, 'updatePosTerminalHardware'])->name('pos-terminal.hardware');
     Route::post('/pos-release', [SystemSettingController::class, 'publishPosRelease'])->name('pos-release.publish');
 });
