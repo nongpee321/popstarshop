@@ -1106,7 +1106,7 @@ class PosController extends Controller
                 ->where('br.status', 'matched'))
             ->orderBy('r.receipt_date')
             ->limit(100)
-            ->get(['r.receipt_no', 'r.receipt_date', 'b.code as branch_code', 'b.name_th as branch_name', 'p.method', 'p.payment_reference', 'p.amount']);
+            ->get(['r.receipt_no', 'r.receipt_date', 'b.code as branch_code', 'b.name_th as branch_name', 'p.method', 'p.payment_reference', 'p.transfer_account_last4', 'p.amount']);
 
         return view('pos.control', [
             'date' => $date,
